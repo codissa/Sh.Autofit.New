@@ -1,0 +1,118 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "Sh.AutofitContext",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "MinimumProductVersion": "2.6.1186",
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "Models",
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "Sh.Autofit.New.Entities",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 0,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "[dbo].[ApiSyncLog]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Manufacturers]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[MappingStatistics]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PartsMetadata]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PopularSearches]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[SystemSettings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[UserActivityLog]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Users]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[VehiclePartsMappings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[VehiclePartsMappingsHistory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[VehicleRegistrations]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[VehicleTypes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[vw_Parts]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[sp_BulkInsertMappings]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_GetPartsForVehicle]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_GetVehiclesForPart]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_UpsertMapping]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[fn_GetPrimaryOEM]",
+         "ObjectType": 2
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": true,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": false,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}

@@ -1,0 +1,262 @@
+<UserControl x:Class="Sh.Autofit.New.PartsMappingUI.Views.PlateLookupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="900"
+             FlowDirection="RightToLeft">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Search Section -->
+        <GroupBox Grid.Row="0" Header="חיפוש לפי מספר רישוי" Padding="10" Margin="0,0,0,10">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,10">
+                    <Button DockPanel.Dock="Left"
+                            Content="🔍 חפש"
+                            Command="{Binding SearchPlateCommand}"
+                            Padding="20,8"
+                            Margin="10,0,0,0"
+                            FontSize="14"
+                            FontWeight="Bold"/>
+                    <Button DockPanel.Dock="Left"
+                            Content="🗑️ נקה"
+                            Command="{Binding ClearCommand}"
+                            Padding="15,8"
+                            Margin="10,0,0,0"
+                            FontSize="14"/>
+                    <TextBox Text="{Binding PlateNumber, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="16"
+                             Padding="8"
+                             VerticalContentAlignment="Center">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding SearchPlateCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
+                </DockPanel>
+
+                <!-- Status Message -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="13"
+                           FontWeight="Bold"
+                           Foreground="Green"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusMessage, Converter={StaticResource NullToVisibilityConverter}}" Value="Visible">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- Loading Indicator -->
+                <ProgressBar IsIndeterminate="True"
+                             Height="4"
+                             Margin="0,10,0,0"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Government Vehicle Data -->
+        <GroupBox Grid.Row="1"
+                  Header="נתוני רכב ממשרד התחבורה"
+                  Padding="10"
+                  Margin="0,0,0,10"
+                  Visibility="{Binding GovernmentVehicle, Converter={StaticResource NullToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="יצרן:" FontWeight="Bold" Margin="0,3"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GovernmentVehicle.ManufacturerName}" Margin="0,3"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="דגם:" FontWeight="Bold" Margin="0,3"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding GovernmentVehicle.ModelName}" Margin="0,3"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="שנת ייצור:" FontWeight="Bold" Margin="0,3"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding GovernmentVehicle.ManufacturingYear}" Margin="0,3"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="שם מסחרי:" FontWeight="Bold" Margin="0,3"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding GovernmentVehicle.CommercialName}" Margin="0,3"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="סוג דלק:" FontWeight="Bold" Margin="0,3"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding GovernmentVehicle.FuelType}" Margin="0,3"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="VIN:" FontWeight="Bold" Margin="0,3"/>
+                <Grid Grid.Row="5" Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding CleanVinNumber}"
+                               Margin="0,3"
+                               FontFamily="Consolas"
+                               Foreground="#0066CC"
+                               Cursor="Hand"
+                               TextDecorations="Underline"
+                               ToolTip="לחץ להעתקה">
+                        <TextBlock.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{Binding CopyVinToClipboardCommand}"/>
+                        </TextBlock.InputBindings>
+                    </TextBlock>
+
+                    <!-- Copied Popup -->
+                    <Border Grid.Column="1"
+                            Background="#4CAF50"
+                            CornerRadius="4"
+                            Padding="8,4"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding ShowCopiedPopup, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="✓ הועתק ללוח"
+                                   Foreground="White"
+                                   FontSize="11"
+                                   FontWeight="Bold"/>
+                    </Border>
+                </Grid>
+            </Grid>
+        </GroupBox>
+
+        <!-- Matched Vehicle Section -->
+        <GroupBox Grid.Row="2"
+                  Header="רכב תואם במערכת"
+                  Padding="10"
+                  Margin="0,0,0,10"
+                  Visibility="{Binding MatchedVehicle, Converter={StaticResource NullToVisibilityConverter}}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="יצרן:" FontWeight="Bold" Margin="0,3"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,3">
+                        <Run Text="{Binding MatchedVehicle.ManufacturerName}"/>
+                        <Run Text=" (" Foreground="Gray"/>
+                        <Run Text="{Binding MatchedVehicle.ManufacturerShortName}" Foreground="Gray"/>
+                        <Run Text=")" Foreground="Gray"/>
+                    </TextBlock>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="דגם:" FontWeight="Bold" Margin="0,3"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MatchedVehicle.ModelName}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="שנים:" FontWeight="Bold" Margin="0,3"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,3">
+                        <Run Text="{Binding MatchedVehicle.YearFrom, TargetNullValue='?'}"/>
+                        <Run Text=" - "/>
+                        <Run Text="{Binding MatchedVehicle.YearTo, TargetNullValue='?'}"/>
+                    </TextBlock>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="שם מסחרי:" FontWeight="Bold" Margin="0,3"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MatchedVehicle.CommercialName}" Margin="0,3"/>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+                    <Button Content="🔧 מיפוי מהיר"
+                            Command="{Binding QuickMapCommand}"
+                            Padding="15,8"
+                            Margin="5"
+                            FontSize="14"
+                            FontWeight="Bold"/>
+                    <Button Content="📋 הצג כל ההתאמות"
+                            Command="{Binding ViewAllMatchesCommand}"
+                            Padding="15,8"
+                            Margin="5"
+                            FontSize="14"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Mapped Parts Header -->
+        <TextBlock Grid.Row="3"
+                   Text="חלקים ממופים:"
+                   FontSize="16"
+                   FontWeight="Bold"
+                   Margin="0,0,0,5"
+                   Visibility="{Binding MatchedVehicle, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+        <!-- Mapped Parts List -->
+        <DataGrid Grid.Row="4"
+                  ItemsSource="{Binding MappedParts}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  SelectionMode="Single"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  AlternatingRowBackground="#F5F5F5"
+                  Visibility="{Binding MatchedVehicle, Converter={StaticResource NullToVisibilityConverter}}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="קוד חלק" Binding="{Binding PartNumber}" Width="120"/>
+                <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*"/>
+                <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="150"/>
+                <DataGridTextColumn Header="יצרן" Binding="{Binding Manufacturer}" Width="150"/>
+                <DataGridTextColumn Header="במלאי" Binding="{Binding StockStatusIcon}" Width="60"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- No Results Message -->
+        <Border Grid.Row="1" Grid.RowSpan="4"
+                Background="White"
+                BorderBrush="#E0E0E0"
+                BorderThickness="2"
+                CornerRadius="8"
+                Padding="40">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasResults}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="🔍" FontSize="72" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                <TextBlock Text="הזן מספר רישוי לחיפוש רכב"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Foreground="#666"/>
+                <TextBlock Text="המערכת תחפש ברשומות התחבורה ותמצא את החלקים הממופים"
+                           FontSize="14"
+                           HorizontalAlignment="Center"
+                           Foreground="#999"
+                           Margin="0,10,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
