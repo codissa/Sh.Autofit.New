@@ -16,6 +16,7 @@ public interface IDataService
     Task MapPartsToVehiclesAsync(List<int> vehicleTypeIds, List<string> partNumbers, string createdBy);
     Task UnmapPartsFromVehiclesAsync(List<int> vehicleTypeIds, List<string> partNumbers, string updatedBy);
     Task CopyMappingsAsync(int sourceVehicleTypeId, List<int> targetVehicleTypeIds, string createdBy);
+    Task CopyPartMappingsAsync(string sourcePartNumber, List<string> targetPartNumbers, string createdBy);
     Task<int> GetTotalVehiclesAsync();
     Task<int> GetTotalPartsAsync();
     Task<int> GetMappedVehiclesAsync();

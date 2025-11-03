@@ -13,6 +13,7 @@ public partial class MappingViewModel : ObservableObject
     private readonly IDataService _dataService;
     private readonly ISettingsService _settingsService;
     private readonly IPartSuggestionService _suggestionService;
+    private readonly IPartKitService _partKitService;
     private AppSettings _appSettings;
 
     [ObservableProperty]
@@ -85,11 +86,12 @@ public partial class MappingViewModel : ObservableObject
     public int SelectedVehiclesCount => AllVehicles.Count(v => v.IsSelected);
     public int SelectedPartsCount => FilteredParts.Count(p => p.IsSelected);
 
-    public MappingViewModel(IDataService dataService, ISettingsService settingsService, IPartSuggestionService suggestionService)
+    public MappingViewModel(IDataService dataService, ISettingsService settingsService, IPartSuggestionService suggestionService, IPartKitService partKitService)
     {
         _dataService = dataService;
         _settingsService = settingsService;
         _suggestionService = suggestionService;
+        _partKitService = partKitService;
         _appSettings = _settingsService.LoadSettings();
     }
 
@@ -752,6 +754,57 @@ public partial class MappingViewModel : ObservableObject
         {
             StatusMessage = $"Error: {ex.Message}";
             MessageBox.Show($"Failed to remove mappings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task MapKitAsync()
+    {
+        var selectedVehicles = AllVehicles.Where(v => v.IsSelected).ToList();
+
+        if (!selectedVehicles.Any())
+        {
+            MessageBox.Show("Please select at least one vehicle to map the kit to.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            // Load available kits
+            var kits = await _partKitService.LoadAllKitsAsync();
+
+            if (!kits.Any())
+            {
+                MessageBox.Show("אין ערכות זמינות. צור ערכה בטאב 'ניהול ערכות' תחילה.", "אין ערכות", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Show kit selection dialog
+            var dialog = new Views.MapKitDialog(kits, selectedVehicles.Count);
+            if (dialog.ShowDialog() == true && dialog.SelectedKit != null)
+            {
+                IsLoading = true;
+                StatusMessage = $"Mapping kit '{dialog.SelectedKit.KitName}' to {selectedVehicles.Count} vehicle(s)...";
+
+                var vehicleIds = selectedVehicles.Select(v => v.VehicleTypeId).ToList();
+
+                await _partKitService.MapKitToVehiclesAsync(dialog.SelectedKit.PartKitId, vehicleIds, "UIUser");
+
+                // Reload mapping counts
+                await RefreshMappingCountsAsync();
+
+                StatusMessage = $"Successfully mapped kit '{dialog.SelectedKit.KitName}' ({dialog.SelectedKit.PartCount} parts) to {selectedVehicles.Count} vehicle(s)";
+                MessageBox.Show(StatusMessage, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error: {ex.Message}";
+            MessageBox.Show($"Failed to map kit: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {

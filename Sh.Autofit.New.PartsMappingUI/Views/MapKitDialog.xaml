@@ -1,0 +1,163 @@
+<Window x:Class="Sh.Autofit.New.PartsMappingUI.Views.MapKitDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="מפה ערכה לרכבים נבחרים"
+        Height="500" Width="700"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="RightToLeft"
+        ResizeMode="CanResize">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   FontSize="16"
+                   FontWeight="Bold"
+                   Margin="0,0,0,10">
+            <Run Text="בחר ערכה למיפוי ל-"/>
+            <Run Text="{Binding VehicleCount, Mode=OneWay}"/>
+            <Run Text=" רכבים נבחרים"/>
+        </TextBlock>
+
+        <TextBlock Grid.Row="1"
+                   Text="כל החלקים בערכה יתווספו לרכבים הנבחרים"
+                   Foreground="#666"
+                   FontSize="12"
+                   Margin="0,0,0,15"/>
+
+        <!-- Search Box -->
+        <TextBox x:Name="SearchBox"
+                 Grid.Row="2"
+                 Padding="8"
+                 Margin="0,0,0,10"
+                 TextChanged="SearchBox_TextChanged">
+            <TextBox.Style>
+                <Style TargetType="TextBox">
+                    <Style.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <VisualBrush Stretch="None" AlignmentX="Right">
+                                        <VisualBrush.Visual>
+                                            <TextBlock Text="🔍 חפש ערכות..."
+                                                      Foreground="Gray"
+                                                      Margin="0,0,5,0"
+                                                      FlowDirection="RightToLeft"/>
+                                        </VisualBrush.Visual>
+                                    </VisualBrush>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBox.Style>
+        </TextBox>
+
+        <!-- Kits List -->
+        <ListBox x:Name="KitsList"
+                 Grid.Row="3"
+                 Margin="0,0,0,15"
+                 SelectionMode="Single"
+                 SelectionChanged="KitsList_SelectionChanged">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Padding="10"
+                            Margin="0,2"
+                            Background="#FAFAFA"
+                            CornerRadius="4"
+                            BorderBrush="#E0E0E0"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" FontSize="13">
+                                <Run Text="{Binding StatusIcon}"/>
+                                <Run Text="{Binding KitName}"/>
+                            </TextBlock>
+                            <TextBlock Text="{Binding Description}"
+                                      Foreground="#666"
+                                      FontSize="11"
+                                      Margin="0,3,0,0"
+                                      TextWrapping="Wrap"
+                                      MaxHeight="30"/>
+                            <TextBlock Foreground="Gray" FontSize="10" Margin="0,3,0,0">
+                                <Run Text="חלקים: "/>
+                                <Run Text="{Binding PartCount}"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Left">
+            <Button Content="מפה ערכה"
+                    Click="MapButton_Click"
+                    Padding="15,8"
+                    Margin="0,0,10,0"
+                    Background="#4CAF50"
+                    Foreground="White"
+                    BorderThickness="0"
+                    FontWeight="SemiBold"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#45A049"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="ביטול"
+                    Click="CancelButton_Click"
+                    Padding="15,8"
+                    Background="#E0E0E0"
+                    Foreground="Black"
+                    BorderThickness="0"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#D0D0D0"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

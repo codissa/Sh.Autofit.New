@@ -49,6 +49,12 @@ public partial class CommercialNameGroup : ObservableObject
             // Release model groups from memory when collapsed
             ModelGroups.Clear();
             IsLoaded = false;
+
+            // Add placeholder to keep expand arrow visible
+            if (HasChildren)
+            {
+                ModelGroups.Add(new ModelGroup { ModelName = "Loading...", VehicleCount = 0 });
+            }
         }
     }
 }

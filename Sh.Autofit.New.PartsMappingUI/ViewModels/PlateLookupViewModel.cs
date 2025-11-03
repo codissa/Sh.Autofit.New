@@ -17,15 +17,18 @@ public partial class PlateLookupViewModel : ObservableObject
     private string _plateNumber = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(QuickMapCommand), nameof(ViewAllMatchesCommand))]
     private bool _isLoading;
 
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ViewAllMatchesCommand))]
     private GovernmentVehicleRecord? _governmentVehicle;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(QuickMapCommand))]
     private VehicleDisplayModel? _matchedVehicle;
 
     [ObservableProperty]
@@ -190,7 +193,7 @@ public partial class PlateLookupViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanViewAllMatches))]
     private async Task ViewAllMatchesAsync()
     {
         if (GovernmentVehicle == null)
@@ -238,4 +241,6 @@ public partial class PlateLookupViewModel : ObservableObject
             IsLoading = false;
         }
     }
+
+    private bool CanViewAllMatches() => GovernmentVehicle != null && !IsLoading;
 }

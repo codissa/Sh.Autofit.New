@@ -13,11 +13,14 @@
     <Grid>
         <TabControl SelectedIndex="{Binding SelectedTabIndex}"
                     Margin="10">
-            <TabItem Header="Parts Mapping">
+            <TabItem Header="מיפוי חלקים">
                 <views:MappingView DataContext="{Binding MappingViewModel}"/>
             </TabItem>
             <TabItem Header="חיפוש לפי מספר רישוי">
                 <views:PlateLookupView DataContext="{Binding PlateLookupViewModel}"/>
+            </TabItem>
+            <TabItem Header="ניהול ערכות">
+                <views:PartKitsView x:Name="PartKitsView"/>
             </TabItem>
         </TabControl>
     </Grid>

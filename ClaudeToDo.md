@@ -1,5 +1,2 @@
-1. a couple of qol, when i expand a vehicle type or car the list goes to the top, i want it to stay where it is, when i shrink a car commercial name or    
- vehicle type the expand ability dissapears please fix it and lastly when dealing with commercial names compare without white spaces (even in the         
-middle not only in the extremities) 
-2. regarding years, the db i have only populated year from as the year of the vehicle, its safe to assume that when a vehicle has the same manufacturer, and model name, all the different rows with different years are the year range of the model, so it should work accurdingly when mapping parts and when doing a vehicle lookup, the rang should be the youngerst till the oldest and all the difirent things like finishing levels dont affect the parts i have, fix the mapping and vehicle accordingly
-3. 
+1. adding parts to kit doesnt work
+2. cars filtering search bar doesnt work

@@ -72,6 +72,12 @@ public partial class ModelGroup : ObservableObject
             // Release vehicles from memory when collapsed
             Vehicles.Clear();
             IsLoaded = false;
+
+            // Add placeholder to keep expand arrow visible
+            if (HasChildren)
+            {
+                Vehicles.Add(new VehicleDisplayModel { VehicleTypeId = 0, ModelName = "Loading..." });
+            }
         }
     }
 }

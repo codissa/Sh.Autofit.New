@@ -31,6 +31,9 @@ public partial class PartDisplayModel : ObservableObject
     [ObservableProperty]
     private int _mappedVehiclesCount;
 
+    // Alias for backwards compatibility with binding
+    public int MappedVehicleCount => MappedVehiclesCount;
+
     [ObservableProperty]
     private MappingStatus _mappingStatus = MappingStatus.Unmapped;
 

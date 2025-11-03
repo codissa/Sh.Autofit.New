@@ -49,11 +49,13 @@ public partial class App : Application
         services.AddSingleton<IPartSuggestionService, PartSuggestionService>();
         services.AddSingleton<IGovernmentApiService, GovernmentApiService>();
         services.AddSingleton<IVehicleMatchingService, VehicleMatchingService>();
+        services.AddSingleton<IPartKitService, PartKitService>();
 
         // Register ViewModels
         services.AddSingleton<MappingViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<PlateLookupViewModel>();
+        services.AddSingleton<PartKitsViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();

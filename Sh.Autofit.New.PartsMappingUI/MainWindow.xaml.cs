@@ -9,5 +9,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+
+        // Wire up PartKitsView with its ViewModel
+        PartKitsView.SetViewModel(viewModel.PartKitsViewModel);
     }
 }

@@ -34,7 +34,8 @@ public class DataService : IDataService
                 VehicleCategory = v.VehicleCategory,
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
-                EngineModel = v.EngineModel
+                EngineModel = v.EngineModel,
+                EngineVolume = v.EngineVolume
             })
             .ToListAsync();
 
@@ -83,8 +84,9 @@ public class DataService : IDataService
             {
                 ModelName = g.Key,
                 Count = g.Count(),
+                // Calculate year range from YearFrom values (since YearTo is not populated)
                 YearFrom = (int?)g.Min(v => v.YearFrom),
-                YearTo = (int?)g.Max(v => v.YearTo)
+                YearTo = (int?)g.Max(v => v.YearFrom)  // Max of YearFrom = newest year
             })
             .ToListAsync();
 
@@ -117,7 +119,8 @@ public class DataService : IDataService
                 VehicleCategory = v.VehicleCategory,
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
-                EngineModel = v.EngineModel
+                EngineModel = v.EngineModel,
+                EngineVolume = v.EngineVolume
             })
             .ToListAsync();
 
@@ -284,17 +287,46 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Validate that all vehicle type IDs exist in the database
-        var existingVehicleIds = await context.VehicleTypes
+        // Get manufacturer and model names for the selected vehicles
+        var selectedVehicles = await context.VehicleTypes
+            .Include(v => v.Manufacturer)
             .Where(v => validVehicleTypeIds.Contains(v.VehicleTypeId))
-            .Select(v => v.VehicleTypeId)
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                ManufacturerName = v.Manufacturer.ManufacturerName,
+                v.ModelName
+            })
             .ToListAsync();
 
-        var invalidIds = validVehicleTypeIds.Except(existingVehicleIds).ToList();
-        if (invalidIds.Any())
+        if (!selectedVehicles.Any())
         {
-            throw new InvalidOperationException($"The following vehicle type IDs do not exist: {string.Join(", ", invalidIds)}");
+            throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
+
+        // Get unique Manufacturer+ModelName combinations
+        var modelCombinations = selectedVehicles
+            .Select(v => new { v.ManufacturerName, v.ModelName })
+            .Distinct()
+            .ToList();
+
+        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
+        // This ensures parts are mapped to all years of the same model
+        var allVehicleIdsToMap = new List<int>();
+        foreach (var combo in modelCombinations)
+        {
+            var vehicleIds = await context.VehicleTypes
+                .Include(v => v.Manufacturer)
+                .Where(v => v.IsActive &&
+                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
+                           v.ModelName == combo.ModelName)
+                .Select(v => v.VehicleTypeId)
+                .ToListAsync();
+
+            allVehicleIdsToMap.AddRange(vehicleIds);
+        }
+
+        validVehicleTypeIds = allVehicleIdsToMap.Distinct().ToList();
 
         var existingMappings = await context.VehiclePartsMappings
             .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
@@ -352,6 +384,47 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
+        // Get manufacturer and model names for the selected vehicles
+        var selectedVehicles = await context.VehicleTypes
+            .Include(v => v.Manufacturer)
+            .Where(v => validVehicleTypeIds.Contains(v.VehicleTypeId))
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                ManufacturerName = v.Manufacturer.ManufacturerName,
+                v.ModelName
+            })
+            .ToListAsync();
+
+        if (!selectedVehicles.Any())
+        {
+            throw new InvalidOperationException("No valid vehicle type IDs provided.");
+        }
+
+        // Get unique Manufacturer+ModelName combinations
+        var modelCombinations = selectedVehicles
+            .Select(v => new { v.ManufacturerName, v.ModelName })
+            .Distinct()
+            .ToList();
+
+        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
+        // This ensures parts are unmapped from all years of the same model
+        var allVehicleIdsToUnmap = new List<int>();
+        foreach (var combo in modelCombinations)
+        {
+            var vehicleIds = await context.VehicleTypes
+                .Include(v => v.Manufacturer)
+                .Where(v => v.IsActive &&
+                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
+                           v.ModelName == combo.ModelName)
+                .Select(v => v.VehicleTypeId)
+                .ToListAsync();
+
+            allVehicleIdsToUnmap.AddRange(vehicleIds);
+        }
+
+        validVehicleTypeIds = allVehicleIdsToUnmap.Distinct().ToList();
+
         var mappingsToDeactivate = await context.VehiclePartsMappings
             .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
                        partNumbers.Contains(m.PartItemKey) &&
@@ -406,6 +479,42 @@ public class DataService : IDataService
         {
             throw new InvalidOperationException($"The following target vehicle type IDs do not exist: {string.Join(", ", invalidIds)}");
         }
+
+        // Get manufacturer and model names for the target vehicles
+        var targetVehicles = await context.VehicleTypes
+            .Include(v => v.Manufacturer)
+            .Where(v => validTargetVehicleTypeIds.Contains(v.VehicleTypeId))
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                ManufacturerName = v.Manufacturer.ManufacturerName,
+                v.ModelName
+            })
+            .ToListAsync();
+
+        // Get unique Manufacturer+ModelName combinations
+        var modelCombinations = targetVehicles
+            .Select(v => new { v.ManufacturerName, v.ModelName })
+            .Distinct()
+            .ToList();
+
+        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
+        // This ensures mappings are copied to all years of the target models
+        var allTargetVehicleIds = new List<int>();
+        foreach (var combo in modelCombinations)
+        {
+            var vehicleIds = await context.VehicleTypes
+                .Include(v => v.Manufacturer)
+                .Where(v => v.IsActive &&
+                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
+                           v.ModelName == combo.ModelName)
+                .Select(v => v.VehicleTypeId)
+                .ToListAsync();
+
+            allTargetVehicleIds.AddRange(vehicleIds);
+        }
+
+        validTargetVehicleTypeIds = allTargetVehicleIds.Distinct().ToList();
 
         // Get all active mappings from source vehicle
         var sourceMappings = await context.VehiclePartsMappings
@@ -494,5 +603,76 @@ public class DataService : IDataService
             .Select(m => m.PartItemKey)
             .Distinct()
             .CountAsync();
+    }
+
+    public async Task CopyPartMappingsAsync(string sourcePartNumber, List<string> targetPartNumbers, string createdBy)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        if (string.IsNullOrWhiteSpace(sourcePartNumber))
+        {
+            throw new InvalidOperationException("Source part number is required.");
+        }
+
+        if (!targetPartNumbers.Any())
+        {
+            throw new InvalidOperationException("No target part numbers provided.");
+        }
+
+        // Get all active vehicle mappings from source part
+        var sourceVehicleMappings = await context.VehiclePartsMappings
+            .Where(m => m.PartItemKey == sourcePartNumber && m.IsActive && m.IsCurrentVersion)
+            .Select(m => m.VehicleTypeId)
+            .ToListAsync();
+
+        if (!sourceVehicleMappings.Any())
+        {
+            throw new InvalidOperationException($"Source part '{sourcePartNumber}' has no active vehicle mappings to copy.");
+        }
+
+        // Get existing mappings for target parts to avoid duplicates
+        var existingTargetMappings = await context.VehiclePartsMappings
+            .Where(m => targetPartNumbers.Contains(m.PartItemKey) &&
+                       sourceVehicleMappings.Contains(m.VehicleTypeId) &&
+                       m.IsActive &&
+                       m.IsCurrentVersion)
+            .Select(m => new { m.VehicleTypeId, m.PartItemKey })
+            .ToListAsync();
+
+        var existingKeys = existingTargetMappings
+            .Select(m => $"{m.VehicleTypeId}_{m.PartItemKey}")
+            .ToHashSet();
+
+        // Create new mappings for target parts
+        var newMappings = new List<VehiclePartsMapping>();
+
+        foreach (var targetPartNumber in targetPartNumbers)
+        {
+            foreach (var vehicleTypeId in sourceVehicleMappings)
+            {
+                var key = $"{vehicleTypeId}_{targetPartNumber}";
+                if (!existingKeys.Contains(key))
+                {
+                    newMappings.Add(new VehiclePartsMapping
+                    {
+                        VehicleTypeId = vehicleTypeId,
+                        PartItemKey = targetPartNumber,
+                        MappingSource = "Copied from Part",
+                        IsActive = true,
+                        IsCurrentVersion = true,
+                        VersionNumber = 1,
+                        CreatedBy = createdBy,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+        }
+
+        if (newMappings.Any())
+        {
+            await context.VehiclePartsMappings.AddRangeAsync(newMappings);
+            await context.SaveChangesAsync();
+        }
     }
 }

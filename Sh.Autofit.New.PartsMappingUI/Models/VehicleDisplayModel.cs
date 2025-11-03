@@ -20,6 +20,7 @@ public partial class VehicleDisplayModel : ObservableObject
     public string? CommercialName { get; set; }
     public string? FuelTypeName { get; set; }
     public string? EngineModel { get; set; }
+    public int? EngineVolume { get; set; }
 
     [ObservableProperty]
     private int _mappedPartsCount;
@@ -65,6 +66,10 @@ public partial class VehicleDisplayModel : ObservableObject
 
     public string EngineModelDisplay => !string.IsNullOrEmpty(EngineModel)
         ? $"דגם מנוע: {EngineModel}"
+        : null;
+
+    public string EngineVolumeDisplay => EngineVolume.HasValue
+        ? $"נפח מנוע: {EngineVolume} סמ\"ק"
         : null;
 
     public string PartsCountDisplay => $"חלקים ממופים: {MappedPartsCount}";

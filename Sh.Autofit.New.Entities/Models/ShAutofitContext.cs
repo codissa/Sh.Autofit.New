@@ -19,6 +19,10 @@ public partial class ShAutofitContext : DbContext
 
     public virtual DbSet<MappingStatistic> MappingStatistics { get; set; }
 
+    public virtual DbSet<PartKit> PartKits { get; set; }
+
+    public virtual DbSet<PartKitItem> PartKitItems { get; set; }
+
     public virtual DbSet<PartsMetadatum> PartsMetadata { get; set; }
 
     public virtual DbSet<PopularSearch> PopularSearches { get; set; }
@@ -450,6 +454,78 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.PartNumber)
                 .HasMaxLength(20)
                 .IsUnicode(false);
+        });
+
+        modelBuilder.Entity<PartKit>(entity =>
+        {
+            entity.HasKey(e => e.PartKitId);
+
+            entity.ToTable("PartKit");
+
+            entity.HasIndex(e => e.IsActive, "IX_PartKit_IsActive");
+
+            entity.HasIndex(e => e.CreatedBy, "IX_PartKit_CreatedBy");
+
+            entity.HasIndex(e => e.KitName, "UK_PartKit_KitName").IsUnique();
+
+            entity.Property(e => e.KitName)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.IsActive)
+                .IsRequired()
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3);
+        });
+
+        modelBuilder.Entity<PartKitItem>(entity =>
+        {
+            entity.HasKey(e => e.PartKitItemId);
+
+            entity.ToTable("PartKitItem");
+
+            entity.HasIndex(e => e.PartKitId, "IX_PartKitItem_PartKitId");
+
+            entity.HasIndex(e => e.PartItemKey, "IX_PartKitItem_PartItemKey");
+
+            entity.HasIndex(e => new { e.PartKitId, e.PartItemKey }, "UK_PartKitItem_Kit_Part").IsUnique();
+
+            entity.Property(e => e.PartItemKey)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Notes)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.PartKit)
+                .WithMany(p => p.PartKitItems)
+                .HasForeignKey(d => d.PartKitId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PartKitItem_PartKit");
         });
 
         OnModelCreatingGeneratedFunctions(modelBuilder);

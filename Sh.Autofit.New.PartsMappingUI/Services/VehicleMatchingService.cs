@@ -25,13 +25,13 @@ public class VehicleMatchingService : IVehicleMatchingService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Build query to find matching vehicles
+        // Build initial query
         var query = context.VehicleTypes
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive);
 
-        // Step 1: Filter by manufacturer name (exact match)
+        // Step 1: Filter by manufacturer name (broad filter in DB)
         if (!string.IsNullOrWhiteSpace(govRecord.ManufacturerName))
         {
             var govManufacturerName = govRecord.ManufacturerName.Trim();
@@ -41,7 +41,6 @@ public class VehicleMatchingService : IVehicleMatchingService
         }
         else
         {
-            // No manufacturer name provided, return empty
             return new List<VehicleDisplayModel>();
         }
 
@@ -56,15 +55,10 @@ public class VehicleMatchingService : IVehicleMatchingService
                 (v.ModelCode != null && govModelName.Contains(v.ModelCode)));
         }
 
-        // Step 3: Filter by year (year must fall within vehicle's year range)
-        if (govRecord.ManufacturingYear.HasValue)
-        {
-            var year = govRecord.ManufacturingYear.Value;
-            query = query.Where(v =>
-                (v.YearFrom == null || v.YearFrom <= year) &&
-                (v.YearTo == null || v.YearTo >= year));
-        }
+        // Step 3: Load vehicles first (we'll filter by year in memory after calculating ranges)
+        // Don't filter by year in DB since we need to calculate year ranges per model
 
+        // Load vehicles from database
         var vehicles = await query
             .Select(v => new VehicleDisplayModel
             {
@@ -79,10 +73,57 @@ public class VehicleMatchingService : IVehicleMatchingService
                 VehicleCategory = v.VehicleCategory,
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
-                EngineModel = v.EngineModel
+                EngineModel = v.EngineModel,
+                EngineVolume = v.EngineVolume
             })
             .ToListAsync();
 
+        // Step 4: Filter by year (calculate year range per model, then filter in memory)
+        if (govRecord.ManufacturingYear.HasValue)
+        {
+            var year = govRecord.ManufacturingYear.Value;
+
+            // Group vehicles by Manufacturer+ModelName and calculate year ranges
+            var modelGroups = vehicles
+                .GroupBy(v => new { v.ManufacturerName, v.ModelName })
+                .Select(g => new
+                {
+                    g.Key.ManufacturerName,
+                    g.Key.ModelName,
+                    MinYear = g.Min(v => v.YearFrom) ?? int.MinValue,
+                    MaxYear = g.Max(v => v.YearFrom) ?? int.MaxValue,  // YearTo is not populated, use max YearFrom
+                    Vehicles = g.ToList()
+                })
+                .ToList();
+
+            // Filter to only models where the year falls within the range
+            vehicles = modelGroups
+                .Where(mg => year >= mg.MinYear && year <= mg.MaxYear)
+                .SelectMany(mg => mg.Vehicles)
+                .ToList();
+        }
+
+        // Step 5: Filter by commercial name in memory (removing all whitespaces)
+        if (!string.IsNullOrWhiteSpace(govRecord.CommercialName))
+        {
+            var govCommercialNameNoSpaces = RemoveAllWhitespace(govRecord.CommercialName);
+            vehicles = vehicles.Where(v =>
+            {
+                var vehicleCommercialNameNoSpaces = RemoveAllWhitespace(v.CommercialName);
+                return vehicleCommercialNameNoSpaces == govCommercialNameNoSpaces ||
+                       (vehicleCommercialNameNoSpaces.Contains(govCommercialNameNoSpaces) ||
+                        govCommercialNameNoSpaces.Contains(vehicleCommercialNameNoSpaces));
+            }).ToList();
+        }
+
         return vehicles;
+    }
+
+    private static string RemoveAllWhitespace(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        return new string(input.Where(c => !char.IsWhiteSpace(c)).ToArray());
     }
 }

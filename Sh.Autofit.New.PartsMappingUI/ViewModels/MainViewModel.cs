@@ -9,10 +9,12 @@ public partial class MainViewModel : ObservableObject
 
     public MappingViewModel MappingViewModel { get; }
     public PlateLookupViewModel PlateLookupViewModel { get; }
+    public PartKitsViewModel PartKitsViewModel { get; }
 
-    public MainViewModel(MappingViewModel mappingViewModel, PlateLookupViewModel plateLookupViewModel)
+    public MainViewModel(MappingViewModel mappingViewModel, PlateLookupViewModel plateLookupViewModel, PartKitsViewModel partKitsViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
+        PartKitsViewModel = partKitsViewModel;
     }
 }
