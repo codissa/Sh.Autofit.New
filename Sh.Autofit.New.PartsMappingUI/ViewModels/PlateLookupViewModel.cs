@@ -40,7 +40,7 @@ public partial class PlateLookupViewModel : ObservableObject
     [ObservableProperty]
     private bool _showCopiedPopup;
 
-    public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinChassis);
+    public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinNumber ?? GovernmentVehicle?.VinChassis);
 
     private string CleanVin(string? vin)
     {
@@ -79,7 +79,7 @@ public partial class PlateLookupViewModel : ObservableObject
             MatchedVehicle = null;
             MappedParts.Clear();
 
-            // Step 1: Lookup vehicle from government API
+            // Step 1: Lookup vehicle from government API (tries all fallback sources automatically)
             var govVehicle = await _governmentApiService.LookupVehicleByPlateAsync(PlateNumber);
 
             if (govVehicle == null)
@@ -95,25 +95,33 @@ public partial class PlateLookupViewModel : ObservableObject
             // Step 2: Find matching vehicle in our database
             var matchedVehicle = await _vehicleMatchingService.FindMatchingVehicleTypeAsync(govVehicle);
 
+            // Step 2.5: If not found, auto-create a new vehicle type
             if (matchedVehicle == null)
             {
-                StatusMessage = "רכב נמצא ברשומות התחבורה, אך לא נמצאה התאמה במערכת";
-                HasResults = true;
-                return;
+                StatusMessage = "לא נמצאה התאמה במערכת, יוצר רכב חדש...";
+                matchedVehicle = await _dataService.CreateVehicleTypeFromGovernmentRecordAsync(govVehicle);
+                StatusMessage = "רכב חדש נוצר במערכת!";
+            }
+            else
+            {
+                StatusMessage = "נמצאה התאמה במערכת!";
             }
 
             MatchedVehicle = matchedVehicle;
-            StatusMessage = "נמצאה התאמה! טוען חלקים ממופים...";
 
-            // Step 3: Load mapped parts for the matched vehicle
-            var parts = await _dataService.LoadMappedPartsAsync(matchedVehicle.VehicleTypeId);
+            // Step 3: Load mapped parts by model name (not just this specific vehicle type)
+            StatusMessage = "טוען חלקים ממופים לדגם...";
+            var parts = await _dataService.LoadMappedPartsByModelNameAsync(
+                govVehicle.ManufacturerName ?? "",
+                govVehicle.ModelName ?? "");
+
             MappedParts.Clear();
             foreach (var part in parts)
             {
                 MappedParts.Add(part);
             }
 
-            StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים לרכב זה";
+            StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים לדגם {govVehicle.ModelName}";
             HasResults = true;
         }
         catch (Exception ex)

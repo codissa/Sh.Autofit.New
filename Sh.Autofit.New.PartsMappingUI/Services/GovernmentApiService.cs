@@ -7,7 +7,9 @@ namespace Sh.Autofit.New.PartsMappingUI.Services;
 public class GovernmentApiService : IGovernmentApiService
 {
     private const string API_BASE_URL = "https://data.gov.il/api/3/action/datastore_search";
-    private const string RESOURCE_ID = "053cea08-09bc-40ec-8f7a-156f0677aff3";
+    private const string PRIMARY_RESOURCE_ID = "053cea08-09bc-40ec-8f7a-156f0677aff3";
+    private const string FALLBACK_RESOURCE_ID = "f6efe89a-fb3d-43a4-bb61-9bf12a9b9099";
+    private const string FALLBACK_RESOURCE_ID_2 = "cd3acc5c-03c3-4c89-9c54-d40f93c0d790";
 
     private readonly HttpClient _httpClient;
 
@@ -29,12 +31,42 @@ public class GovernmentApiService : IGovernmentApiService
             if (string.IsNullOrWhiteSpace(cleanPlate))
                 return null;
 
+            // Try primary resource first
+            var record = await TryLookupAsync(cleanPlate, PRIMARY_RESOURCE_ID);
+
+            // If not found, try first fallback resource
+            if (record == null)
+            {
+                record = await TryLookupAsync(cleanPlate, FALLBACK_RESOURCE_ID);
+            }
+
+            // If still not found, try second fallback resource
+            if (record == null)
+            {
+                record = await TryLookupAsync(cleanPlate, FALLBACK_RESOURCE_ID_2);
+            }
+
+            return record;
+        }
+        catch (Exception ex)
+        {
+            // Log error (you can add logging here)
+            throw new Exception($"Failed to lookup vehicle from government API: {ex.Message}", ex);
+        }
+    }
+
+    private async Task<GovernmentVehicleRecord?> TryLookupAsync(string cleanPlate, string resourceId)
+    {
+        try
+        {
             // Build API URL
-            var url = $"{API_BASE_URL}?resource_id={RESOURCE_ID}&q={cleanPlate}";
+            var url = $"{API_BASE_URL}?resource_id={resourceId}&q={cleanPlate}";
 
             // Make API request
             var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
+
+            if (!response.IsSuccessStatusCode)
+                return null;
 
             // Parse response
             var json = await response.Content.ReadAsStringAsync();
@@ -53,10 +85,10 @@ public class GovernmentApiService : IGovernmentApiService
 
             return null;
         }
-        catch (Exception ex)
+        catch
         {
-            // Log error (you can add logging here)
-            throw new Exception($"Failed to lookup vehicle from government API: {ex.Message}", ex);
+            // Silently fail and let the calling method try the next resource
+            return null;
         }
     }
 

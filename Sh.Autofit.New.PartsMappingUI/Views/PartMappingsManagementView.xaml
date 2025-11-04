@@ -1,0 +1,272 @@
+<UserControl x:Class="Sh.Autofit.New.PartsMappingUI.Views.PartMappingsManagementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="1400"
+             FlowDirection="RightToLeft">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="400"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Panel - Parts List -->
+        <Border Grid.Column="0" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0" Padding="0,0,10,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title -->
+                <TextBlock Grid.Row="0"
+                          Text="ניהול מיפויי חלקים"
+                          FontSize="20"
+                          FontWeight="Bold"
+                          Margin="0,0,0,15"/>
+
+                <!-- Category Filter -->
+                <ComboBox Grid.Row="1"
+                         ItemsSource="{Binding AvailableCategories}"
+                         SelectedItem="{Binding SelectedCategory}"
+                         Margin="0,0,0,10"
+                         Padding="8"/>
+
+                <!-- Search Box -->
+                <TextBox Grid.Row="2"
+                         Text="{Binding PartSearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Padding="8"
+                         Margin="0,0,0,10">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <VisualBrush Stretch="None" AlignmentX="Right">
+                                                <VisualBrush.Visual>
+                                                    <TextBlock Text="🔍 חפש חלקים..."
+                                                              Foreground="Gray"
+                                                              Margin="0,0,5,0"
+                                                              FlowDirection="RightToLeft"/>
+                                                </VisualBrush.Visual>
+                                            </VisualBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+
+                <!-- Parts List -->
+                <ListBox Grid.Row="3"
+                         ItemsSource="{Binding FilteredParts}"
+                         SelectedItem="{Binding SelectedPart}"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="10"
+                                    Margin="0,2"
+                                    Background="#FAFAFA"
+                                    CornerRadius="4"
+                                    BorderBrush="#E0E0E0"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" FontSize="13">
+                                        <Run Text="{Binding PartNumber}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding PartName}"
+                                              Foreground="#666"
+                                              FontSize="11"
+                                              Margin="0,3,0,0"
+                                              TextWrapping="Wrap"
+                                              MaxHeight="40"/>
+                                    <TextBlock Foreground="Gray" FontSize="10" Margin="0,3,0,0">
+                                        <Run Text="קטגוריה: "/>
+                                        <Run Text="{Binding Category}"/>
+                                        <Run Text=" | רכבים: "/>
+                                        <Run Text="{Binding MappedVehicleCount, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <!-- Right Panel - Mapped Vehicles -->
+        <Grid Grid.Column="1" Margin="10,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Part Details Header -->
+            <Border Grid.Row="0"
+                    Background="#F5F5F5"
+                    Padding="15"
+                    Margin="0,0,0,15"
+                    CornerRadius="4"
+                    Visibility="{Binding SelectedPart, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel>
+                    <TextBlock FontSize="18" FontWeight="Bold">
+                        <Run Text="{Binding SelectedPart.PartNumber}"/>
+                        <Run Text=" - "/>
+                        <Run Text="{Binding SelectedPart.PartName}"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding SelectedPart.Category}"
+                              Foreground="#666"
+                              FontSize="13"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Action Buttons -->
+            <StackPanel Grid.Row="1"
+                       Orientation="Horizontal"
+                       Margin="0,0,0,10"
+                       Visibility="{Binding SelectedPart, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Button Content="➕ הוסף רכבים"
+                        Command="{Binding AddVehicleMappingsCommand}"
+                        Padding="12,6"
+                        Margin="0,0,10,0"
+                        Background="#4CAF50"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontSize="12"
+                        Cursor="Hand">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#45A049"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <TextBlock Text="{Binding StatusMessage}"
+                          VerticalAlignment="Center"
+                          Foreground="#666"
+                          FontSize="12"
+                          Margin="10,0,0,0"/>
+            </StackPanel>
+
+            <!-- Mapped Vehicles DataGrid -->
+            <DataGrid Grid.Row="2"
+                     ItemsSource="{Binding MappedVehicles}"
+                     AutoGenerateColumns="False"
+                     IsReadOnly="True"
+                     CanUserAddRows="False"
+                     SelectionMode="Single"
+                     GridLinesVisibility="Horizontal"
+                     HeadersVisibility="Column"
+                     AlternatingRowBackground="#F9F9F9"
+                     Visibility="{Binding SelectedPart, Converter={StaticResource BoolToVisibilityConverter}}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="יצרן" Binding="{Binding ManufacturerShortName}" Width="100"/>
+                    <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="150"/>
+                    <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialName}" Width="120"/>
+                    <DataGridTextColumn Header="שנה" Binding="{Binding YearFrom}" Width="80"/>
+                    <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="100"/>
+                    <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="100"/>
+                    <DataGridTemplateColumn Header="פעולות" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="🗑️"
+                                       Command="{Binding DataContext.RemoveVehicleMappingCommand,
+                                                RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       CommandParameter="{Binding}"
+                                       Background="#F44336"
+                                       Foreground="White"
+                                       BorderThickness="0"
+                                       Padding="8,4"
+                                       Cursor="Hand"
+                                       ToolTip="הסר מיפוי">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                               CornerRadius="3"
+                                                               Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#D32F2F"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Empty State -->
+            <Border Grid.Row="2"
+                   Background="White"
+                   BorderBrush="#E0E0E0"
+                   BorderThickness="2"
+                   CornerRadius="8"
+                   Padding="40">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedPart}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="🔧" FontSize="72" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                    <TextBlock Text="בחר חלק מהרשימה לצפייה ועריכת מיפויים"
+                              FontSize="18"
+                              FontWeight="Bold"
+                              HorizontalAlignment="Center"
+                              Foreground="#666"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Loading Indicator -->
+            <ProgressBar Grid.Row="3"
+                        IsIndeterminate="True"
+                        Height="4"
+                        Margin="0,10,0,0"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+        </Grid>
+    </Grid>
+</UserControl>

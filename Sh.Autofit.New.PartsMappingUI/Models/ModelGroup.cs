@@ -23,6 +23,8 @@ public partial class ModelGroup : ObservableObject
     public int VehicleCount { get; set; }
     public int? YearFrom { get; set; }
     public int? YearTo { get; set; }
+    public int? EngineVolume { get; set; }
+    public string? FuelType { get; set; }
 
     public ObservableCollection<VehicleDisplayModel> Vehicles { get; set; } = new();
 
@@ -33,10 +35,26 @@ public partial class ModelGroup : ObservableObject
     {
         get
         {
+            var parts = new List<string> { ModelName };
+
+            // Add engine volume if uniform
+            if (EngineVolume.HasValue)
+            {
+                parts.Add($"{EngineVolume}cc");
+            }
+
+            // Add fuel type if uniform
+            if (!string.IsNullOrEmpty(FuelType))
+            {
+                parts.Add(FuelType);
+            }
+
+            var modelInfo = string.Join(" ", parts);
             var yearRange = GetYearRangeDisplay();
+
             return string.IsNullOrEmpty(yearRange)
-                ? $"{ModelName} ({VehicleCount})"
-                : $"{ModelName} {yearRange} ({VehicleCount})";
+                ? $"{modelInfo} ({VehicleCount})"
+                : $"{modelInfo} {yearRange} ({VehicleCount})";
         }
     }
 

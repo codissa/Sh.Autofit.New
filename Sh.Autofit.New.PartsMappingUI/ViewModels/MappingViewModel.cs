@@ -241,7 +241,9 @@ public partial class MappingViewModel : ObservableObject
                     ModelName = m.ModelName,
                     VehicleCount = m.Count,
                     YearFrom = m.YearFrom,
-                    YearTo = m.YearTo
+                    YearTo = m.YearTo,
+                    EngineVolume = m.EngineVolume,
+                    FuelType = m.FuelType
                 };
                 // Add a placeholder to show expander arrow
                 if (modelGroup.HasChildren)
@@ -402,7 +404,7 @@ public partial class MappingViewModel : ObservableObject
 
                         bool visible = true;
 
-                        // Apply search filter
+                        // Apply search filter - smart search through all data
                         if (hasSearch)
                         {
                             visible = vehicle.ManufacturerName?.ToLower().Contains(searchLower) == true ||
@@ -411,7 +413,10 @@ public partial class MappingViewModel : ObservableObject
                                      vehicle.CommercialName?.ToLower().Contains(searchLower) == true ||
                                      vehicle.VehicleCategory?.ToLower().Contains(searchLower) == true ||
                                      vehicle.FuelTypeName?.ToLower().Contains(searchLower) == true ||
-                                     vehicle.EngineModel?.ToLower().Contains(searchLower) == true;
+                                     vehicle.EngineModel?.ToLower().Contains(searchLower) == true ||
+                                     vehicle.YearFrom.ToString().Contains(searchLower) ||
+                                     (vehicle.YearTo.HasValue && vehicle.YearTo.ToString()!.Contains(searchLower)) ||
+                                     (vehicle.EngineVolume.HasValue && vehicle.EngineVolume.ToString()!.Contains(searchLower));
                         }
 
                         // Apply unmapped filter
@@ -432,10 +437,8 @@ public partial class MappingViewModel : ObservableObject
                             visible = vehicle.VehicleCategory == SelectedVehicleCategory;
                         }
 
-                        // For now, we'll use a custom property to hide vehicles
-                        // Note: WPF TreeView doesn't have built-in filtering, so we'd need to implement
-                        // a custom solution or use CollectionViewSource
-                        // For simplicity, vehicles remain visible but this can be enhanced
+                        // Set the visibility property
+                        vehicle.IsVisible = visible;
                     }
                 }
             }
@@ -474,7 +477,9 @@ public partial class MappingViewModel : ObservableObject
             filtered = filtered.Where(p =>
                 p.PartNumber.ToLower().Contains(searchLower) ||
                 p.PartName.ToLower().Contains(searchLower) ||
-                (p.Category?.ToLower().Contains(searchLower) ?? false));
+                (p.Category?.ToLower().Contains(searchLower) ?? false) ||
+                (p.Manufacturer?.ToLower().Contains(searchLower) ?? false) ||
+                (p.OemNumbers != null && p.OemNumbers.Any(oem => oem.ToLower().Contains(searchLower))));
         }
 
         if (!string.IsNullOrEmpty(SelectedPartCategory))

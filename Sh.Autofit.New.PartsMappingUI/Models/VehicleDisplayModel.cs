@@ -9,6 +9,9 @@ public partial class VehicleDisplayModel : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    [ObservableProperty]
+    private bool _isVisible = true;
+
     public int ManufacturerId { get; set; }
     public string ManufacturerName { get; set; } = string.Empty;
     public string ManufacturerShortName { get; set; } = string.Empty;

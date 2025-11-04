@@ -10,11 +10,15 @@ public partial class MainViewModel : ObservableObject
     public MappingViewModel MappingViewModel { get; }
     public PlateLookupViewModel PlateLookupViewModel { get; }
     public PartKitsViewModel PartKitsViewModel { get; }
+    public PartMappingsManagementViewModel PartMappingsManagementViewModel { get; }
+    public ModelMappingsManagementViewModel ModelMappingsManagementViewModel { get; }
 
-    public MainViewModel(MappingViewModel mappingViewModel, PlateLookupViewModel plateLookupViewModel, PartKitsViewModel partKitsViewModel)
+    public MainViewModel(MappingViewModel mappingViewModel, PlateLookupViewModel plateLookupViewModel, PartKitsViewModel partKitsViewModel, PartMappingsManagementViewModel partMappingsManagementViewModel, ModelMappingsManagementViewModel modelMappingsManagementViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
         PartKitsViewModel = partKitsViewModel;
+        PartMappingsManagementViewModel = partMappingsManagementViewModel;
+        ModelMappingsManagementViewModel = modelMappingsManagementViewModel;
     }
 }

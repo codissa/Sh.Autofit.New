@@ -67,8 +67,8 @@
                                 <Run Text="{Binding ModelName}"/>
                                 <Run Text="{Binding CommercialName, StringFormat=' ({0})'}"/>
                             </TextBlock>
-                            <TextBlock Text="{Binding YearDisplay}" Foreground="#555" FontSize="11"/>
-                            <TextBlock Text="{Binding PartsCountDisplay}" Foreground="Gray" FontSize="10"/>
+                            <TextBlock Text="{Binding YearDisplay, Mode=OneWay}" Foreground="#555" FontSize="11"/>
+                            <TextBlock Text="{Binding PartsCountDisplay, Mode=OneWay}" Foreground="Gray" FontSize="10"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
@@ -117,8 +117,8 @@
                                 <Run Text="{Binding ModelName}"/>
                                 <Run Text="{Binding CommercialName, StringFormat=' ({0})'}"/>
                             </TextBlock>
-                            <TextBlock Text="{Binding YearDisplay}" Foreground="#555" FontSize="11"/>
-                            <TextBlock Text="{Binding PartsCountDisplay}" Foreground="Gray" FontSize="10"/>
+                            <TextBlock Text="{Binding YearDisplay, Mode=OneWay}" Foreground="#555" FontSize="11"/>
+                            <TextBlock Text="{Binding PartsCountDisplay, Mode=OneWay}" Foreground="Gray" FontSize="10"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>

@@ -22,6 +22,12 @@
             <TabItem Header="ניהול ערכות">
                 <views:PartKitsView x:Name="PartKitsView"/>
             </TabItem>
+            <TabItem Header="ניהול מיפויי חלקים">
+                <views:PartMappingsManagementView x:Name="PartMappingsManagementView"/>
+            </TabItem>
+            <TabItem Header="ניהול מיפויי דגמים">
+                <views:ModelMappingsManagementView x:Name="ModelMappingsManagementView"/>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

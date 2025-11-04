@@ -12,5 +12,11 @@ public partial class MainWindow : Window
 
         // Wire up PartKitsView with its ViewModel
         PartKitsView.SetViewModel(viewModel.PartKitsViewModel);
+
+        // Wire up PartMappingsManagementView with its ViewModel
+        PartMappingsManagementView.SetViewModel(viewModel.PartMappingsManagementViewModel);
+
+        // Wire up ModelMappingsManagementView with its ViewModel
+        ModelMappingsManagementView.SetViewModel(viewModel.ModelMappingsManagementViewModel);
     }
 }

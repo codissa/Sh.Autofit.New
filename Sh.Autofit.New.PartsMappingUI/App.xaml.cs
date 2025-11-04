@@ -56,6 +56,8 @@ public partial class App : Application
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<PlateLookupViewModel>();
         services.AddSingleton<PartKitsViewModel>();
+        services.AddSingleton<PartMappingsManagementViewModel>();
+        services.AddSingleton<ModelMappingsManagementViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();

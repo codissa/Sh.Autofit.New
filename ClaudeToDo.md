@@ -1,2 +1,4 @@
-1. adding parts to kit doesnt work
-2. cars filtering search bar doesnt work
+1. with plate lookup i want to add another check, check if there are parts mapped to another model name under the same commercial name, if there exists parts mapped to another model name but with the same year and engine volume and commercial name and fuel type put them in the mapped items table but give them a suggestion flag where i have a button that can confirm it permanently (make sure that the user has a ui that its a suggestion)
+2. item managment doesnt work, when i press on an item i want to seee the data and all the cars mapped to it, as well be able to add or delete, also do a check similar to 1 where i have suggestion and i can add
+3. the car managmement doesnt work when i press on a model name i want to see all the data i can on it, also all the items mapped to it + a suggestion table with algorithm similar to 1 where if an item is mapped to a very similar car i would have a suggestion i can accept 
+4. maybe combine all the algorithm of suggestion i have above and create some kind of suggestion based mapping tab where you can group possible items to possible cars and i can add edit and delete and then map (consult on the ui if needed)

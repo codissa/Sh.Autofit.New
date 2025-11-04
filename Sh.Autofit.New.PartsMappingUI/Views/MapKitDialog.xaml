@@ -79,7 +79,7 @@
                             BorderThickness="1">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" FontSize="13">
-                                <Run Text="{Binding StatusIcon}"/>
+                                <Run Text="{Binding StatusIcon, Mode=OneWay}"/>
                                 <Run Text="{Binding KitName}"/>
                             </TextBlock>
                             <TextBlock Text="{Binding Description}"

@@ -71,11 +71,12 @@
         <!-- Government Vehicle Data -->
         <GroupBox Grid.Row="1"
                   Header="נתוני רכב ממשרד התחבורה"
-                  Padding="10"
-                  Margin="0,0,0,10"
+                  Padding="8"
+                  Margin="0,0,0,8"
                   Visibility="{Binding GovernmentVehicle, Converter={StaticResource NullToVisibilityConverter}}">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
@@ -83,126 +84,131 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="יצרן:" FontWeight="Bold" Margin="0,3"/>
-                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GovernmentVehicle.ManufacturerName}" Margin="0,3"/>
-
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="דגם:" FontWeight="Bold" Margin="0,3"/>
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding GovernmentVehicle.ModelName}" Margin="0,3"/>
-
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="שנת ייצור:" FontWeight="Bold" Margin="0,3"/>
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding GovernmentVehicle.ManufacturingYear}" Margin="0,3"/>
-
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="שם מסחרי:" FontWeight="Bold" Margin="0,3"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding GovernmentVehicle.CommercialName}" Margin="0,3"/>
-
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="סוג דלק:" FontWeight="Bold" Margin="0,3"/>
-                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding GovernmentVehicle.FuelType}" Margin="0,3"/>
-
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="VIN:" FontWeight="Bold" Margin="0,3"/>
-                <Grid Grid.Row="5" Grid.Column="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0"
-                               Text="{Binding CleanVinNumber}"
-                               Margin="0,3"
-                               FontFamily="Consolas"
-                               Foreground="#0066CC"
-                               Cursor="Hand"
-                               TextDecorations="Underline"
-                               ToolTip="לחץ להעתקה">
-                        <TextBlock.InputBindings>
-                            <MouseBinding MouseAction="LeftClick" Command="{Binding CopyVinToClipboardCommand}"/>
-                        </TextBlock.InputBindings>
+                <!-- Column 1 -->
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,5,0">
+                    <TextBlock Margin="0,2">
+                        <Run Text="יצרן: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.ManufacturerName}"/>
                     </TextBlock>
+                    <TextBlock Margin="0,2">
+                        <Run Text="דגם: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.ModelName}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2">
+                        <Run Text="שם מסחרי: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.CommercialName}"/>
+                    </TextBlock>
+                </StackPanel>
 
-                    <!-- Copied Popup -->
-                    <Border Grid.Column="1"
-                            Background="#4CAF50"
-                            CornerRadius="4"
-                            Padding="8,4"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Left"
-                            Visibility="{Binding ShowCopiedPopup, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="✓ הועתק ללוח"
-                                   Foreground="White"
-                                   FontSize="11"
-                                   FontWeight="Bold"/>
-                    </Border>
-                </Grid>
+                <!-- Column 2 -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,5,0">
+                    <TextBlock Margin="0,2">
+                        <Run Text="שנת ייצור: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.ManufacturingYear}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2">
+                        <Run Text="סוג דלק: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.FuelType}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2">
+                        <Run Text="דגם מנוע: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.EngineModel}"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Column 3 - VIN -->
+                <StackPanel Grid.Row="0" Grid.Column="2">
+                    <TextBlock Margin="0,2">
+                        <Run Text="VIN: " FontWeight="Bold"/>
+                    </TextBlock>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding CleanVinNumber}"
+                                   FontFamily="Consolas"
+                                   Foreground="#0066CC"
+                                   Cursor="Hand"
+                                   TextDecorations="Underline"
+                                   ToolTip="לחץ להעתקה">
+                            <TextBlock.InputBindings>
+                                <MouseBinding MouseAction="LeftClick" Command="{Binding CopyVinToClipboardCommand}"/>
+                            </TextBlock.InputBindings>
+                        </TextBlock>
+
+                        <!-- Copied Popup -->
+                        <Border Grid.Column="1"
+                                Background="#4CAF50"
+                                CornerRadius="3"
+                                Padding="6,3"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding ShowCopiedPopup, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="✓ הועתק"
+                                       Foreground="White"
+                                       FontSize="10"
+                                       FontWeight="Bold"/>
+                        </Border>
+                    </Grid>
+                </StackPanel>
             </Grid>
         </GroupBox>
 
         <!-- Matched Vehicle Section -->
         <GroupBox Grid.Row="2"
                   Header="רכב תואם במערכת"
-                  Padding="10"
-                  Margin="0,0,0,10"
+                  Padding="8"
+                  Margin="0,0,0,8"
                   Visibility="{Binding MatchedVehicle, Converter={StaticResource NullToVisibilityConverter}}">
             <StackPanel>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="יצרן:" FontWeight="Bold" Margin="0,3"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,3">
+                <WrapPanel Orientation="Horizontal">
+                    <TextBlock Margin="0,2,15,2">
+                        <Run Text="יצרן: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.ManufacturerName}"/>
                         <Run Text=" (" Foreground="Gray"/>
                         <Run Text="{Binding MatchedVehicle.ManufacturerShortName}" Foreground="Gray"/>
                         <Run Text=")" Foreground="Gray"/>
                     </TextBlock>
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="דגם:" FontWeight="Bold" Margin="0,3"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MatchedVehicle.ModelName}" Margin="0,3"/>
-
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="שנים:" FontWeight="Bold" Margin="0,3"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,3">
+                    <TextBlock Margin="0,2,15,2">
+                        <Run Text="דגם: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.ModelName}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2">
+                        <Run Text="שנים: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.YearFrom, TargetNullValue='?'}"/>
                         <Run Text=" - "/>
                         <Run Text="{Binding MatchedVehicle.YearTo, TargetNullValue='?'}"/>
                     </TextBlock>
-
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="שם מסחרי:" FontWeight="Bold" Margin="0,3"/>
-                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding MatchedVehicle.CommercialName}" Margin="0,3"/>
-
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="נפח מנוע:" FontWeight="Bold" Margin="0,3"
-                               Visibility="{Binding MatchedVehicle.EngineVolume, Converter={StaticResource NullToVisibilityConverter}}"/>
-                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,3"
+                    <TextBlock Margin="0,2,15,2">
+                        <Run Text="שם מסחרי: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.CommercialName}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2"
                                Visibility="{Binding MatchedVehicle.EngineVolume, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="נפח מנוע: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.EngineVolume}"/>
                         <Run Text=" סמ&quot;ק"/>
                     </TextBlock>
-                </Grid>
+                </WrapPanel>
 
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Center">
                     <Button Content="🔧 מיפוי מהיר"
                             Command="{Binding QuickMapCommand}"
-                            Padding="15,8"
-                            Margin="5"
-                            FontSize="14"
+                            Padding="12,6"
+                            Margin="5,0"
+                            FontSize="13"
                             FontWeight="Bold"/>
                     <Button Content="📋 הצג כל ההתאמות"
                             Command="{Binding ViewAllMatchesCommand}"
-                            Padding="15,8"
-                            Margin="5"
-                            FontSize="14"/>
+                            Padding="12,6"
+                            Margin="5,0"
+                            FontSize="13"/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
@@ -232,7 +238,7 @@
                 <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*"/>
                 <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="150"/>
                 <DataGridTextColumn Header="יצרן" Binding="{Binding Manufacturer}" Width="150"/>
-                <DataGridTextColumn Header="במלאי" Binding="{Binding StockStatusIcon}" Width="60"/>
+                <DataGridTextColumn Header="במלאי" Binding="{Binding StockStatusIcon, Mode=OneWay}" Width="60"/>
             </DataGrid.Columns>
         </DataGrid>
 

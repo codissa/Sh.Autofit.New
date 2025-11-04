@@ -203,7 +203,7 @@
                             <HierarchicalDataTemplate ItemsSource="{Binding CommercialNameGroups}">
                                 <StackPanel Orientation="Horizontal" Margin="0,3">
                                     <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DisplayName, Mode=OneWay}" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <HierarchicalDataTemplate.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem">
@@ -215,7 +215,7 @@
                                     <HierarchicalDataTemplate ItemsSource="{Binding ModelGroups}">
                                         <StackPanel Orientation="Horizontal" Margin="0,2">
                                             <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
                                             <TextBlock Text=" 🔄" FontSize="12" Margin="5,0,0,0"
                                                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                                                        ToolTip="Loading..."/>
@@ -230,7 +230,7 @@
                                             <HierarchicalDataTemplate ItemsSource="{Binding Vehicles}">
                                                 <StackPanel Orientation="Horizontal" Margin="0,2">
                                                     <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Normal" FontSize="12" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding DisplayName, Mode=OneWay}" FontWeight="Normal" FontSize="12" VerticalAlignment="Center"/>
                                                     <TextBlock Text=" 🔄" FontSize="12" Margin="5,0,0,0"
                                                                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                                                                ToolTip="Loading..."/>
@@ -239,7 +239,8 @@
                                             <!-- Vehicle Level -->
                                             <DataTemplate>
                                                 <Border Padding="8,6" Margin="0,2" Background="#FAFAFA" CornerRadius="4"
-                                                        BorderBrush="#E0E0E0" BorderThickness="1">
+                                                        BorderBrush="#E0E0E0" BorderThickness="1"
+                                                        Visibility="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
@@ -249,32 +250,32 @@
                                                         <!-- Checkbox and Status -->
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,0,10,0">
                                                             <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                            <TextBlock Text="{Binding StatusIcon}" FontSize="14" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding StatusIcon, Mode=OneWay}" FontSize="14" VerticalAlignment="Center"/>
                                                         </StackPanel>
 
                                                         <!-- Vehicle Details -->
                                                         <StackPanel Grid.Column="1">
                                                             <!-- Main Info Line -->
                                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                                <TextBlock Text="{Binding ManufacturerDisplay}" FontWeight="SemiBold" FontSize="12" Margin="0,0,10,0"/>
-                                                                <TextBlock Text="{Binding ModelDisplay}" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text="{Binding ManufacturerDisplay, Mode=OneWay}" FontWeight="SemiBold" FontSize="12" Margin="0,0,10,0"/>
+                                                                <TextBlock Text="{Binding ModelDisplay, Mode=OneWay}" FontWeight="SemiBold" FontSize="12"/>
                                                             </StackPanel>
 
                                                             <!-- Secondary Info -->
                                                             <WrapPanel Orientation="Horizontal">
-                                                                <TextBlock Text="{Binding YearDisplay}" Foreground="#555" FontSize="11" Margin="0,0,12,0"/>
-                                                                <TextBlock Text="{Binding CategoryDisplay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                <TextBlock Text="{Binding YearDisplay, Mode=OneWay}" Foreground="#555" FontSize="11" Margin="0,0,12,0"/>
+                                                                <TextBlock Text="{Binding CategoryDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
                                                                            Visibility="{Binding CategoryDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
-                                                                <TextBlock Text="{Binding FuelDisplay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                <TextBlock Text="{Binding FuelDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
                                                                            Visibility="{Binding FuelDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
-                                                                <TextBlock Text="{Binding EngineModelDisplay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                <TextBlock Text="{Binding EngineModelDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
                                                                            Visibility="{Binding EngineModelDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
-                                                                <TextBlock Text="{Binding EngineVolumeDisplay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                <TextBlock Text="{Binding EngineVolumeDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
                                                                            Visibility="{Binding EngineVolumeDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                             </WrapPanel>
 
                                                             <!-- Parts Count -->
-                                                            <TextBlock Text="{Binding PartsCountDisplay}" Foreground="Gray" FontSize="10" Margin="0,3,0,0"/>
+                                                            <TextBlock Text="{Binding PartsCountDisplay, Mode=OneWay}" Foreground="Gray" FontSize="10" Margin="0,3,0,0"/>
                                                         </StackPanel>
                                                     </Grid>
                                                 </Border>
@@ -438,9 +439,9 @@
 
                                         <StackPanel Grid.Column="1">
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                <TextBlock Text="{Binding StatusIcon}" Margin="0,0,5,0"/>
-                                                <TextBlock Text="{Binding StockStatusIcon}" Margin="0,0,5,0"/>
-                                                <TextBlock Text="{Binding UniversalIcon}" Margin="0,0,5,0"/>
+                                                <TextBlock Text="{Binding StatusIcon, Mode=OneWay}" Margin="0,0,5,0"/>
+                                                <TextBlock Text="{Binding StockStatusIcon, Mode=OneWay}" Margin="0,0,5,0"/>
+                                                <TextBlock Text="{Binding UniversalIcon, Mode=OneWay}" Margin="0,0,5,0"/>
                                                 <TextBlock Text="{Binding PartNumber}" FontWeight="Bold"/>
                                                 <!-- Suggestion Indicator -->
                                                 <Border Background="#FFD54F"
@@ -449,15 +450,15 @@
                                                         CornerRadius="3"
                                                         Visibility="{Binding HasSuggestion, Converter={StaticResource BoolToVisibilityConverter}}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding SuggestionIcon}" FontSize="10" Margin="0,0,3,0"/>
-                                                        <TextBlock Text="{Binding RelevanceScoreDisplay}" FontSize="10" FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding SuggestionIcon, Mode=OneWay}" FontSize="10" Margin="0,0,3,0"/>
+                                                        <TextBlock Text="{Binding RelevanceScoreDisplay, Mode=OneWay}" FontSize="10" FontWeight="Bold"/>
                                                     </StackPanel>
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock Text="{Binding PartName}" Foreground="#555" TextWrapping="Wrap"/>
                                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                 <TextBlock Text="{Binding Category}" FontSize="11" Foreground="Gray" Margin="0,0,10,0"/>
-                                                <TextBlock Text="{Binding MappedVehiclesCount, StringFormat='ממופה ל-{0} רכבים'}"
+                                                <TextBlock Text="{Binding MappedVehiclesCount, Mode=OneWay, StringFormat='ממופה ל-{0} רכבים'}"
                                                            FontSize="11" Foreground="Gray"/>
                                             </StackPanel>
                                             <!-- Suggestion Reason -->

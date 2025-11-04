@@ -76,7 +76,7 @@
                             </TextBlock>
                             <TextBlock Foreground="Gray" FontSize="10">
                                 <Run Text="רכבים ממופים: "/>
-                                <Run Text="{Binding MappedVehicleCount}"/>
+                                <Run Text="{Binding MappedVehicleCount, Mode=OneWay}"/>
                             </TextBlock>
                         </StackPanel>
                     </Border>
@@ -135,7 +135,7 @@
                             </TextBlock>
                             <TextBlock Foreground="Gray" FontSize="10">
                                 <Run Text="רכבים ממופים: "/>
-                                <Run Text="{Binding MappedVehicleCount}"/>
+                                <Run Text="{Binding MappedVehicleCount, Mode=OneWay}"/>
                             </TextBlock>
                         </StackPanel>
                     </Border>

@@ -68,11 +68,11 @@ public class DataService : IDataService
         return summary.Select(s => (s.ManufacturerShortName, s.ManufacturerName, s.CommercialName, s.Count)).ToList();
     }
 
-    public async Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName)
+    public async Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        var summary = await context.VehicleTypes
+        var vehicles = await context.VehicleTypes
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive &&
@@ -84,13 +84,24 @@ public class DataService : IDataService
             {
                 ModelName = g.Key,
                 Count = g.Count(),
-                // Calculate year range from YearFrom values (since YearTo is not populated)
                 YearFrom = (int?)g.Min(v => v.YearFrom),
-                YearTo = (int?)g.Max(v => v.YearFrom)  // Max of YearFrom = newest year
+                YearTo = (int?)g.Max(v => v.YearFrom),
+                Vehicles = g.Select(v => new { v.EngineVolume, v.FuelTypeName }).ToList()
             })
             .ToListAsync();
 
-        return summary.Select(s => (s.ModelName, s.Count, s.YearFrom, s.YearTo)).ToList();
+        return vehicles.Select(v =>
+        {
+            // Check if all vehicles have the same engine volume
+            var distinctEngineVolumes = v.Vehicles.Where(x => x.EngineVolume.HasValue).Select(x => x.EngineVolume.Value).Distinct().ToList();
+            int? uniformEngineVolume = distinctEngineVolumes.Count == 1 ? distinctEngineVolumes.First() : null;
+
+            // Check if all vehicles have the same fuel type
+            var distinctFuelTypes = v.Vehicles.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
+            string? uniformFuelType = distinctFuelTypes.Count == 1 ? distinctFuelTypes.First() : null;
+
+            return (v.ModelName, v.Count, v.YearFrom, v.YearTo, uniformEngineVolume, uniformFuelType);
+        }).ToList();
     }
 
     public async Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName)
@@ -304,27 +315,18 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get unique Manufacturer+ModelName combinations
-        var modelCombinations = selectedVehicles
-            .Select(v => new { v.ManufacturerName, v.ModelName })
+        // Get unique model names from selected vehicles
+        var modelNames = selectedVehicles
+            .Select(v => v.ModelName)
             .Distinct()
             .ToList();
 
-        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
-        // This ensures parts are mapped to all years of the same model
-        var allVehicleIdsToMap = new List<int>();
-        foreach (var combo in modelCombinations)
-        {
-            var vehicleIds = await context.VehicleTypes
-                .Include(v => v.Manufacturer)
-                .Where(v => v.IsActive &&
-                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
-                           v.ModelName == combo.ModelName)
-                .Select(v => v.VehicleTypeId)
-                .ToListAsync();
-
-            allVehicleIdsToMap.AddRange(vehicleIds);
-        }
+        // Find ALL vehicle IDs with the same ModelName from ANY manufacturer
+        // This ensures parts are mapped to all years and all manufacturers with the same model name
+        var allVehicleIdsToMap = await context.VehicleTypes
+            .Where(v => v.IsActive && modelNames.Contains(v.ModelName))
+            .Select(v => v.VehicleTypeId)
+            .ToListAsync();
 
         validVehicleTypeIds = allVehicleIdsToMap.Distinct().ToList();
 
@@ -401,27 +403,18 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get unique Manufacturer+ModelName combinations
-        var modelCombinations = selectedVehicles
-            .Select(v => new { v.ManufacturerName, v.ModelName })
+        // Get unique model names from selected vehicles
+        var modelNames = selectedVehicles
+            .Select(v => v.ModelName)
             .Distinct()
             .ToList();
 
-        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
-        // This ensures parts are unmapped from all years of the same model
-        var allVehicleIdsToUnmap = new List<int>();
-        foreach (var combo in modelCombinations)
-        {
-            var vehicleIds = await context.VehicleTypes
-                .Include(v => v.Manufacturer)
-                .Where(v => v.IsActive &&
-                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
-                           v.ModelName == combo.ModelName)
-                .Select(v => v.VehicleTypeId)
-                .ToListAsync();
-
-            allVehicleIdsToUnmap.AddRange(vehicleIds);
-        }
+        // Find ALL vehicle IDs with the same ModelName from ANY manufacturer
+        // This ensures parts are unmapped from all years and all manufacturers with the same model name
+        var allVehicleIdsToUnmap = await context.VehicleTypes
+            .Where(v => v.IsActive && modelNames.Contains(v.ModelName))
+            .Select(v => v.VehicleTypeId)
+            .ToListAsync();
 
         validVehicleTypeIds = allVehicleIdsToUnmap.Distinct().ToList();
 
@@ -492,27 +485,18 @@ public class DataService : IDataService
             })
             .ToListAsync();
 
-        // Get unique Manufacturer+ModelName combinations
-        var modelCombinations = targetVehicles
-            .Select(v => new { v.ManufacturerName, v.ModelName })
+        // Get unique model names from target vehicles
+        var modelNames = targetVehicles
+            .Select(v => v.ModelName)
             .Distinct()
             .ToList();
 
-        // Find ALL vehicle IDs with the same Manufacturer+ModelName combinations
-        // This ensures mappings are copied to all years of the target models
-        var allTargetVehicleIds = new List<int>();
-        foreach (var combo in modelCombinations)
-        {
-            var vehicleIds = await context.VehicleTypes
-                .Include(v => v.Manufacturer)
-                .Where(v => v.IsActive &&
-                           v.Manufacturer.ManufacturerName == combo.ManufacturerName &&
-                           v.ModelName == combo.ModelName)
-                .Select(v => v.VehicleTypeId)
-                .ToListAsync();
-
-            allTargetVehicleIds.AddRange(vehicleIds);
-        }
+        // Find ALL vehicle IDs with the same ModelName from ANY manufacturer
+        // This ensures mappings are copied to all years and all manufacturers with the same model name
+        var allTargetVehicleIds = await context.VehicleTypes
+            .Where(v => v.IsActive && modelNames.Contains(v.ModelName))
+            .Select(v => v.VehicleTypeId)
+            .ToListAsync();
 
         validTargetVehicleTypeIds = allTargetVehicleIds.Distinct().ToList();
 
@@ -674,5 +658,129 @@ public class DataService : IDataService
             await context.VehiclePartsMappings.AddRangeAsync(newMappings);
             await context.SaveChangesAsync();
         }
+    }
+
+    public async Task<VehicleDisplayModel> CreateVehicleTypeFromGovernmentRecordAsync(GovernmentVehicleRecord govRecord)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // First, find or create the manufacturer
+        var manufacturer = await context.Manufacturers
+            .FirstOrDefaultAsync(m => m.ManufacturerName == govRecord.ManufacturerName);
+
+        if (manufacturer == null)
+        {
+            // Create new manufacturer
+            manufacturer = new Manufacturer
+            {
+                ManufacturerName = govRecord.ManufacturerName ?? "Unknown",
+                ManufacturerShortName = govRecord.ManufacturerName ?? "Unknown",
+                CountryOfOrigin = "Unknown",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.Manufacturers.Add(manufacturer);
+            await context.SaveChangesAsync();
+        }
+
+        // Create the vehicle type
+        var vehicleType = new VehicleType
+        {
+            ManufacturerId = manufacturer.ManufacturerId,
+            ModelCode = govRecord.ModelCode?.ToString() ?? "",
+            ModelName = govRecord.ModelName ?? "Unknown",
+            CommercialName = govRecord.CommercialName ?? "",
+            FinishLevel = govRecord.TrimLevel ?? "",
+            YearFrom = govRecord.ManufacturingYear ?? DateTime.Now.Year,
+            YearTo = null,
+            EngineVolume = govRecord.EngineVolume,
+            TotalWeight = null,
+            EngineModel = govRecord.EngineModel ?? "",
+            FuelTypeCode = null,
+            FuelTypeName = govRecord.FuelType ?? "",
+            TransmissionType = "",
+            NumberOfDoors = null,
+            NumberOfSeats = null,
+            Horsepower = null,
+            TrimLevel = govRecord.TrimLevel ?? "",
+            VehicleCategory = "",
+            EmissionGroup = govRecord.PollutionGroup,
+            GreenIndex = null,
+            SafetyRating = null,
+            SafetyLevel = null,
+            FrontTireSize = govRecord.FrontTire ?? "",
+            RearTireSize = govRecord.RearTire ?? "",
+            AdditionalSpecs = "Auto-created from government API",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            LastSyncedAt = DateTime.UtcNow
+        };
+
+        context.VehicleTypes.Add(vehicleType);
+        await context.SaveChangesAsync();
+
+        // Return as VehicleDisplayModel
+        return new VehicleDisplayModel
+        {
+            VehicleTypeId = vehicleType.VehicleTypeId,
+            ManufacturerId = vehicleType.ManufacturerId,
+            ManufacturerName = manufacturer.ManufacturerName,
+            ManufacturerShortName = manufacturer.ManufacturerShortName ?? manufacturer.ManufacturerName,
+            ModelCode = vehicleType.ModelCode,
+            ModelName = vehicleType.ModelName,
+            YearFrom = vehicleType.YearFrom,
+            YearTo = vehicleType.YearTo,
+            VehicleCategory = vehicleType.VehicleCategory,
+            CommercialName = vehicleType.CommercialName,
+            FuelTypeName = vehicleType.FuelTypeName,
+            EngineModel = vehicleType.EngineModel,
+            EngineVolume = vehicleType.EngineVolume
+        };
+    }
+
+    public async Task<List<PartDisplayModel>> LoadMappedPartsByModelNameAsync(string manufacturerName, string modelName)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Find all vehicle types with this manufacturer and model name
+        var vehicleTypeIds = await context.VehicleTypes
+            .AsNoTracking()
+            .Include(v => v.Manufacturer)
+            .Where(v => v.IsActive &&
+                       (v.Manufacturer.ManufacturerName == manufacturerName ||
+                        v.Manufacturer.ManufacturerShortName == manufacturerName) &&
+                       v.ModelName == modelName)
+            .Select(v => v.VehicleTypeId)
+            .ToListAsync();
+
+        if (!vehicleTypeIds.Any())
+            return new List<PartDisplayModel>();
+
+        // Get all mapped parts for these vehicle types
+        var parts = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Include(m => m.PartItemKeyNavigation)
+            .Where(m => vehicleTypeIds.Contains(m.VehicleTypeId) &&
+                       m.IsActive &&
+                       m.PartItemKeyNavigation != null &&
+                       m.PartItemKeyNavigation.IsActive == 1)
+            .Select(m => m.PartItemKeyNavigation)
+            .Distinct()
+            .Select(p => new PartDisplayModel
+            {
+                PartNumber = p.PartNumber,
+                PartName = p.PartName ?? "",
+                Category = p.Category != null ? p.Category : "",
+                Manufacturer = p.Manufacturer ?? "",
+                IsInStock = p.StockQuantity > 0,
+                UniversalPart = p.UniversalPart ,
+                MappedVehiclesCount = context.VehiclePartsMappings
+                    .Count(m => m.PartItemKey == p.PartNumber && m.IsActive)
+            })
+            .ToListAsync();
+
+        return parts;
     }
 }

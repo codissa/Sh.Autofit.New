@@ -85,6 +85,15 @@ public class GovernmentVehicleRecord
     [JsonPropertyName("misgeret")]
     public string? VinChassis { get; set; }
 
+    [JsonPropertyName("mispar_shilda")]
+    public string? VinNumber { get; set; }
+
+    [JsonPropertyName("nefach_manoa")]
+    public int? EngineVolume { get; set; }
+
+    [JsonPropertyName("mispar_manoa")]
+    public string? EngineNumber { get; set; }
+
     [JsonPropertyName("tzeva_cd")]
     public int? ColorCode { get; set; }
 
