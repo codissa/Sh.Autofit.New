@@ -31,6 +31,13 @@ public partial class VehicleDisplayModel : ObservableObject
     [ObservableProperty]
     private MappingStatus _mappingStatus = MappingStatus.Unmapped;
 
+    // Suggestion properties (Task 2)
+    [ObservableProperty]
+    private bool _isSuggestion;
+
+    [ObservableProperty]
+    private string? _suggestionReason;
+
     public string DisplayName
     {
         get

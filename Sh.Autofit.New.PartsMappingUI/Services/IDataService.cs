@@ -1,3 +1,4 @@
+using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Models;
 
 namespace Sh.Autofit.New.PartsMappingUI.Services;
@@ -23,4 +24,33 @@ public interface IDataService
     Task<int> GetMappedPartsAsync();
     Task<VehicleDisplayModel> CreateVehicleTypeFromGovernmentRecordAsync(GovernmentVehicleRecord govRecord);
     Task<List<PartDisplayModel>> LoadMappedPartsByModelNameAsync(string manufacturerName, string modelName);
+
+    // Vehicle Registration caching (Task 5)
+    Task<VehicleRegistration?> GetCachedRegistrationAsync(string licensePlate);
+    Task<VehicleRegistration> UpsertVehicleRegistrationAsync(
+        string licensePlate,
+        GovernmentVehicleRecord? govRecord,
+        int? matchedVehicleTypeId,
+        int? matchedManufacturerId,
+        string matchStatus,
+        string matchReason,
+        string apiResourceUsed);
+
+    // Analytics (Task 5)
+    Task<int> GetTotalRegistrationLookupsAsync();
+    Task<int> GetMatchedRegistrationsCountAsync();
+    Task<int> GetUnmatchedRegistrationsCountAsync();
+    Task<List<VehicleRegistration>> GetUnmatchedRegistrationsAsync();
+    Task<List<(string ModelName, int Count)>> GetMostSearchedModelsAsync(int topCount = 10);
+    Task<List<(string LicensePlate, int Count, DateTime LastLookup)>> GetMostSearchedPlatesAsync(int topCount = 10);
+
+    // Item Management (Task 2)
+    Task<List<VehicleDisplayModel>> LoadVehiclesForPartAsync(string partNumber);
+    Task<List<VehicleDisplayModel>> GetSuggestedVehiclesForPartAsync(string partNumber);
+
+    // Model Management (Task 3)
+    Task<List<PartDisplayModel>> GetSuggestedPartsForModelAsync(string manufacturerName, string modelName);
+
+    // Plate Lookup Suggestions
+    Task<List<PartDisplayModel>> GetSuggestedPartsForVehicleAsync(int vehicleTypeId);
 }

@@ -1,0 +1,153 @@
+<UserControl x:Class="Sh.Autofit.New.PartsMappingUI.Views.AnalyticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1200"
+             FlowDirection="RightToLeft"
+             Loaded="UserControl_Loaded">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header and Refresh Button -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,15">
+            <Button DockPanel.Dock="Left"
+                    Content="🔄 Refresh"
+                    Command="{Binding RefreshCommand}"
+                    Padding="15,8"
+                    FontSize="14"
+                    FontWeight="Bold"
+                    Margin="0,0,10,0"/>
+            <TextBlock Text="Analytics Dashboard - Vehicle Registration Lookups"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Statistics Summary Cards -->
+        <GroupBox Grid.Row="1" Header="סיכום נתונים" Padding="10" Margin="0,0,0,10">
+            <UniformGrid Rows="1" Columns="4">
+                <!-- Total Lookups Card -->
+                <Border Background="#E3F2FD" Margin="5" Padding="15" CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Text="Total Lookups" FontSize="14" Foreground="#1976D2" Margin="0,0,0,5"/>
+                        <TextBlock Text="{Binding TotalLookups}" FontSize="32" FontWeight="Bold" Foreground="#1976D2"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Matched Card -->
+                <Border Background="#E8F5E9" Margin="5" Padding="15" CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Text="Matched" FontSize="14" Foreground="#388E3C" Margin="0,0,0,5"/>
+                        <TextBlock Text="{Binding MatchedCount}" FontSize="32" FontWeight="Bold" Foreground="#388E3C"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Unmatched Card -->
+                <Border Background="#FFEBEE" Margin="5" Padding="15" CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Text="Unmatched" FontSize="14" Foreground="#D32F2F" Margin="0,0,0,5"/>
+                        <TextBlock Text="{Binding UnmatchedCount}" FontSize="32" FontWeight="Bold" Foreground="#D32F2F"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Match Rate Card -->
+                <Border Background="#FFF3E0" Margin="5" Padding="15" CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Text="Match Rate" FontSize="14" Foreground="#F57C00" Margin="0,0,0,5"/>
+                        <TextBlock FontSize="32" FontWeight="Bold" Foreground="#F57C00">
+                            <Run Text="{Binding MatchRate, StringFormat='{}{0:F1}'}"/>
+                            <Run Text="%"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </GroupBox>
+
+        <!-- Top Charts -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Most Searched Models -->
+            <GroupBox Grid.Column="0" Header="Most Searched Models (Top 10)" Padding="10" Margin="0,0,5,0">
+                <DataGrid ItemsSource="{Binding MostSearchedModels}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          SelectionMode="Single"
+                          AlternatingRowBackground="#F5F5F5">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Model Name" Binding="{Binding ModelName}" Width="*"/>
+                        <DataGridTextColumn Header="Search Count" Binding="{Binding SearchCount}" Width="Auto"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+
+            <!-- Most Searched Plates -->
+            <GroupBox Grid.Column="1" Header="Most Searched Plates (Top 10)" Padding="10" Margin="5,0,0,0">
+                <DataGrid ItemsSource="{Binding MostSearchedPlates}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          SelectionMode="Single"
+                          AlternatingRowBackground="#F5F5F5">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="License Plate" Binding="{Binding LicensePlate}" Width="*"/>
+                        <DataGridTextColumn Header="Count" Binding="{Binding SearchCount}" Width="Auto"/>
+                        <DataGridTextColumn Header="Last Lookup" Binding="{Binding LastLookup, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="140"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+        </Grid>
+
+        <!-- Unmatched Registrations -->
+        <GroupBox Grid.Row="3" Header="Unmatched Vehicles (Require Attention)" Padding="10">
+            <DataGrid ItemsSource="{Binding UnmatchedRegistrations}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      AlternatingRowBackground="#FFEBEE">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="License Plate" Binding="{Binding LicensePlate}" Width="120"/>
+                    <DataGridTextColumn Header="Manufacturer" Binding="{Binding GovManufacturerName}" Width="150"/>
+                    <DataGridTextColumn Header="Model" Binding="{Binding GovModelName}" Width="150"/>
+                    <DataGridTextColumn Header="Year" Binding="{Binding GovYear}" Width="60"/>
+                    <DataGridTextColumn Header="Engine (cc)" Binding="{Binding GovEngineVolume}" Width="80"/>
+                    <DataGridTextColumn Header="Fuel" Binding="{Binding GovFuelType}" Width="80"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding MatchStatus}" Width="120"/>
+                    <DataGridTextColumn Header="Reason" Binding="{Binding MatchReason}" Width="*"/>
+                    <DataGridTextColumn Header="Last Lookup" Binding="{Binding LastLookupDate, StringFormat='{}{0:yyyy-MM-dd}'}" Width="100"/>
+                    <DataGridTextColumn Header="Lookup Count" Binding="{Binding LookupCount}" Width="90"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <!-- Loading Overlay -->
+        <Border Grid.Row="0" Grid.RowSpan="4"
+                Background="#80000000"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="⏳ Loading Analytics..."
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

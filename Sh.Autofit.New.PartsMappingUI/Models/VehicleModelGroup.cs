@@ -15,6 +15,10 @@ public partial class VehicleModelGroup : ObservableObject
     public int? YearTo { get; set; }
     public int MappedPartsCount { get; set; }
 
+    // Additional details
+    public List<int> EngineVolumes { get; set; } = new List<int>();
+    public List<string> FuelTypes { get; set; } = new List<string>();
+
     public string DisplayName
     {
         get
@@ -45,5 +49,42 @@ public partial class VehicleModelGroup : ObservableObject
             return $"(-{YearTo})";
         }
         return string.Empty;
+    }
+
+    public string EngineVolumesDisplay
+    {
+        get
+        {
+            if (EngineVolumes == null || !EngineVolumes.Any())
+                return string.Empty;
+
+            var uniqueVolumes = EngineVolumes.Distinct().OrderBy(v => v).ToList();
+            if (uniqueVolumes.Count == 1)
+                return $"{uniqueVolumes[0]} סמ\"ק";
+
+            return string.Join(", ", uniqueVolumes.Select(v => $"{v}")) + " סמ\"ק";
+        }
+    }
+
+    public string FuelTypesDisplay
+    {
+        get
+        {
+            if (FuelTypes == null || !FuelTypes.Any())
+                return string.Empty;
+
+            var uniqueFuelTypes = FuelTypes
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Distinct()
+                .ToList();
+
+            if (uniqueFuelTypes.Count == 0)
+                return string.Empty;
+
+            if (uniqueFuelTypes.Count == 1)
+                return uniqueFuelTypes[0];
+
+            return string.Join(", ", uniqueFuelTypes);
+        }
     }
 }

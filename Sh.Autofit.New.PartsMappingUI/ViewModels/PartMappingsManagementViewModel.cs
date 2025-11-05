@@ -24,6 +24,9 @@ public partial class PartMappingsManagementViewModel : ObservableObject
     private ObservableCollection<VehicleDisplayModel> _mappedVehicles = new();
 
     [ObservableProperty]
+    private ObservableCollection<VehicleDisplayModel> _suggestedVehicles = new();
+
+    [ObservableProperty]
     private string _partSearchText = string.Empty;
 
     [ObservableProperty]
@@ -131,10 +134,12 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         if (value != null)
         {
             _ = LoadMappedVehiclesAsync(value.PartNumber);
+            _ = LoadSuggestedVehiclesAsync(value.PartNumber);
         }
         else
         {
             MappedVehicles.Clear();
+            SuggestedVehicles.Clear();
         }
     }
 
@@ -145,20 +150,13 @@ public partial class PartMappingsManagementViewModel : ObservableObject
             IsLoading = true;
             StatusMessage = "טוען רכבים ממופים...";
 
-            // This needs a new method in DataService
-            var vehicles = await _dataService.LoadVehiclesAsync();
-            var mappedParts = await Task.WhenAll(
-                vehicles.Select(async v =>
-                {
-                    var parts = await _dataService.LoadMappedPartsAsync(v.VehicleTypeId);
-                    return new { Vehicle = v, HasPart = parts.Any(p => p.PartNumber == partNumber) };
-                })
-            );
+            // Use efficient method to load only mapped vehicles
+            var vehicles = await _dataService.LoadVehiclesForPartAsync(partNumber);
 
             MappedVehicles.Clear();
-            foreach (var item in mappedParts.Where(x => x.HasPart))
+            foreach (var vehicle in vehicles)
             {
-                MappedVehicles.Add(item.Vehicle);
+                MappedVehicles.Add(vehicle);
             }
 
             StatusMessage = $"{MappedVehicles.Count} רכבים ממופים";
@@ -170,6 +168,25 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private async Task LoadSuggestedVehiclesAsync(string partNumber)
+    {
+        try
+        {
+            var suggestions = await _dataService.GetSuggestedVehiclesForPartAsync(partNumber);
+
+            SuggestedVehicles.Clear();
+            foreach (var vehicle in suggestions)
+            {
+                SuggestedVehicles.Add(vehicle);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Silently fail for suggestions - they're optional
+            SuggestedVehicles.Clear();
         }
     }
 
@@ -250,6 +267,41 @@ public partial class PartMappingsManagementViewModel : ObservableObject
             {
                 IsLoading = false;
             }
+        }
+    }
+
+    [RelayCommand]
+    private async Task AcceptSuggestionAsync(VehicleDisplayModel? vehicle)
+    {
+        if (vehicle == null || SelectedPart == null)
+            return;
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = "מוסיף מיפוי מהצעה...";
+
+            // Add the suggested vehicle as a confirmed mapping
+            await _dataService.MapPartsToVehiclesAsync(
+                new List<int> { vehicle.VehicleTypeId },
+                new List<string> { SelectedPart.PartNumber },
+                "current_user"
+            );
+
+            StatusMessage = "ההצעה אושרה והמיפוי נוסף בהצלחה";
+
+            // Reload both lists
+            await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+            await LoadSuggestedVehiclesAsync(SelectedPart.PartNumber);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה: {ex.Message}";
+            MessageBox.Show($"שגיאה באישור הצעה: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 }

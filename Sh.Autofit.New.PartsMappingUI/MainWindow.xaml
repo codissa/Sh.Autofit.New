@@ -28,6 +28,9 @@
             <TabItem Header="ניהול מיפויי דגמים">
                 <views:ModelMappingsManagementView x:Name="ModelMappingsManagementView"/>
             </TabItem>
+            <TabItem Header="Analytics Dashboard">
+                <views:AnalyticsView DataContext="{Binding AnalyticsViewModel}"/>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

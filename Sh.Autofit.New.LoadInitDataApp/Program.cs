@@ -19,7 +19,7 @@ public sealed class CsvVehicleRecord
     public string tozeret_nm { get; set; }
     public string tozeret_eretz_nm { get; set; }
     public string tozar { get; set; }
-    decimal t
+
     // Model fields
     public string degem_cd { get; set; }
     public string degem_nm { get; set; }

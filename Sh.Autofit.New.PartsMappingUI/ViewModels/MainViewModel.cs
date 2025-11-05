@@ -12,13 +12,21 @@ public partial class MainViewModel : ObservableObject
     public PartKitsViewModel PartKitsViewModel { get; }
     public PartMappingsManagementViewModel PartMappingsManagementViewModel { get; }
     public ModelMappingsManagementViewModel ModelMappingsManagementViewModel { get; }
+    public AnalyticsDashboardViewModel AnalyticsViewModel { get; }
 
-    public MainViewModel(MappingViewModel mappingViewModel, PlateLookupViewModel plateLookupViewModel, PartKitsViewModel partKitsViewModel, PartMappingsManagementViewModel partMappingsManagementViewModel, ModelMappingsManagementViewModel modelMappingsManagementViewModel)
+    public MainViewModel(
+        MappingViewModel mappingViewModel,
+        PlateLookupViewModel plateLookupViewModel,
+        PartKitsViewModel partKitsViewModel,
+        PartMappingsManagementViewModel partMappingsManagementViewModel,
+        ModelMappingsManagementViewModel modelMappingsManagementViewModel,
+        AnalyticsDashboardViewModel analyticsViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
         PartKitsViewModel = partKitsViewModel;
         PartMappingsManagementViewModel = partMappingsManagementViewModel;
         ModelMappingsManagementViewModel = modelMappingsManagementViewModel;
+        AnalyticsViewModel = analyticsViewModel;
     }
 }

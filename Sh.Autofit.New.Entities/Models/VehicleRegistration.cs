@@ -31,6 +31,27 @@ public partial class VehicleRegistration
 
     public bool IsActive { get; set; }
 
+    // Raw data from Government API (for unmatched tracking)
+    public string GovManufacturerName { get; set; }
+
+    public string GovModelName { get; set; }
+
+    public int? GovEngineVolume { get; set; }
+
+    public string GovFuelType { get; set; }
+
+    public int? GovYear { get; set; }
+
+    // Match status tracking
+    public string MatchStatus { get; set; } // 'Matched', 'NotInOurDB', 'NotFoundInGovAPI', 'AutoCreated'
+
+    public string MatchReason { get; set; }
+
+    // API call metadata
+    public string ApiResourceUsed { get; set; }
+
+    public string ApiResponseJson { get; set; }
+
     public virtual Manufacturer Manufacturer { get; set; }
 
     public virtual VehicleType VehicleType { get; set; }

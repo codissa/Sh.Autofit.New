@@ -58,6 +58,7 @@ public partial class App : Application
         services.AddSingleton<PartKitsViewModel>();
         services.AddSingleton<PartMappingsManagementViewModel>();
         services.AddSingleton<ModelMappingsManagementViewModel>();
+        services.AddSingleton<AnalyticsDashboardViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();
