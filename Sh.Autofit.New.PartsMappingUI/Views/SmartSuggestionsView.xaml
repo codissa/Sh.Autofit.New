@@ -1,0 +1,344 @@
+<UserControl x:Class="Sh.Autofit.New.PartsMappingUI.Views.SmartSuggestionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="1400"
+             FlowDirection="RightToLeft">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Loading Overlay -->
+        <Border Grid.Row="0" Grid.RowSpan="4"
+               Background="#80000000"
+               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+               Panel.ZIndex="1000">
+            <Border Background="White"
+                   CornerRadius="8"
+                   Padding="30"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="⏳" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Title and Actions -->
+        <Grid Grid.Row="0" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="הצעות חכמות"
+                          FontSize="24"
+                          FontWeight="Bold"/>
+                <TextBlock Text="מערכת מציעה מיפויים חדשים על סמך מיפויים קיימים"
+                          FontSize="12"
+                          Foreground="Gray"
+                          Margin="0,5,0,0"/>
+            </StackPanel>
+
+            <Button Grid.Column="1"
+                   Content="🔄 רענן הצעות"
+                   Command="{Binding LoadSuggestionsCommand}"
+                   Padding="15,8"
+                   FontSize="14"
+                   Background="#4CAF50"
+                   Foreground="White"
+                   BorderThickness="0"
+                   Cursor="Hand"/>
+        </Grid>
+
+        <!-- Statistics Panel -->
+        <Border Grid.Row="1"
+               Background="#F5F5F5"
+               CornerRadius="8"
+               Padding="15"
+               Margin="0,0,0,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="סה״כ הצעות" FontSize="11" Foreground="Gray"/>
+                    <TextBlock Text="{Binding TotalSuggestions}" FontSize="24" FontWeight="Bold" Foreground="#2196F3"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="ביטחון גבוה (90+)" FontSize="11" Foreground="Gray"/>
+                    <TextBlock Text="{Binding HighConfidenceSuggestions}" FontSize="24" FontWeight="Bold" Foreground="#4CAF50"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="ביטחון בינוני (70-89)" FontSize="11" Foreground="Gray"/>
+                    <TextBlock Text="{Binding MediumConfidenceSuggestions}" FontSize="24" FontWeight="Bold" Foreground="#FF9800"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="3">
+                    <TextBlock Text="רכבים פוטנציאליים" FontSize="11" Foreground="Gray"/>
+                    <TextBlock Text="{Binding PotentialVehicles}" FontSize="24" FontWeight="Bold" Foreground="#9C27B0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Filters and Bulk Actions -->
+        <Grid Grid.Row="2" Margin="0,0,0,15">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Filters Row -->
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBox Grid.Column="0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Padding="8"
+                         Margin="0,0,10,0">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <VisualBrush Stretch="None" AlignmentX="Right">
+                                                <VisualBrush.Visual>
+                                                    <TextBlock Text="🔍 חפש חלק או דגם..."
+                                                              Foreground="Gray"
+                                                              Margin="0,0,5,0"
+                                                              FlowDirection="RightToLeft"/>
+                                                </VisualBrush.Visual>
+                                            </VisualBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+
+                <ComboBox Grid.Column="1"
+                         ItemsSource="{Binding AvailableManufacturers}"
+                         SelectedItem="{Binding SelectedManufacturer}"
+                         Width="150"
+                         Padding="8"
+                         Margin="0,0,10,0"/>
+
+                <ComboBox Grid.Column="2"
+                         ItemsSource="{Binding AvailableCategories}"
+                         SelectedItem="{Binding SelectedCategory}"
+                         Width="150"
+                         Padding="8"
+                         Margin="0,0,10,0"/>
+
+                <TextBox Grid.Column="3"
+                        Text="{Binding MinScore}"
+                        Width="80"
+                        Padding="8"
+                        Margin="0,0,10,0"
+                        ToolTip="ציון מינימלי"/>
+
+                <CheckBox Grid.Column="4"
+                         Content="רק ביטחון גבוה"
+                         IsChecked="{Binding ShowOnlyHighConfidence}"
+                         VerticalAlignment="Center"
+                         Padding="5"/>
+            </Grid>
+
+            <!-- Bulk Actions Row -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                <TextBlock Text="פעולות קבוצתיות:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Button Content="אשר 10 הראשונות"
+                       Command="{Binding AcceptTopNCommand}"
+                       CommandParameter="10"
+                       Padding="10,5"
+                       Margin="0,0,5,0"
+                       Background="#2196F3"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"/>
+                <Button Content="אשר כל הביטחון הגבוה"
+                       Command="{Binding AcceptAllHighConfidenceCommand}"
+                       Padding="10,5"
+                       Background="#4CAF50"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Suggestions List (Card View) -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding FilteredSuggestions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="#E0E0E0"
+                               BorderThickness="1"
+                               CornerRadius="8"
+                               Padding="15"
+                               Margin="0,0,0,15"
+                               Background="White">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Gray" BlurRadius="5" ShadowDepth="2" Opacity="0.2"/>
+                            </Border.Effect>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header: Score and Confidence -->
+                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ConfidenceIcon}"
+                                                  FontSize="20"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,5,0"/>
+                                        <TextBlock Text="ציון: " FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Score, StringFormat={}{0:F0}}"
+                                                  FontSize="18"
+                                                  FontWeight="Bold"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"/>
+                                        <TextBlock Text="|" Foreground="Gray" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBlock Text="ביטחון: " FontSize="14" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ConfidenceText}"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Part Information -->
+                                <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                                    <TextBlock Text="חלק:" FontSize="11" Foreground="Gray"/>
+                                    <TextBlock FontSize="16" FontWeight="SemiBold">
+                                        <Run Text="{Binding PartNumber}"/>
+                                        <Run Text=" - "/>
+                                        <Run Text="{Binding PartName}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Category}"
+                                              FontSize="12"
+                                              Foreground="Gray"
+                                              Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <!-- Source Model -->
+                                <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                                    <TextBlock Text="מ:" FontSize="11" Foreground="Gray"/>
+                                    <TextBlock Text="{Binding SourceModelDisplay}"
+                                              FontSize="13"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="ממופה כרגע ל: " FontSize="11" Foreground="Gray"/>
+                                        <TextBlock Text="{Binding SourceVehicleCount}" FontSize="11" FontWeight="SemiBold"/>
+                                        <TextBlock Text=" רכבים" FontSize="11" Foreground="Gray" Margin="0,0,10,0"/>
+                                        <TextBlock Text="| משמש: " FontSize="11" Foreground="Gray"/>
+                                        <TextBlock Text="{Binding OtherModelsWithPart}" FontSize="11" FontWeight="SemiBold"/>
+                                        <TextBlock Text=" דגמים נוספים" FontSize="11" Foreground="Gray"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Target Models -->
+                                <StackPanel Grid.Row="3" Margin="0,0,0,10">
+                                    <TextBlock Text="מוצע ל:" FontSize="11" Foreground="Gray"/>
+                                    <TextBlock Text="{Binding TargetModelsDisplay}"
+                                              FontSize="13"
+                                              FontWeight="SemiBold"
+                                              Margin="0,2,0,5"/>
+
+                                    <!-- Target Models List -->
+                                    <ItemsControl ItemsSource="{Binding TargetModels}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="10,2,0,2">
+                                                    <TextBlock Text="✓" Foreground="#4CAF50" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Score Reason -->
+                                    <TextBlock Text="{Binding ScoreReason}"
+                                              FontSize="11"
+                                              FontStyle="Italic"
+                                              Foreground="Gray"
+                                              Margin="0,5,0,0"
+                                              TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <!-- Action Buttons -->
+                                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Content="✓ אשר הכל"
+                                           Command="{Binding DataContext.AcceptSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}"
+                                           Padding="15,8"
+                                           Margin="0,0,10,0"
+                                           Background="#4CAF50"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           FontWeight="SemiBold"
+                                           Cursor="Hand"/>
+                                    <Button Content="ערוך דגמים"
+                                           Command="{Binding DataContext.EditTargetModelsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}"
+                                           Padding="15,8"
+                                           Margin="0,0,10,0"
+                                           Background="#2196F3"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           Cursor="Hand"/>
+                                    <Button Content="✗ דחה"
+                                           Command="{Binding DataContext.RejectSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           CommandParameter="{Binding}"
+                                           Padding="15,8"
+                                           Background="#F44336"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           Cursor="Hand"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -31,6 +31,9 @@
             <TabItem Header="Analytics Dashboard">
                 <views:AnalyticsView DataContext="{Binding AnalyticsViewModel}"/>
             </TabItem>
+            <TabItem Header="הצעות חכמות">
+                <views:SmartSuggestionsView DataContext="{Binding SmartSuggestionsViewModel}"/>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

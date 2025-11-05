@@ -8,7 +8,7 @@ public interface IDataService
     Task<List<VehicleDisplayModel>> LoadVehiclesAsync();
     Task<List<(string ManufacturerShortName, string ManufacturerName, string CommercialName, int Count)>> LoadVehicleGroupSummaryAsync();
     Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName);
-    Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName);
+    Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName, int? engineVolume = null);
     Task<List<PartDisplayModel>> LoadPartsAsync();
     Task<List<PartDisplayModel>> LoadMappedPartsAsync(int vehicleTypeId);
     Task<List<PartDisplayModel>> LoadUnmappedPartsAsync(int vehicleTypeId);

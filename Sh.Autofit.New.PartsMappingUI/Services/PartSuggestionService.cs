@@ -74,14 +74,18 @@ public class PartSuggestionService : IPartSuggestionService
                 });
             }
 
-            // Strategy 3: OEM Association
-            var oemAssociationScore = CalculateOemAssociationScore(part, similarVehiclesParts);
+            // Strategy 3: OEM Association (ENHANCED with exact match detection)
+            var oemAssociationScore = CalculateOemAssociationScore(part, similarVehiclesParts, allParts, vehicles, out var hasExactOemMatch);
             if (oemAssociationScore > 0)
             {
+                var description = hasExactOemMatch
+                    ? "⭐ Exact OEM match with mapped part!"
+                    : "OEM numbers used by similar vehicles";
+
                 reasons.Add(new SuggestionReason
                 {
                     Strategy = SuggestionStrategy.OemAssociation,
-                    Description = "OEM numbers used by similar vehicles",
+                    Description = description,
                     Score = oemAssociationScore
                 });
             }
@@ -262,12 +266,55 @@ public class PartSuggestionService : IPartSuggestionService
         return Math.Min(maxScore, 25); // Cap at 25 points
     }
 
-    private double CalculateOemAssociationScore(PartDisplayModel part, Dictionary<string, List<string>> similarVehiclesParts)
+    private double CalculateOemAssociationScore(
+        PartDisplayModel part,
+        Dictionary<string, List<string>> similarVehiclesParts,
+        List<PartDisplayModel> allParts,
+        List<VehicleDisplayModel> vehicles,
+        out bool hasExactOemMatch)
     {
+        hasExactOemMatch = false;
+
         if (!part.OemNumbers.Any())
             return 0;
 
         double score = 0;
+
+        // ENHANCED: Check for EXACT OEM match with parts already mapped to these vehicles
+        // Normalize OEM numbers (remove special characters) for comparison
+        var normalizedPartOems = part.OemNumbers
+            .Select(oem => OemPatternMatcher.NormalizeOem(oem))
+            .Where(oem => !string.IsNullOrEmpty(oem))
+            .ToHashSet();
+
+        // Get all parts that are mapped to the target vehicles
+        var mappedPartsToTheseVehicles = similarVehiclesParts.Values
+            .SelectMany(partList => partList)
+            .Distinct()
+            .ToList();
+
+        // Check each mapped part for OEM overlap
+        foreach (var mappedPartNumber in mappedPartsToTheseVehicles)
+        {
+            var mappedPart = allParts.FirstOrDefault(p => p.PartNumber == mappedPartNumber);
+            if (mappedPart != null && mappedPart.OemNumbers.Any())
+            {
+                var mappedNormalizedOems = mappedPart.OemNumbers
+                    .Select(oem => OemPatternMatcher.NormalizeOem(oem))
+                    .Where(oem => !string.IsNullOrEmpty(oem))
+                    .ToHashSet();
+
+                // Check for exact OEM match
+                if (normalizedPartOems.Overlaps(mappedNormalizedOems))
+                {
+                    // EXACT OEM MATCH FOUND - Very high confidence!
+                    hasExactOemMatch = true;
+                    return 100; // Maximum score for exact OEM match
+                }
+            }
+        }
+
+        // Fallback to original logic if no exact match
         int matchCount = 0;
 
         // Check if any of this part's OEM numbers appear in parts used by similar vehicles

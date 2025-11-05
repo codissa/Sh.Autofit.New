@@ -50,6 +50,7 @@ public partial class App : Application
         services.AddSingleton<IGovernmentApiService, GovernmentApiService>();
         services.AddSingleton<IVehicleMatchingService, VehicleMatchingService>();
         services.AddSingleton<IPartKitService, PartKitService>();
+        services.AddSingleton<ISmartSuggestionsService, SmartSuggestionsService>();
 
         // Register ViewModels
         services.AddSingleton<MappingViewModel>();
@@ -59,6 +60,7 @@ public partial class App : Application
         services.AddSingleton<PartMappingsManagementViewModel>();
         services.AddSingleton<ModelMappingsManagementViewModel>();
         services.AddSingleton<AnalyticsDashboardViewModel>();
+        services.AddSingleton<SmartSuggestionsViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();

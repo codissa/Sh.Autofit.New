@@ -91,33 +91,62 @@ public class DataService : IDataService
             })
             .ToListAsync();
 
-        return vehicles.Select(v =>
+        var result = new List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType)>();
+
+        foreach (var v in vehicles)
         {
             // Check if all vehicles have the same engine volume
             var distinctEngineVolumes = v.Vehicles.Where(x => x.EngineVolume.HasValue).Select(x => x.EngineVolume.Value).Distinct().ToList();
-            int? uniformEngineVolume = distinctEngineVolumes.Count == 1 ? distinctEngineVolumes.First() : null;
 
-            // Check if all vehicles have the same fuel type
-            var distinctFuelTypes = v.Vehicles.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
-            string? uniformFuelType = distinctFuelTypes.Count == 1 ? distinctFuelTypes.First() : null;
+            if (distinctEngineVolumes.Count > 1)
+            {
+                // SPLIT: Multiple engine volumes - create separate entry for each
+                foreach (var engineVolume in distinctEngineVolumes.OrderBy(e => e))
+                {
+                    var vehiclesForThisVolume = v.Vehicles.Where(x => x.EngineVolume == engineVolume).ToList();
+                    var fuelTypes = vehiclesForThisVolume.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
+                    string? uniformFuelType = fuelTypes.Count == 1 ? fuelTypes.First() : null;
 
-            return (v.ModelName, v.Count, v.YearFrom, v.YearTo, uniformEngineVolume, uniformFuelType);
-        }).ToList();
+                    result.Add((v.ModelName, vehiclesForThisVolume.Count, v.YearFrom, v.YearTo, engineVolume, uniformFuelType));
+                }
+            }
+            else
+            {
+                // Single or no engine volume - return as one entry
+                int? uniformEngineVolume = distinctEngineVolumes.Count == 1 ? distinctEngineVolumes.First() : null;
+
+                // Check if all vehicles have the same fuel type
+                var distinctFuelTypes = v.Vehicles.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
+                string? uniformFuelType = distinctFuelTypes.Count == 1 ? distinctFuelTypes.First() : null;
+
+                result.Add((v.ModelName, v.Count, v.YearFrom, v.YearTo, uniformEngineVolume, uniformFuelType));
+            }
+        }
+
+        return result;
     }
 
-    public async Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName)
+    public async Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName, int? engineVolume = null)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Handle empty commercial name case
-        var vehicles = await context.VehicleTypes
+        // Build query with optional engine volume filter
+        var query = context.VehicleTypes
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive &&
                        (v.Manufacturer.ManufacturerShortName == manufacturerShortName ||
                         (v.Manufacturer.ManufacturerShortName == null && v.Manufacturer.ManufacturerName == manufacturerShortName)) &&
                        (string.IsNullOrEmpty(commercialName) ? (v.CommercialName == null || v.CommercialName == string.Empty) : v.CommercialName == commercialName) &&
-                       v.ModelName == modelName)
+                       v.ModelName == modelName);
+
+        // Add engine volume filter if specified
+        if (engineVolume.HasValue)
+        {
+            query = query.Where(v => v.EngineVolume == engineVolume.Value);
+        }
+
+        var vehicles = await query
             .Select(v => new VehicleDisplayModel
             {
                 VehicleTypeId = v.VehicleTypeId,

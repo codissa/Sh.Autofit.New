@@ -286,11 +286,12 @@ public partial class MappingViewModel : ObservableObject
             group.IsLoading = true;
             StatusMessage = $"Loading vehicles for {group.ModelName}...";
 
-            // Load vehicles for this model
+            // Load vehicles for this model (with optional engine volume filter)
             var vehicles = await _dataService.LoadVehiclesByModelAsync(
                 group.ManufacturerShortName,
                 group.CommercialName,
-                group.ModelName);
+                group.ModelName,
+                group.EngineVolume);
 
             // Load mapping counts
             var vehicleMappingCounts = await _dataService.LoadMappingCountsAsync();

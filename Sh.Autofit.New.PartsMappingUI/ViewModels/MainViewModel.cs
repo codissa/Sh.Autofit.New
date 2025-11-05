@@ -13,6 +13,7 @@ public partial class MainViewModel : ObservableObject
     public PartMappingsManagementViewModel PartMappingsManagementViewModel { get; }
     public ModelMappingsManagementViewModel ModelMappingsManagementViewModel { get; }
     public AnalyticsDashboardViewModel AnalyticsViewModel { get; }
+    public SmartSuggestionsViewModel SmartSuggestionsViewModel { get; }
 
     public MainViewModel(
         MappingViewModel mappingViewModel,
@@ -20,7 +21,8 @@ public partial class MainViewModel : ObservableObject
         PartKitsViewModel partKitsViewModel,
         PartMappingsManagementViewModel partMappingsManagementViewModel,
         ModelMappingsManagementViewModel modelMappingsManagementViewModel,
-        AnalyticsDashboardViewModel analyticsViewModel)
+        AnalyticsDashboardViewModel analyticsViewModel,
+        SmartSuggestionsViewModel smartSuggestionsViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
@@ -28,5 +30,6 @@ public partial class MainViewModel : ObservableObject
         PartMappingsManagementViewModel = partMappingsManagementViewModel;
         ModelMappingsManagementViewModel = modelMappingsManagementViewModel;
         AnalyticsViewModel = analyticsViewModel;
+        SmartSuggestionsViewModel = smartSuggestionsViewModel;
     }
 }
