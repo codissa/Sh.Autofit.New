@@ -83,3 +83,53 @@ Sh.Autofit.New/
 - **Cross-Database Queries:** Use vw_Parts view, not direct SH2013.Items queries.
 - **Mapping Versioning:** Never delete mappings, use versioning (IsCurrentVersion flag).
 - **User Tracking:** Always pass current user to mapping operations for audit trail.
+
+## ⚠️ CRITICAL MAPPING RULE - Model-Level Operations
+
+**IMPORTANT:** ALL mapping and unmapping operations MUST apply to ALL vehicles with the same model name, NOT just a single vehicle.
+
+### What This Means:
+When mapping or unmapping parts, the system operates at the **Model Level**, not the individual vehicle level. Each model (e.g., "Honda Civic Sport") typically has multiple VehicleType records in the database (one per year, engine configuration, etc.). Changes must apply to ALL of them.
+
+### Implementation Requirements:
+1. **Mapping Operations** - When mapping parts:
+   ```csharp
+   // ❌ WRONG - Don't map to just one vehicle
+   vehicleTypeIds.Add(selectedModel.VehicleTypeId);
+
+   // ✅ CORRECT - Get ALL vehicles for the model
+   var allModelVehicles = _allVehicles
+       .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(model.ManufacturerName) &&
+                   v.ModelName.EqualsIgnoringWhitespace(model.ModelName))
+       .Select(v => v.VehicleTypeId)
+       .ToList();
+   ```
+
+2. **Unmapping Operations** - When unmapping parts:
+   - In **Plate Lookup**: Prompt user: "Remove from all vehicles in this model?" (Yes/No/Cancel)
+   - In **Car Management**: Always remove from all vehicles in the model (after confirmation)
+
+3. **Affected Methods:**
+   - `PlateLookupViewModel.QuickMapAsync()` ✅ Fixed
+   - `PlateLookupViewModel.QuickMapSuggestionAsync()` ✅ Fixed
+   - `PlateLookupViewModel.UnmapPartAsync()` ✅ Already correct
+   - `ModelMappingsManagementViewModel.AddPartsToModelAsync()` ✅ Fixed
+   - `ModelMappingsManagementViewModel.AcceptPartSuggestionAsync()` ✅ Fixed
+   - `ModelMappingsManagementViewModel.RemovePartFromModelAsync()` ✅ Already correct
+
+### Why This Matters:
+- **Data Consistency:** All variants of a model should have consistent fitment data
+- **User Expectation:** Users expect "Honda Civic 2020" to have same parts as "Honda Civic 2021"
+- **Business Logic:** Parts typically fit entire model lines, not individual year/trim combinations
+
+### Code Pattern to Follow:
+```csharp
+// Always use whitespace-agnostic comparison when grouping by model
+var vehicleIds = allVehicles
+    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(targetManufacturer) &&
+                v.ModelName.EqualsIgnoringWhitespace(targetModel))
+    .Select(v => v.VehicleTypeId)
+    .ToList();
+
+await _dataService.MapPartsToVehiclesAsync(vehicleIds, partNumbers, currentUser);
+```

@@ -56,14 +56,13 @@
                   Margin="0,0,0,15"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
-                  SelectionMode="Extended"
-                  IsReadOnly="True">
+                  SelectionMode="Extended">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Width="40" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"/>
-                <DataGridTextColumn Header="מקט" Binding="{Binding PartNumber}" Width="120"/>
-                <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*"/>
-                <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="150"/>
-                <DataGridTextColumn Header="יצרן" Binding="{Binding Manufacturer}" Width="120"/>
+                <DataGridTextColumn Header="מקט" Binding="{Binding PartNumber}" Width="120" IsReadOnly="True"/>
+                <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="150" IsReadOnly="True"/>
+                <DataGridTextColumn Header="יצרן" Binding="{Binding Manufacturer}" Width="120" IsReadOnly="True"/>
             </DataGrid.Columns>
         </DataGrid>
 

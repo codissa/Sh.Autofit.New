@@ -1,0 +1,274 @@
+<Window x:Class="Sh.Autofit.New.PartsMappingUI.Views.SelectModelsForMappingDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="מיפוי לדגמים דומים"
+        Height="700" Width="1200"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="RightToLeft"
+        ResizeMode="CanResize">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="בחר חלקים ודגמים למיפוי"
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="400"/>
+                <ColumnDefinition Width="15"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel - Parts -->
+            <Border Grid.Column="0" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="חלקים למיפוי" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+                    <!-- Parts Search Box -->
+                    <TextBox x:Name="PartsSearchBox"
+                             Grid.Row="1"
+                             Padding="8"
+                             Margin="0,0,0,10"
+                             TextChanged="PartsSearchBox_TextChanged">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <VisualBrush Stretch="None" AlignmentX="Right">
+                                                    <VisualBrush.Visual>
+                                                        <TextBlock Text="🔍 חפש חלקים..."
+                                                                  Foreground="Gray"
+                                                                  Margin="0,0,5,0"
+                                                                  FlowDirection="RightToLeft"/>
+                                                    </VisualBrush.Visual>
+                                                </VisualBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <!-- Parts DataGrid -->
+                    <DataGrid x:Name="PartsGrid"
+                              Grid.Row="2"
+                              Margin="0,0,0,10"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Extended">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Focusable" Value="False"/>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </DataGrid.CellStyle>
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"/>
+                            <DataGridTextColumn Header="מקט" Binding="{Binding PartNumber}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Add Parts Button -->
+                    <Button Grid.Row="3"
+                            Content="➕ הוסף חלקים נוספים"
+                            Click="AddPartsButton_Click"
+                            Padding="10,6"
+                            Background="#2196F3"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="13"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#1976D2"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel - Models -->
+            <Border Grid.Column="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock Text="דגמים דומים" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="ModelsCountText" FontSize="12" Foreground="#666" Margin="0,3,0,0"/>
+                    </StackPanel>
+
+                    <!-- Models Search Box -->
+                    <TextBox x:Name="ModelsSearchBox"
+                             Grid.Row="1"
+                             Padding="8"
+                             Margin="0,0,0,10"
+                             TextChanged="ModelsSearchBox_TextChanged">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <VisualBrush Stretch="None" AlignmentX="Right">
+                                                    <VisualBrush.Visual>
+                                                        <TextBlock Text="🔍 חפש דגמים..."
+                                                                  Foreground="Gray"
+                                                                  Margin="0,0,5,0"
+                                                                  FlowDirection="RightToLeft"/>
+                                                    </VisualBrush.Visual>
+                                                </VisualBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <!-- Models DataGrid -->
+                    <DataGrid x:Name="ModelsGrid"
+                              Grid.Row="2"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Extended">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Focusable" Value="False"/>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </DataGrid.CellStyle>
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"/>
+                            <DataGridTextColumn Header="דגם" Binding="{Binding DisplayName}" Width="150" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialNameDisplay}" Width="120" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="שנים" Binding="{Binding YearRange}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolumeDisplay}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="ציון" Binding="{Binding Score}" Width="60" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#4CAF50"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,15,0,0">
+            <Button Content="מפה לדגמים מסומנים"
+                    Click="MapButton_Click"
+                    Padding="20,10"
+                    Margin="0,0,10,0"
+                    Background="#4CAF50"
+                    Foreground="White"
+                    BorderThickness="0"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#45A049"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="ביטול"
+                    Click="CancelButton_Click"
+                    Padding="20,10"
+                    Background="#E0E0E0"
+                    Foreground="Black"
+                    BorderThickness="0"
+                    FontSize="14"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#D0D0D0"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.EntityFrameworkCore;
+using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Helpers;
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
@@ -12,6 +14,7 @@ namespace Sh.Autofit.New.PartsMappingUI.ViewModels;
 public partial class ModelMappingsManagementViewModel : ObservableObject
 {
     private readonly IDataService _dataService;
+    private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
 
     [ObservableProperty]
     private ObservableCollection<VehicleModelGroup> _modelGroups = new();
@@ -45,9 +48,10 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
 
     private List<VehicleDisplayModel> _allVehicles = new();
 
-    public ModelMappingsManagementViewModel(IDataService dataService)
+    public ModelMappingsManagementViewModel(IDataService dataService, IDbContextFactory<ShAutofitContext> contextFactory)
     {
         _dataService = dataService;
+        _contextFactory = contextFactory;
     }
 
     public async Task InitializeAsync()
@@ -275,7 +279,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             return;
         }
 
-        // Show dialog to select parts
+        // Use the old simple SelectPartsDialog
         var allParts = await _dataService.LoadPartsAsync();
         var unmappedParts = allParts.Where(p => !MappedParts.Any(mp => mp.PartNumber == p.PartNumber)).ToList();
 
@@ -287,7 +291,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                 IsLoading = true;
                 StatusMessage = "ממפה חלקים לכל הרכבים בדגם...";
 
-                // Get all vehicle IDs for this model
+                // IMPORTANT: Get ALL vehicle IDs for this model (not just one)
                 var vehicleIds = _allVehicles
                     .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
                                v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
@@ -297,7 +301,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                 var partNumbers = dialog.SelectedParts.Select(p => p.PartNumber).ToList();
                 await _dataService.MapPartsToVehiclesAsync(vehicleIds, partNumbers, "current_user");
 
-                StatusMessage = "המיפוי בוצע בהצלחה";
+                StatusMessage = $"✓ מופו {partNumbers.Count} חלקים ל-{vehicleIds.Count} רכבים";
                 await LoadMappedPartsAsync(SelectedModelGroup);
                 await LoadSuggestedPartsAsync(SelectedModelGroup);
             }
@@ -507,27 +511,73 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusMessage = "מוסיף חלק מהצעה לכל הרכבים בדגם...";
+            StatusMessage = "טוען חלונית מיפוי...";
 
-            // Get all vehicle IDs for this model
-            var vehicleIds = _allVehicles
-                .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                           v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
-                .Select(v => v.VehicleTypeId)
-                .ToList();
+            // Get a representative vehicle from the selected model group
+            var representativeVehicle = _allVehicles
+                .FirstOrDefault(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
+                                    v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName));
 
-            // Add the suggested part as a confirmed mapping
-            await _dataService.MapPartsToVehiclesAsync(
-                vehicleIds,
-                new List<string> { part.PartNumber },
-                "current_user"
-            );
+            if (representativeVehicle == null)
+            {
+                MessageBox.Show("לא נמצא רכב בדגם זה", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
-            StatusMessage = "ההצעה אושרה והחלק נוסף בהצלחה";
+            // Open the new SelectModelsForMappingDialog with the suggested part as initial part
+            var initialParts = new List<PartDisplayModel> { part };
+            var dialog = new Views.SelectModelsForMappingDialog(_contextFactory, representativeVehicle, initialParts);
+            var result = dialog.ShowDialog();
 
-            // Reload both lists
-            await LoadMappedPartsAsync(SelectedModelGroup);
-            await LoadSuggestedPartsAsync(SelectedModelGroup);
+            if (result == true)
+            {
+                var selectedParts = dialog.SelectedParts;
+                var selectedModels = dialog.SelectedModels;
+
+                if (selectedParts.Any() && selectedModels.Any())
+                {
+                    StatusMessage = "ממפה חלקים לדגמים...";
+
+                    // IMPORTANT: Map to ALL vehicles with same model name, not just one vehicle per model
+                    var allVehicleIds = new List<int>();
+
+                    // Get ALL vehicle IDs for current model (not just one)
+                    var currentModelVehicleIds = _allVehicles
+                        .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
+                                   v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
+                        .Select(v => v.VehicleTypeId)
+                        .ToList();
+                    allVehicleIds.AddRange(currentModelVehicleIds);
+
+                    // Get ALL vehicle IDs from each selected model (not just one vehicle per model)
+                    foreach (var selectedModel in selectedModels)
+                    {
+                        var modelVehicles = _allVehicles
+                            .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(selectedModel.ManufacturerName) &&
+                                       v.ModelName.EqualsIgnoringWhitespace(selectedModel.ModelName))
+                            .Select(v => v.VehicleTypeId)
+                            .ToList();
+                        allVehicleIds.AddRange(modelVehicles);
+                    }
+
+                    // Remove duplicates
+                    allVehicleIds = allVehicleIds.Distinct().ToList();
+
+                    // Map selected parts to ALL vehicles in selected models
+                    var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
+                    await _dataService.MapPartsToVehiclesAsync(allVehicleIds, partNumbers, "current_user");
+
+                    StatusMessage = $"✓ מופו {selectedParts.Count} חלקים ל-{allVehicleIds.Count} רכבים ({selectedModels.Count + 1} דגמים)";
+
+                    // Reload both lists
+                    await LoadMappedPartsAsync(SelectedModelGroup);
+                    await LoadSuggestedPartsAsync(SelectedModelGroup);
+                }
+            }
+            else
+            {
+                StatusMessage = MappedParts.Count > 0 ? $"{MappedParts.Count} חלקים ממופים לדגם זה" : "אין חלקים ממופים";
+            }
         }
         catch (Exception ex)
         {

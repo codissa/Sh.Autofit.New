@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.EntityFrameworkCore;
+using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Helpers;
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
@@ -14,6 +16,7 @@ public partial class PlateLookupViewModel : ObservableObject
     private readonly IGovernmentApiService _governmentApiService;
     private readonly IVehicleMatchingService _vehicleMatchingService;
     private readonly IDataService _dataService;
+    private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
 
     [ObservableProperty]
     private string _plateNumber = string.Empty;
@@ -59,11 +62,13 @@ public partial class PlateLookupViewModel : ObservableObject
     public PlateLookupViewModel(
         IGovernmentApiService governmentApiService,
         IVehicleMatchingService vehicleMatchingService,
-        IDataService dataService)
+        IDataService dataService,
+        IDbContextFactory<ShAutofitContext> contextFactory)
     {
         _governmentApiService = governmentApiService;
         _vehicleMatchingService = vehicleMatchingService;
         _dataService = dataService;
+        _contextFactory = contextFactory;
     }
 
     [RelayCommand]
@@ -305,6 +310,7 @@ public partial class PlateLookupViewModel : ObservableObject
 
         try
         {
+            // Use the old simple QuickMapDialog
             var dialog = new Views.QuickMapDialog(_dataService, MatchedVehicle.VehicleTypeId);
             var result = dialog.ShowDialog();
 
@@ -318,6 +324,10 @@ public partial class PlateLookupViewModel : ObservableObject
                 {
                     MappedParts.Add(part);
                 }
+
+                // Reload suggestions
+                await ReloadSuggestionsAsync();
+
                 StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים לרכב זה";
             }
         }
@@ -515,26 +525,73 @@ public partial class PlateLookupViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusMessage = "ממפה חלק מוצע...";
+            StatusMessage = "טוען חלונית מיפוי...";
 
-            // Map the suggested part to the current vehicle
-            await _dataService.MapPartsToVehiclesAsync(
-                new List<int> { MatchedVehicle.VehicleTypeId },
-                new List<string> { part.PartNumber },
-                "current_user");
+            // Open the new SelectModelsForMappingDialog with the suggested part as initial part
+            var initialParts = new List<PartDisplayModel> { part };
+            var dialog = new Views.SelectModelsForMappingDialog(_contextFactory, MatchedVehicle, initialParts);
+            var result = dialog.ShowDialog();
 
-            // Move from suggestions to mapped
-            SuggestedParts.Remove(part);
-            part.HasSuggestion = false;
-            MappedParts.Add(part);
+            if (result == true)
+            {
+                var selectedParts = dialog.SelectedParts;
+                var selectedModels = dialog.SelectedModels;
 
-            StatusMessage = $"✓ '{part.PartName}' נוסף בהצלחה";
+                if (selectedParts.Any() && selectedModels.Any())
+                {
+                    StatusMessage = "ממפה חלקים לדגמים...";
 
-            // Check for similar models with same commercial name, overlapping years, and engine volume
-            await CheckAndMapToSimilarModels(part);
+                    // IMPORTANT: Map to ALL vehicles with same model name, not just one vehicle per model
+                    var allVehicles = await _dataService.LoadVehiclesAsync();
+                    var vehicleTypeIds = new List<int>();
 
-            // Reload suggestions to reflect the new mapping
-            await ReloadSuggestionsAsync();
+                    // Add ALL vehicles from the current vehicle's model (not just the current vehicle)
+                    var currentModelVehicles = allVehicles
+                        .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(MatchedVehicle.ManufacturerName) &&
+                                   v.ModelName.EqualsIgnoringWhitespace(MatchedVehicle.ModelName))
+                        .Select(v => v.VehicleTypeId)
+                        .ToList();
+                    vehicleTypeIds.AddRange(currentModelVehicles);
+
+                    // Add ALL vehicles from each selected similar model (not just one vehicle per model)
+                    foreach (var selectedModel in selectedModels)
+                    {
+                        var modelVehicles = allVehicles
+                            .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(selectedModel.ManufacturerName) &&
+                                       v.ModelName.EqualsIgnoringWhitespace(selectedModel.ModelName))
+                            .Select(v => v.VehicleTypeId)
+                            .ToList();
+                        vehicleTypeIds.AddRange(modelVehicles);
+                    }
+
+                    // Remove duplicates
+                    vehicleTypeIds = vehicleTypeIds.Distinct().ToList();
+
+                    // Map selected parts to ALL vehicles in selected models
+                    var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
+                    await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, partNumbers, "current_user");
+
+                    // Move from suggestions to mapped
+                    if (selectedParts.Any(p => p.PartNumber == part.PartNumber))
+                    {
+                        SuggestedParts.Remove(part);
+                        part.HasSuggestion = false;
+                        if (!MappedParts.Any(p => p.PartNumber == part.PartNumber))
+                        {
+                            MappedParts.Add(part);
+                        }
+                    }
+
+                    // Reload suggestions to reflect the new mapping
+                    await ReloadSuggestionsAsync();
+
+                    StatusMessage = $"✓ מופו {selectedParts.Count} חלקים ל-{vehicleTypeIds.Count} רכבים ({selectedModels.Count + 1} דגמים)";
+                }
+            }
+            else
+            {
+                StatusMessage = HasResults ? $"נמצאו {MappedParts.Count} חלקים ממופים" : string.Empty;
+            }
         }
         catch (Exception ex)
         {
@@ -547,93 +604,4 @@ public partial class PlateLookupViewModel : ObservableObject
         }
     }
 
-    private async Task CheckAndMapToSimilarModels(PartDisplayModel part)
-    {
-        if (MatchedVehicle == null)
-            return;
-
-        try
-        {
-            StatusMessage = "מחפש דגמים דומים...";
-
-            // Load all vehicles
-            var allVehicles = await _dataService.LoadVehiclesAsync();
-
-            // Find vehicles with same commercial name, overlapping years, and same engine volume (ignoring whitespace)
-            var similarVehicles = allVehicles
-                .Where(v => v.VehicleTypeId != MatchedVehicle.VehicleTypeId && // Not the current vehicle
-                           !v.ModelName.EqualsIgnoringWhitespace(MatchedVehicle.ModelName) && // Different model name
-                           v.CommercialName.EqualsIgnoringWhitespace(MatchedVehicle.CommercialName) && // Same commercial name
-                           v.EngineVolume == MatchedVehicle.EngineVolume && // Same engine volume
-                           ((v.YearFrom <= MatchedVehicle.YearTo && v.YearFrom >= MatchedVehicle.YearFrom) || // Overlapping years
-                            (v.YearFrom >= MatchedVehicle.YearFrom && v.YearFrom <= MatchedVehicle.YearTo)))
-                .ToList();
-
-            if (!similarVehicles.Any())
-            {
-                StatusMessage = $"✓ '{part.PartName}' נוסף בהצלחה";
-                return;
-            }
-
-            // Group by model name to show unique models (normalized to ignore whitespace)
-            var uniqueModels = similarVehicles
-                .GroupBy(v => new
-                {
-                    ManufacturerShortNameNormalized = v.ManufacturerShortName.NormalizeForGrouping(),
-                    ModelNameNormalized = v.ModelName.NormalizeForGrouping(),
-                    v.ManufacturerShortName,
-                    v.ModelName
-                })
-                .Select(g => new
-                {
-                    g.Key.ManufacturerShortName,
-                    g.Key.ModelName,
-                    VehicleIds = g.Select(v => v.VehicleTypeId).ToList(),
-                    Count = g.Count()
-                })
-                .ToList();
-
-            // Build message for user
-            var modelsText = string.Join("\n", uniqueModels.Select(m =>
-                $"  • {m.ManufacturerShortName} {m.ModelName} ({m.Count} רכבים)"));
-
-            var message = $"נמצאו {uniqueModels.Count} דגמים נוספים עם אותו שם מסחרי ({MatchedVehicle.CommercialName}), " +
-                         $"נפח מנוע ({MatchedVehicle.EngineVolume} סמ\"ק) ושנים חופפות:\n\n" +
-                         $"{modelsText}\n\n" +
-                         $"האם למפות את '{part.PartName}' גם לדגמים אלו?";
-
-            var result = MessageBox.Show(
-                message,
-                "מיפוי לדגמים דומים",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question
-            );
-
-            if (result == MessageBoxResult.Yes)
-            {
-                IsLoading = true;
-                StatusMessage = "ממפה לדגמים דומים...";
-
-                // Get all vehicle IDs from similar models
-                var allSimilarVehicleIds = uniqueModels.SelectMany(m => m.VehicleIds).ToList();
-
-                // Map to all similar vehicles
-                await _dataService.MapPartsToVehiclesAsync(
-                    allSimilarVehicleIds,
-                    new List<string> { part.PartNumber },
-                    "current_user");
-
-                StatusMessage = $"✓ '{part.PartName}' נוסף ל-{allSimilarVehicleIds.Count + 1} רכבים ({uniqueModels.Count + 1} דגמים)";
-            }
-            else
-            {
-                StatusMessage = $"✓ '{part.PartName}' נוסף בהצלחה";
-            }
-        }
-        catch (Exception ex)
-        {
-            // Don't fail the whole operation if this fails
-            StatusMessage = $"✓ '{part.PartName}' נוסף (שגיאה בחיפוש דגמים דומים: {ex.Message})";
-        }
-    }
 }
