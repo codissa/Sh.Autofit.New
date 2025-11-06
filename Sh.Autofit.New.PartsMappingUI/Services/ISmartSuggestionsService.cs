@@ -36,4 +36,20 @@ public interface ISmartSuggestionsService
     /// <param name="createdBy">User who is accepting the suggestions</param>
     /// <returns>Total number of vehicles mapped</returns>
     Task<int> AcceptSuggestionsAsync(List<SmartSuggestion> suggestions, string createdBy);
+
+    /// <summary>
+    /// Generate smart suggestions in batches to allow progressive UI updates
+    /// </summary>
+    /// <param name="minScore">Minimum confidence score (default: 70)</param>
+    /// <param name="maxSuggestions">Maximum number of suggestions to return (default: 100)</param>
+    /// <param name="batchSize">Number of suggestions per batch (default: 50)</param>
+    /// <param name="manufacturerFilter">Optional manufacturer filter</param>
+    /// <param name="categoryFilter">Optional part category filter</param>
+    /// <returns>AsyncEnumerable of suggestion batches</returns>
+    IAsyncEnumerable<List<SmartSuggestion>> GenerateSuggestionsInBatchesAsync(
+        double minScore = 70,
+        int maxSuggestions = 100,
+        int batchSize = 50,
+        string? manufacturerFilter = null,
+        string? categoryFilter = null);
 }

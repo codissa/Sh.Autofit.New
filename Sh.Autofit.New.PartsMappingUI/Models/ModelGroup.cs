@@ -25,6 +25,8 @@ public partial class ModelGroup : ObservableObject
     public int? YearTo { get; set; }
     public int? EngineVolume { get; set; }
     public string? FuelType { get; set; }
+    public string? TransmissionType { get; set; }
+    public string? TrimLevel { get; set; }
 
     public ObservableCollection<VehicleDisplayModel> Vehicles { get; set; } = new();
 
@@ -47,6 +49,18 @@ public partial class ModelGroup : ObservableObject
             if (!string.IsNullOrEmpty(FuelType))
             {
                 parts.Add(FuelType);
+            }
+
+            // Add transmission type if uniform
+            if (!string.IsNullOrEmpty(TransmissionType))
+            {
+                parts.Add(TransmissionType);
+            }
+
+            // Add trim level if uniform
+            if (!string.IsNullOrEmpty(TrimLevel))
+            {
+                parts.Add(TrimLevel);
             }
 
             var modelInfo = string.Join(" ", parts);

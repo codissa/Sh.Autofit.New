@@ -24,26 +24,28 @@ public class SmartSuggestionsService : ISmartSuggestionsService
         string? manufacturerFilter = null,
         string? categoryFilter = null)
     {
-        // Step 1: Load all vehicles and parts data
-        var allVehicles = await _dataService.LoadVehiclesAsync();
-        var allParts = await _dataService.LoadPartsAsync();
-
-        // Step 2: Find all mapped models (models that have at least one part mapped)
+        // Step 1: Find all mapped models (models that have at least one part mapped)
         var mappedModels = await GetMappedModelsAsync();
 
-        // Step 3: Get mapping counts for all parts
+        // Apply manufacturer filter early to reduce processing
+        if (!string.IsNullOrEmpty(manufacturerFilter))
+        {
+            mappedModels = mappedModels
+                .Where(m => m.ManufacturerName.EqualsIgnoringWhitespace(manufacturerFilter))
+                .ToList();
+        }
+
+        // Step 2: Get mapping counts for all parts (used for scoring)
         var partMappingCounts = await LoadPartMappingCountsWithDetailsAsync();
+
+        // Step 3: Load vehicles data (we'll load parts on demand)
+        var allVehicles = await _dataService.LoadVehiclesAsync();
 
         // Step 4: Generate suggestions
         var rawSuggestions = new List<(SmartSuggestion Suggestion, double Score)>();
 
         foreach (var sourceModel in mappedModels)
         {
-            // Apply manufacturer filter
-            if (!string.IsNullOrEmpty(manufacturerFilter) &&
-                !sourceModel.ManufacturerName.EqualsIgnoringWhitespace(manufacturerFilter))
-                continue;
-
             // Get parts mapped to this source model
             var mappedParts = await GetMappedPartsForModelAsync(
                 sourceModel.ManufacturerName,
@@ -107,6 +109,9 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                     SourceYearFrom = sourceModel.YearFrom,
                     SourceYearTo = sourceModel.YearTo,
                     SourceEngineVolume = sourceModel.EngineVolume,
+                    SourceFuelType = sourceModel.FuelType,
+                    SourceTransmissionType = sourceModel.TransmissionType,
+                    SourceTrimLevel = sourceModel.TrimLevel,
                     SourceVehicleCount = sourceVehicleCount,
                     OtherModelsWithPart = otherModelsWithPart,
                     TargetModels = scoredTargets.OrderByDescending(t => t.TargetScore).ToList(),
@@ -142,7 +147,12 @@ public class SmartSuggestionsService : ISmartSuggestionsService
         int totalVehiclesMapped = 0;
 
         await using var context = await _contextFactory.CreateDbContextAsync();
-        var allVehicles = await context.VehicleTypes.AsNoTracking().ToListAsync();
+
+        // Include Manufacturer to avoid null reference
+        var allVehicles = await context.VehicleTypes
+            .Include(v => v.Manufacturer)
+            .AsNoTracking()
+            .ToListAsync();
 
         foreach (var suggestion in suggestions)
         {
@@ -154,6 +164,7 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                 // Get ALL vehicle IDs for this model (model-level mapping)
                 var vehicleIds = allVehicles
                     .Where(v => v.IsActive &&
+                               v.Manufacturer != null &&
                                v.Manufacturer.ManufacturerName.EqualsIgnoringWhitespace(target.ManufacturerName) &&
                                v.ModelName.EqualsIgnoringWhitespace(target.ModelName))
                     .Select(v => v.VehicleTypeId)
@@ -174,30 +185,165 @@ public class SmartSuggestionsService : ISmartSuggestionsService
         return totalVehiclesMapped;
     }
 
+    public async IAsyncEnumerable<List<SmartSuggestion>> GenerateSuggestionsInBatchesAsync(
+        double minScore = 70,
+        int maxSuggestions = 100,
+        int batchSize = 50,
+        string? manufacturerFilter = null,
+        string? categoryFilter = null)
+    {
+        // Step 1: Find all mapped models
+        var mappedModels = await GetMappedModelsAsync();
+
+        // Apply manufacturer filter early
+        if (!string.IsNullOrEmpty(manufacturerFilter))
+        {
+            mappedModels = mappedModels
+                .Where(m => m.ManufacturerName.EqualsIgnoringWhitespace(manufacturerFilter))
+                .ToList();
+        }
+
+        // Step 2: Load all vehicles once (needed for finding similar models)
+        var allVehicles = await _dataService.LoadVehiclesAsync();
+
+        // Step 3: Get mapping counts for all parts (used for scoring)
+        var partMappingCounts = await LoadPartMappingCountsWithDetailsAsync();
+
+        // Step 4: Process models in batches
+        var currentBatch = new List<SmartSuggestion>();
+        var totalProcessed = 0;
+
+        foreach (var sourceModel in mappedModels)
+        {
+            // Get parts mapped to this source model
+            var mappedParts = await GetMappedPartsForModelAsync(
+                sourceModel.ManufacturerName,
+                sourceModel.ModelName);
+
+            foreach (var part in mappedParts)
+            {
+                // Apply category filter
+                if (!string.IsNullOrEmpty(categoryFilter) &&
+                    !part.Category.EqualsIgnoringWhitespace(categoryFilter))
+                    continue;
+
+                // Find similar target models that DON'T have this part
+                var targetModels = await FindSimilarUnmappedModelsAsync(
+                    sourceModel,
+                    part.PartNumber,
+                    allVehicles);
+
+                if (!targetModels.Any())
+                    continue;
+
+                // Score each target model and create suggestion
+                var scoredTargets = new List<TargetModel>();
+                var scoreBreakdown = new List<string>();
+                double totalScore = 0;
+
+                foreach (var target in targetModels)
+                {
+                    var targetScore = CalculateTargetModelScore(
+                        sourceModel, target, part, partMappingCounts,
+                        out var breakdown);
+
+                    target.TargetScore = targetScore;
+                    scoredTargets.Add(target);
+                    scoreBreakdown.AddRange(breakdown);
+                    totalScore = Math.Max(totalScore, targetScore);
+                }
+
+                // Only include if score meets minimum threshold
+                if (totalScore < minScore)
+                    continue;
+
+                // Get additional stats
+                var sourceVehicleCount = allVehicles.Count(v =>
+                    v.ManufacturerName.EqualsIgnoringWhitespace(sourceModel.ManufacturerName) &&
+                    v.ModelName.EqualsIgnoringWhitespace(sourceModel.ModelName));
+
+                var otherModelsWithPart = partMappingCounts.ContainsKey(part.PartNumber)
+                    ? partMappingCounts[part.PartNumber].UniqueModels
+                    : 1;
+
+                // Create suggestion
+                var suggestion = new SmartSuggestion
+                {
+                    PartNumber = part.PartNumber,
+                    PartName = part.PartName,
+                    Category = part.Category ?? "Unknown",
+                    SourceManufacturer = sourceModel.ManufacturerName,
+                    SourceModelName = sourceModel.ModelName,
+                    SourceCommercialName = sourceModel.CommercialName ?? "",
+                    SourceYearFrom = sourceModel.YearFrom,
+                    SourceYearTo = sourceModel.YearTo,
+                    SourceEngineVolume = sourceModel.EngineVolume,
+                    SourceFuelType = sourceModel.FuelType,
+                    SourceTransmissionType = sourceModel.TransmissionType,
+                    SourceTrimLevel = sourceModel.TrimLevel,
+                    SourceVehicleCount = sourceVehicleCount,
+                    OtherModelsWithPart = otherModelsWithPart,
+                    TargetModels = scoredTargets.OrderByDescending(t => t.TargetScore).ToList(),
+                    TotalTargetVehicles = scoredTargets.Sum(t => t.VehicleCount),
+                    Score = totalScore,
+                    ScoreBreakdown = scoreBreakdown.Distinct().ToList(),
+                    ScoreReason = string.Join(", ", scoreBreakdown.Distinct().Take(3))
+                };
+
+                currentBatch.Add(suggestion);
+                totalProcessed++;
+
+                // Yield batch when full
+                if (currentBatch.Count >= batchSize)
+                {
+                    yield return new List<SmartSuggestion>(currentBatch);
+                    currentBatch.Clear();
+                }
+
+                // Stop if we've reached max suggestions
+                if (totalProcessed >= maxSuggestions)
+                {
+                    if (currentBatch.Any())
+                    {
+                        yield return currentBatch;
+                    }
+                    yield break;
+                }
+            }
+        }
+
+        // Yield remaining suggestions
+        if (currentBatch.Any())
+        {
+            yield return currentBatch;
+        }
+    }
+
     #region Private Helper Methods
 
-    private async Task<List<(string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume)>>
+    private async Task<List<(string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>>
         GetMappedModelsAsync()
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Get all models that have at least one active mapping
-        var mappedModels = await context.VehicleTypes
-            .AsNoTracking()
-            .Include(v => v.Manufacturer)
-            .Where(v => v.IsActive &&
-                       context.VehiclePartsMappings.Any(m =>
-                           m.VehicleTypeId == v.VehicleTypeId &&
-                           m.IsActive &&
-                           m.IsCurrentVersion))
-            .Select(v => new
+        // Optimized: Join instead of subquery to find mapped models
+        var mappedModels = await (
+            from vpm in context.VehiclePartsMappings
+            where vpm.IsActive && vpm.IsCurrentVersion
+            join vt in context.VehicleTypes on vpm.VehicleTypeId equals vt.VehicleTypeId
+            join mfg in context.Manufacturers on vt.ManufacturerId equals mfg.ManufacturerId
+            where vt.IsActive
+            select new
             {
-                v.Manufacturer.ManufacturerName,
-                v.ModelName,
-                v.CommercialName,
-                v.YearFrom,
-                v.YearTo,
-                v.EngineVolume
+                mfg.ManufacturerName,
+                vt.ModelName,
+                vt.CommercialName,
+                vt.YearFrom,
+                vt.YearTo,
+                vt.EngineVolume,
+                vt.FuelTypeName,
+                vt.TransmissionType,
+                vt.TrimLevel
             })
             .Distinct()
             .ToListAsync();
@@ -209,9 +355,12 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                 m.ManufacturerName,
                 m.ModelName,
                 m.CommercialName ?? "",
-                m.YearFrom ?? 0,
-                m.YearTo ?? m.YearFrom ?? 0,
-                m.EngineVolume ?? 0))
+                m.YearFrom,
+                m.YearTo ?? m.YearFrom,
+                m.EngineVolume ?? 0,
+                m.FuelTypeName,
+                m.TransmissionType,
+                m.TrimLevel))
             .ToList();
     }
 
@@ -238,7 +387,7 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                 PartName = p.PartName ?? "",
                 Category = p.Category,
                 Manufacturer = p.Manufacturer,
-                UniversalPart = p.UniversalPart ?? false,
+                UniversalPart = p.UniversalPart ,
                 OemNumber1 = p.Oemnumber1,
                 OemNumber2 = p.Oemnumber2,
                 OemNumber3 = p.Oemnumber3,
@@ -251,7 +400,7 @@ public class SmartSuggestionsService : ISmartSuggestionsService
     }
 
     private async Task<List<TargetModel>> FindSimilarUnmappedModelsAsync(
-        (string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume) sourceModel,
+        (string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel) sourceModel,
         string partNumber,
         List<VehicleDisplayModel> allVehicles)
     {
@@ -264,7 +413,7 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                        m.IsCurrentVersion &&
                        m.PartItemKey == partNumber)
             .Select(m => m.VehicleTypeId)
-            .ToHashSet();
+            .ToHashSetAsync();
 
         // Find similar models
         var similarModels = allVehicles
@@ -299,6 +448,9 @@ public class SmartSuggestionsService : ISmartSuggestionsService
                 YearFrom = g.Min(v => v.YearFrom) ?? 0,
                 YearTo = g.Max(v => v.YearTo ?? v.YearFrom) ?? 0,
                 EngineVolume = g.First().EngineVolume ?? 0,
+                FuelType = g.FirstOrDefault()?.FuelTypeName,
+                TransmissionType = g.FirstOrDefault()?.TransmissionType,
+                TrimLevel = g.FirstOrDefault()?.TrimLevel,
                 VehicleCount = g.Count(),
                 HasCommercialNameMatch = !string.IsNullOrEmpty(sourceModel.CommercialName) &&
                                         g.FirstOrDefault()?.CommercialName.EqualsIgnoringWhitespace(sourceModel.CommercialName) == true,
@@ -310,7 +462,7 @@ public class SmartSuggestionsService : ISmartSuggestionsService
     }
 
     private double CalculateTargetModelScore(
-        (string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume) source,
+        (string ManufacturerName, string ModelName, string CommercialName, int YearFrom, int YearTo, int EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel) source,
         TargetModel target,
         PartDisplayModel part,
         Dictionary<string, (int TotalVehicles, int UniqueModels)> partMappingCounts,

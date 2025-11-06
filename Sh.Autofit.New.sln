@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.New.DependencyIn
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.New.PartsMappingUI", "Sh.Autofit.New.PartsMappingUI\Sh.Autofit.New.PartsMappingUI.csproj", "{83E1777A-98A4-403D-A2F2-2004AB273726}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.New.PartsMappingUI.Tests", "Sh.Autofit.New.PartsMappingUI.Tests\Sh.Autofit.New.PartsMappingUI.Tests.csproj", "{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{83E1777A-98A4-403D-A2F2-2004AB273726}.Release|x64.Build.0 = Release|Any CPU
 		{83E1777A-98A4-403D-A2F2-2004AB273726}.Release|x86.ActiveCfg = Release|Any CPU
 		{83E1777A-98A4-403D-A2F2-2004AB273726}.Release|x86.Build.0 = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|x64.Build.0 = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Debug|x86.Build.0 = Debug|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|x64.ActiveCfg = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|x64.Build.0 = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|x86.ActiveCfg = Release|Any CPU
+		{24DD6D3C-8017-46D0-BA0C-6AA75E695BCD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

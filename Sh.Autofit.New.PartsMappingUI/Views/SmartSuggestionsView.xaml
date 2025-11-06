@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="1400"
              FlowDirection="RightToLeft">
@@ -178,13 +179,16 @@
                 <TextBlock Text="פעולות קבוצתיות:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <Button Content="אשר 10 הראשונות"
                        Command="{Binding AcceptTopNCommand}"
-                       CommandParameter="10"
                        Padding="10,5"
                        Margin="0,0,5,0"
                        Background="#2196F3"
                        Foreground="White"
                        BorderThickness="0"
-                       Cursor="Hand"/>
+                       Cursor="Hand">
+                    <Button.CommandParameter>
+                        <sys:Int32>10</sys:Int32>
+                    </Button.CommandParameter>
+                </Button>
                 <Button Content="אשר כל הביטחון הגבוה"
                        Command="{Binding AcceptAllHighConfidenceCommand}"
                        Padding="10,5"
@@ -277,20 +281,60 @@
 
                                 <!-- Target Models -->
                                 <StackPanel Grid.Row="3" Margin="0,0,0,10">
-                                    <TextBlock Text="מוצע ל:" FontSize="11" Foreground="Gray"/>
-                                    <TextBlock Text="{Binding TargetModelsDisplay}"
-                                              FontSize="13"
-                                              FontWeight="SemiBold"
-                                              Margin="0,2,0,5"/>
+                                    <Grid Margin="0,0,0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="מוצע ל:" FontSize="11" Foreground="Gray"/>
+                                            <TextBlock Text="{Binding TargetModelsDisplay}"
+                                                      FontSize="13"
+                                                      FontWeight="SemiBold"
+                                                      Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                            <Button Content="בחר הכל"
+                                                   Click="SelectAllTargets_Click"
+                                                   Tag="{Binding}"
+                                                   Padding="5,2"
+                                                   FontSize="10"
+                                                   Margin="0,0,5,0"
+                                                   Background="Transparent"
+                                                   BorderBrush="#2196F3"
+                                                   BorderThickness="1"
+                                                   Foreground="#2196F3"
+                                                   Cursor="Hand"/>
+                                            <Button Content="בטל הכל"
+                                                   Click="DeselectAllTargets_Click"
+                                                   Tag="{Binding}"
+                                                   Padding="5,2"
+                                                   FontSize="10"
+                                                   Background="Transparent"
+                                                   BorderBrush="#FF9800"
+                                                   BorderThickness="1"
+                                                   Foreground="#FF9800"
+                                                   Cursor="Hand"/>
+                                        </StackPanel>
+                                    </Grid>
 
                                     <!-- Target Models List -->
                                     <ItemsControl ItemsSource="{Binding TargetModels}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <StackPanel Orientation="Horizontal" Margin="10,2,0,2">
-                                                    <TextBlock Text="✓" Foreground="#4CAF50" FontWeight="Bold" Margin="0,0,5,0"/>
-                                                    <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
-                                                </StackPanel>
+                                                <Border Background="#F5F5F5"
+                                                        CornerRadius="4"
+                                                        Padding="8,4"
+                                                        Margin="5,2,0,2"
+                                                        BorderBrush="#E0E0E0"
+                                                        BorderThickness="1">
+                                                    <CheckBox IsChecked="{Binding IsSelected}"
+                                                              Content="{Binding DisplayName}"
+                                                              FontSize="12"
+                                                              VerticalAlignment="Center"/>
+                                                </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -306,7 +350,7 @@
 
                                 <!-- Action Buttons -->
                                 <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Button Content="✓ אשר הכל"
+                                    <Button Content="✓ אשר דגמים נבחרים"
                                            Command="{Binding DataContext.AcceptSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                            CommandParameter="{Binding}"
                                            Padding="15,8"
@@ -315,16 +359,8 @@
                                            Foreground="White"
                                            BorderThickness="0"
                                            FontWeight="SemiBold"
-                                           Cursor="Hand"/>
-                                    <Button Content="ערוך דגמים"
-                                           Command="{Binding DataContext.EditTargetModelsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           CommandParameter="{Binding}"
-                                           Padding="15,8"
-                                           Margin="0,0,10,0"
-                                           Background="#2196F3"
-                                           Foreground="White"
-                                           BorderThickness="0"
-                                           Cursor="Hand"/>
+                                           Cursor="Hand"
+                                           ToolTip="מפה את החלק לדגמים שסומנו למעלה"/>
                                     <Button Content="✗ דחה"
                                            Command="{Binding DataContext.RejectSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                            CommandParameter="{Binding}"

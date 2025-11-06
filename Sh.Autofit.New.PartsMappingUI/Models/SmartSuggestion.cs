@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace Sh.Autofit.New.PartsMappingUI.Models;
 
 /// <summary>
@@ -17,6 +19,9 @@ public class SmartSuggestion
     public int SourceYearFrom { get; set; }
     public int SourceYearTo { get; set; }
     public int SourceEngineVolume { get; set; }
+    public string? SourceFuelType { get; set; }
+    public string? SourceTransmissionType { get; set; }
+    public string? SourceTrimLevel { get; set; }
     public int SourceVehicleCount { get; set; }
     public int OtherModelsWithPart { get; set; } // How many other models use this part
 
@@ -52,8 +57,33 @@ public class SmartSuggestion
 
     public string ConfidenceText => Confidence.ToString();
 
-    public string SourceModelDisplay =>
-        $"{SourceManufacturer} {SourceModelName} {SourceCommercialName} ({SourceYearFrom}-{SourceYearTo}, {SourceEngineVolume}cc)";
+    public string SourceModelDisplay
+    {
+        get
+        {
+            var parts = new List<string>
+            {
+                SourceManufacturer,
+                SourceModelName,
+                SourceCommercialName
+            };
+
+            var specs = new List<string>
+            {
+                $"{SourceYearFrom}-{SourceYearTo}",
+                $"{SourceEngineVolume}cc"
+            };
+
+            if (!string.IsNullOrEmpty(SourceFuelType))
+                specs.Add(SourceFuelType);
+            if (!string.IsNullOrEmpty(SourceTransmissionType))
+                specs.Add(SourceTransmissionType);
+            if (!string.IsNullOrEmpty(SourceTrimLevel))
+                specs.Add(SourceTrimLevel);
+
+            return $"{string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)))} ({string.Join(", ", specs)})";
+        }
+    }
 
     public string TargetModelsDisplay =>
         $"{TargetModels.Count} similar model{(TargetModels.Count != 1 ? "s" : "")} ({TotalTargetVehicles} vehicle{(TotalTargetVehicles != 1 ? "s" : "")})";
@@ -62,7 +92,7 @@ public class SmartSuggestion
 /// <summary>
 /// Represents a target model that could receive the suggested mapping
 /// </summary>
-public class TargetModel
+public partial class TargetModel : ObservableObject
 {
     public string ManufacturerName { get; set; } = string.Empty;
     public string ModelName { get; set; } = string.Empty;
@@ -70,8 +100,13 @@ public class TargetModel
     public int YearFrom { get; set; }
     public int YearTo { get; set; }
     public int EngineVolume { get; set; }
+    public string? FuelType { get; set; }
+    public string? TransmissionType { get; set; }
+    public string? TrimLevel { get; set; }
     public int VehicleCount { get; set; }
-    public bool IsSelected { get; set; } = true; // Default to selected
+
+    [ObservableProperty]
+    private bool _isSelected = true; // Default to selected
 
     // Score components for this specific target
     public double TargetScore { get; set; }
@@ -80,8 +115,23 @@ public class TargetModel
     public double OemSimilarityScore { get; set; }
 
     // UI Helper
-    public string DisplayName =>
-        $"{ModelName} {CommercialName} ({YearFrom}-{YearTo}, {EngineVolume}cc) - {VehicleCount} vehicle{(VehicleCount != 1 ? "s" : "")}";
+    public string DisplayName
+    {
+        get
+        {
+            var parts = new List<string> { ModelName, CommercialName };
+            var specs = new List<string> { $"{YearFrom}-{YearTo}", $"{EngineVolume}cc" };
+
+            if (!string.IsNullOrEmpty(FuelType))
+                specs.Add(FuelType);
+            if (!string.IsNullOrEmpty(TransmissionType))
+                specs.Add(TransmissionType);
+            if (!string.IsNullOrEmpty(TrimLevel))
+                specs.Add(TrimLevel);
+
+            return $"{string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)))} ({string.Join(", ", specs)}) - {VehicleCount} vehicle{(VehicleCount != 1 ? "s" : "")}";
+        }
+    }
 }
 
 /// <summary>

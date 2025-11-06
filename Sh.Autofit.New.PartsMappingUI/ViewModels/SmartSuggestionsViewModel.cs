@@ -76,23 +76,50 @@ public partial class SmartSuggestionsViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusMessage = "מייצר הצעות חכמות...";
+            StatusMessage = "טוען נתונים...";
 
-            // Generate suggestions
-            var suggestions = await _smartSuggestionsService.GenerateSuggestionsAsync(
+            // Clear previous suggestions
+            _allSuggestions.Clear();
+            FilteredSuggestions.Clear();
+
+            await Task.Delay(100); // Allow UI to update
+
+            StatusMessage = "מנתח מיפויים קיימים...";
+            await Task.Delay(100); // Allow UI to update
+
+            // Generate suggestions in batches with progress updates
+            var batchSize = 50; // Process 50 suggestions at a time
+            var allSuggestions = new List<SmartSuggestion>();
+
+            await foreach (var batch in _smartSuggestionsService.GenerateSuggestionsInBatchesAsync(
                 minScore: ShowOnlyHighConfidence ? 90 : MinScore,
-                maxSuggestions: 200);
+                maxSuggestions: 200,
+                batchSize: batchSize))
+            {
+                allSuggestions.AddRange(batch);
+                StatusMessage = $"נמצאו {allSuggestions.Count} הצעות עד כה...";
 
-            _allSuggestions = suggestions;
+                // Update UI with partial results
+                _allSuggestions = allSuggestions;
+                UpdateStatistics();
+                ApplyFilters();
+
+                await Task.Delay(10); // Allow UI to breathe
+            }
+
+            StatusMessage = "מעבד תוצאות...";
+            await Task.Delay(100); // Allow UI to update
+
+            _allSuggestions = allSuggestions;
 
             // Extract unique manufacturers and categories
-            var manufacturers = suggestions
+            var manufacturers = allSuggestions
                 .Select(s => s.SourceManufacturer)
                 .Distinct()
                 .OrderBy(m => m)
                 .ToList();
 
-            var categories = suggestions
+            var categories = allSuggestions
                 .Select(s => s.Category)
                 .Distinct()
                 .OrderBy(c => c)
@@ -271,17 +298,6 @@ public partial class SmartSuggestionsViewModel : ObservableObject
         StatusMessage = "ההצעה נדחתה";
     }
 
-    [RelayCommand]
-    private void EditTargetModels(SmartSuggestion suggestion)
-    {
-        // This would open a dialog to select/deselect target models
-        // For now, just show a message
-        MessageBox.Show($"עריכת דגמים עבור:\n{suggestion.PartNumber} - {suggestion.PartName}\n\n" +
-            $"ניתן לסמן/לבטל סימון דגמי יעד בטבלה למטה.",
-            "עריכת דגמי יעד",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
 
     partial void OnSearchTextChanged(string value)
     {

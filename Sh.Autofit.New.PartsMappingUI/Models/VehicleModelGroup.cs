@@ -18,6 +18,9 @@ public partial class VehicleModelGroup : ObservableObject
     // Additional details
     public List<int> EngineVolumes { get; set; } = new List<int>();
     public List<string> FuelTypes { get; set; } = new List<string>();
+    public List<string> CommercialNames { get; set; } = new List<string>();
+    public List<string> TransmissionTypes { get; set; } = new List<string>();
+    public List<string> TrimLevels { get; set; } = new List<string>();
 
     public string DisplayName
     {
@@ -85,6 +88,50 @@ public partial class VehicleModelGroup : ObservableObject
                 return uniqueFuelTypes[0];
 
             return string.Join(", ", uniqueFuelTypes);
+        }
+    }
+
+    public string TransmissionTypesDisplay
+    {
+        get
+        {
+            if (TransmissionTypes == null || !TransmissionTypes.Any())
+                return string.Empty;
+
+            var uniqueTransmissionTypes = TransmissionTypes
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct()
+                .ToList();
+
+            if (uniqueTransmissionTypes.Count == 0)
+                return string.Empty;
+
+            if (uniqueTransmissionTypes.Count == 1)
+                return uniqueTransmissionTypes[0];
+
+            return string.Join(", ", uniqueTransmissionTypes);
+        }
+    }
+
+    public string TrimLevelsDisplay
+    {
+        get
+        {
+            if (TrimLevels == null || !TrimLevels.Any())
+                return string.Empty;
+
+            var uniqueTrimLevels = TrimLevels
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct()
+                .ToList();
+
+            if (uniqueTrimLevels.Count == 0)
+                return string.Empty;
+
+            if (uniqueTrimLevels.Count == 1)
+                return uniqueTrimLevels[0];
+
+            return string.Join(", ", uniqueTrimLevels);
         }
     }
 }

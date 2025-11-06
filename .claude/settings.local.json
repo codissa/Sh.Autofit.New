@@ -6,7 +6,8 @@
       "Bash(dotnet sln:*)",
       "Bash(dotnet add:*)",
       "Bash(mkdir:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dotnet build:*)"
     ],
     "deny": [],
     "ask": []

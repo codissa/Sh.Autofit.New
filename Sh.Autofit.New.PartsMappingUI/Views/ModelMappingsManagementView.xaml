@@ -176,14 +176,24 @@
                         <Run Text="-"/>
                         <Run Text="{Binding SelectedModelGroup.YearTo}"/>
                     </TextBlock>
-                    <TextBlock Foreground="#666"
-                              FontSize="12"
-                              Margin="0,3,0,0">
-                        <Run Text="נפח מנוע: "/>
-                        <Run Text="{Binding SelectedModelGroup.EngineVolumesDisplay, Mode=OneWay}"/>
-                        <Run Text=" | סוג דלק: "/>
-                        <Run Text="{Binding SelectedModelGroup.FuelTypesDisplay, Mode=OneWay}"/>
-                    </TextBlock>
+                    <WrapPanel Margin="0,3,0,0">
+                        <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
+                            <Run Text="נפח מנוע: "/>
+                            <Run Text="{Binding SelectedModelGroup.EngineVolumesDisplay, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
+                            <Run Text="סוג דלק: "/>
+                            <Run Text="{Binding SelectedModelGroup.FuelTypesDisplay, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
+                            <Run Text="תיבת הילוכים: "/>
+                            <Run Text="{Binding SelectedModelGroup.TransmissionTypesDisplay, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Foreground="#666" FontSize="12">
+                            <Run Text="רמת גימור: "/>
+                            <Run Text="{Binding SelectedModelGroup.TrimLevelsDisplay, Mode=OneWay}"/>
+                        </TextBlock>
+                    </WrapPanel>
                 </StackPanel>
             </Border>
 

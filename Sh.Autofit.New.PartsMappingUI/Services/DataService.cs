@@ -36,7 +36,9 @@ public class DataService : IDataService
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
                 EngineModel = v.EngineModel,
-                EngineVolume = v.EngineVolume
+                EngineVolume = v.EngineVolume,
+                TransmissionType = v.TransmissionType,
+                TrimLevel = v.TrimLevel
             })
             .ToListAsync();
 
@@ -69,7 +71,7 @@ public class DataService : IDataService
         return summary.Select(s => (s.ManufacturerShortName, s.ManufacturerName, s.CommercialName, s.Count)).ToList();
     }
 
-    public async Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName)
+    public async Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
@@ -87,39 +89,38 @@ public class DataService : IDataService
                 Count = g.Count(),
                 YearFrom = (int?)g.Min(v => v.YearFrom),
                 YearTo = (int?)g.Max(v => v.YearFrom),
-                Vehicles = g.Select(v => new { v.EngineVolume, v.FuelTypeName }).ToList()
+                Vehicles = g.Select(v => new { v.EngineVolume, v.FuelTypeName, v.TransmissionType, v.TrimLevel }).ToList()
             })
             .ToListAsync();
 
-        var result = new List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType)>();
+        var result = new List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>();
 
         foreach (var v in vehicles)
         {
-            // Check if all vehicles have the same engine volume
-            var distinctEngineVolumes = v.Vehicles.Where(x => x.EngineVolume.HasValue).Select(x => x.EngineVolume.Value).Distinct().ToList();
+            // Group by engine volume, transmission, and trim level to create separate entries
+            var groups = v.Vehicles
+                .GroupBy(x => new { x.EngineVolume, x.TransmissionType, x.TrimLevel })
+                .ToList();
 
-            if (distinctEngineVolumes.Count > 1)
+            if (groups.Count > 1)
             {
-                // SPLIT: Multiple engine volumes - create separate entry for each
-                foreach (var engineVolume in distinctEngineVolumes.OrderBy(e => e))
+                // SPLIT: Multiple combinations - create separate entry for each unique combination
+                foreach (var group in groups.OrderBy(g => g.Key.EngineVolume).ThenBy(g => g.Key.TransmissionType).ThenBy(g => g.Key.TrimLevel))
                 {
-                    var vehiclesForThisVolume = v.Vehicles.Where(x => x.EngineVolume == engineVolume).ToList();
-                    var fuelTypes = vehiclesForThisVolume.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
+                    var fuelTypes = group.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
                     string? uniformFuelType = fuelTypes.Count == 1 ? fuelTypes.First() : null;
 
-                    result.Add((v.ModelName, vehiclesForThisVolume.Count, v.YearFrom, v.YearTo, engineVolume, uniformFuelType));
+                    result.Add((v.ModelName, group.Count(), v.YearFrom, v.YearTo, group.Key.EngineVolume, uniformFuelType, group.Key.TransmissionType, group.Key.TrimLevel));
                 }
             }
             else
             {
-                // Single or no engine volume - return as one entry
-                int? uniformEngineVolume = distinctEngineVolumes.Count == 1 ? distinctEngineVolumes.First() : null;
+                // Single combination - return as one entry
+                var singleGroup = groups.First();
+                var fuelTypes = singleGroup.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
+                string? uniformFuelType = fuelTypes.Count == 1 ? fuelTypes.First() : null;
 
-                // Check if all vehicles have the same fuel type
-                var distinctFuelTypes = v.Vehicles.Where(x => !string.IsNullOrEmpty(x.FuelTypeName)).Select(x => x.FuelTypeName).Distinct().ToList();
-                string? uniformFuelType = distinctFuelTypes.Count == 1 ? distinctFuelTypes.First() : null;
-
-                result.Add((v.ModelName, v.Count, v.YearFrom, v.YearTo, uniformEngineVolume, uniformFuelType));
+                result.Add((v.ModelName, v.Count, v.YearFrom, v.YearTo, singleGroup.Key.EngineVolume, uniformFuelType, singleGroup.Key.TransmissionType, singleGroup.Key.TrimLevel));
             }
         }
 
@@ -161,7 +162,9 @@ public class DataService : IDataService
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
                 EngineModel = v.EngineModel,
-                EngineVolume = v.EngineVolume
+                EngineVolume = v.EngineVolume,
+                TransmissionType = v.TransmissionType,
+                TrimLevel = v.TrimLevel
             })
             .ToListAsync();
 
@@ -328,7 +331,7 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get manufacturer and model names for the selected vehicles
+        // Get manufacturer, model names, engine volumes, transmission types, and trim levels for the selected vehicles
         var selectedVehicles = await context.VehicleTypes
             .Include(v => v.Manufacturer)
             .Where(v => validVehicleTypeIds.Contains(v.VehicleTypeId))
@@ -336,7 +339,10 @@ public class DataService : IDataService
             {
                 v.VehicleTypeId,
                 ManufacturerName = v.Manufacturer.ManufacturerName,
-                v.ModelName
+                v.ModelName,
+                v.EngineVolume,
+                v.TransmissionType,
+                v.TrimLevel
             })
             .ToListAsync();
 
@@ -345,16 +351,21 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get unique model names from selected vehicles
-        var modelNames = selectedVehicles
-            .Select(v => v.ModelName)
+        // Get unique combinations of model name, engine volume, transmission type, and trim level from selected vehicles
+        var modelEngineGroups = selectedVehicles
+            .Select(v => new { v.ModelName, v.EngineVolume, v.TransmissionType, v.TrimLevel })
             .Distinct()
             .ToList();
 
-        // Find ALL vehicle IDs with the same ModelName from ANY manufacturer
-        // This ensures parts are mapped to all years and all manufacturers with the same model name
+        // Find ALL vehicle IDs with the same ModelName, EngineVolume, TransmissionType, and TrimLevel from ANY manufacturer
+        // This ensures parts are mapped to all years and all manufacturers with the same specifications
         var allVehicleIdsToMap = await context.VehicleTypes
-            .Where(v => v.IsActive && modelNames.Contains(v.ModelName))
+            .Where(v => v.IsActive &&
+                       modelEngineGroups.Any(g =>
+                           g.ModelName == v.ModelName &&
+                           (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
+                           (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
+                           (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
             .Select(v => v.VehicleTypeId)
             .ToListAsync();
 
@@ -416,7 +427,7 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get manufacturer and model names for the selected vehicles
+        // Get manufacturer, model names, engine volumes, transmission types, and trim levels for the selected vehicles
         var selectedVehicles = await context.VehicleTypes
             .Include(v => v.Manufacturer)
             .Where(v => validVehicleTypeIds.Contains(v.VehicleTypeId))
@@ -424,7 +435,10 @@ public class DataService : IDataService
             {
                 v.VehicleTypeId,
                 ManufacturerName = v.Manufacturer.ManufacturerName,
-                v.ModelName
+                v.ModelName,
+                v.EngineVolume,
+                v.TransmissionType,
+                v.TrimLevel
             })
             .ToListAsync();
 
@@ -433,16 +447,21 @@ public class DataService : IDataService
             throw new InvalidOperationException("No valid vehicle type IDs provided.");
         }
 
-        // Get unique model names from selected vehicles
-        var modelNames = selectedVehicles
-            .Select(v => v.ModelName)
+        // Get unique combinations of model name, engine volume, transmission type, and trim level from selected vehicles
+        var modelEngineGroups = selectedVehicles
+            .Select(v => new { v.ModelName, v.EngineVolume, v.TransmissionType, v.TrimLevel })
             .Distinct()
             .ToList();
 
-        // Find ALL vehicle IDs with the same ModelName from ANY manufacturer
-        // This ensures parts are unmapped from all years and all manufacturers with the same model name
+        // Find ALL vehicle IDs with the same ModelName, EngineVolume, TransmissionType, and TrimLevel from ANY manufacturer
+        // This ensures parts are unmapped from all years and all manufacturers with the same specifications
         var allVehicleIdsToUnmap = await context.VehicleTypes
-            .Where(v => v.IsActive && modelNames.Contains(v.ModelName))
+            .Where(v => v.IsActive &&
+                       modelEngineGroups.Any(g =>
+                           g.ModelName == v.ModelName &&
+                           (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
+                           (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
+                           (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
             .Select(v => v.VehicleTypeId)
             .ToListAsync();
 
@@ -1015,7 +1034,9 @@ public class DataService : IDataService
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
                 EngineModel = v.EngineModel,
-                EngineVolume = v.EngineVolume
+                EngineVolume = v.EngineVolume,
+                TransmissionType = v.TransmissionType,
+                TrimLevel = v.TrimLevel
             })
             .ToListAsync();
 

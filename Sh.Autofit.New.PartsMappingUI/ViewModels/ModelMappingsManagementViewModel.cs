@@ -97,7 +97,19 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                     FuelTypes = g.Where(v => !string.IsNullOrEmpty(v.FuelTypeName))
                                 .Select(v => v.FuelTypeName!)
                                 .Distinct()
-                                .ToList()
+                                .ToList(),
+                    CommercialNames = g.Where(v => !string.IsNullOrEmpty(v.CommercialName))
+                                      .Select(v => v.CommercialName!)
+                                      .Distinct()
+                                      .ToList(),
+                    TransmissionTypes = g.Where(v => !string.IsNullOrEmpty(v.TransmissionType))
+                                        .Select(v => v.TransmissionType!)
+                                        .Distinct()
+                                        .ToList(),
+                    TrimLevels = g.Where(v => !string.IsNullOrEmpty(v.TrimLevel))
+                                 .Select(v => v.TrimLevel!)
+                                 .Distinct()
+                                 .ToList()
                 })
                 .OrderBy(g => g.ManufacturerShortName ?? g.ManufacturerName)
                 .ThenBy(g => g.ModelName)
@@ -158,7 +170,8 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             filtered = filtered.Where(m =>
                 m.ManufacturerName.ToLower().Contains(searchLower) ||
                 (m.ManufacturerShortName?.ToLower().Contains(searchLower) ?? false) ||
-                m.ModelName.ToLower().Contains(searchLower));
+                m.ModelName.ToLower().Contains(searchLower) ||
+                (m.CommercialNames != null && m.CommercialNames.Any(c => c.ToLower().Contains(searchLower))));
         }
 
         // Apply manufacturer filter

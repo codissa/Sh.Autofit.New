@@ -272,6 +272,10 @@
                                                                            Visibility="{Binding EngineModelDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                                 <TextBlock Text="{Binding EngineVolumeDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
                                                                            Visibility="{Binding EngineVolumeDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                                <TextBlock Text="{Binding TransmissionDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                           Visibility="{Binding TransmissionDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                                <TextBlock Text="{Binding TrimLevelDisplay, Mode=OneWay}" Foreground="#666" FontSize="11" Margin="0,0,12,0"
+                                                                           Visibility="{Binding TrimLevelDisplay, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                             </WrapPanel>
 
                                                             <!-- Parts Count -->

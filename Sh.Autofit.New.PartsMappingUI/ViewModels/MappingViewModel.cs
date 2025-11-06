@@ -243,7 +243,9 @@ public partial class MappingViewModel : ObservableObject
                     YearFrom = m.YearFrom,
                     YearTo = m.YearTo,
                     EngineVolume = m.EngineVolume,
-                    FuelType = m.FuelType
+                    FuelType = m.FuelType,
+                    TransmissionType = m.TransmissionType,
+                    TrimLevel = m.TrimLevel
                 };
                 // Add a placeholder to show expander arrow
                 if (modelGroup.HasChildren)
@@ -387,26 +389,54 @@ public partial class MappingViewModel : ObservableObject
 
     private void ApplyVehicleFilters()
     {
-        // Apply filters to loaded vehicles
         var searchLower = VehicleSearchText?.ToLower() ?? string.Empty;
         var hasSearch = !string.IsNullOrWhiteSpace(searchLower);
 
         foreach (var mfgGroup in ManufacturerGroups)
         {
+            // Check manufacturer filter
+            if (!string.IsNullOrEmpty(SelectedVehicleManufacturer) &&
+                mfgGroup.ManufacturerShortName != SelectedVehicleManufacturer)
+            {
+                continue; // Skip this manufacturer entirely
+            }
+
+            // Check if manufacturer name matches search
+            bool mfgMatches = !hasSearch ||
+                             mfgGroup.ManufacturerName?.ToLower().Contains(searchLower) == true ||
+                             mfgGroup.ManufacturerShortName?.ToLower().Contains(searchLower) == true;
+
+            bool anyCommercialNameHasMatches = false;
+
             foreach (var cng in mfgGroup.CommercialNameGroups)
             {
+                // Check if commercial name matches search
+                bool cngMatches = mfgMatches ||
+                                 (!hasSearch || cng.CommercialName?.ToLower().Contains(searchLower) == true);
+
+                bool anyModelHasMatches = false;
+
                 foreach (var modelGroup in cng.ModelGroups)
                 {
+                    // Check if model name matches search
+                    bool modelMatches = cngMatches ||
+                                       (!hasSearch || modelGroup.ModelName?.ToLower().Contains(searchLower) == true);
+
+                    bool anyVehicleVisible = false;
+
                     foreach (var vehicle in modelGroup.Vehicles)
                     {
                         // Skip placeholders
                         if (vehicle.VehicleTypeId == 0)
+                        {
+                            vehicle.IsVisible = false;
                             continue;
+                        }
 
-                        bool visible = true;
+                        bool visible = modelMatches;
 
-                        // Apply search filter - smart search through all data
-                        if (hasSearch)
+                        // Check vehicle-level search if not already matched
+                        if (hasSearch && !visible)
                         {
                             visible = vehicle.ManufacturerName?.ToLower().Contains(searchLower) == true ||
                                      vehicle.ManufacturerShortName?.ToLower().Contains(searchLower) == true ||
@@ -426,22 +456,50 @@ public partial class MappingViewModel : ObservableObject
                             visible = vehicle.MappingStatus == MappingStatus.Unmapped;
                         }
 
-                        // Apply manufacturer filter
-                        if (visible && !string.IsNullOrEmpty(SelectedVehicleManufacturer))
-                        {
-                            visible = vehicle.ManufacturerShortName == SelectedVehicleManufacturer;
-                        }
-
                         // Apply category filter
                         if (visible && !string.IsNullOrEmpty(SelectedVehicleCategory))
                         {
                             visible = vehicle.VehicleCategory == SelectedVehicleCategory;
                         }
 
-                        // Set the visibility property
                         vehicle.IsVisible = visible;
+
+                        if (visible)
+                        {
+                            anyVehicleVisible = true;
+                        }
+                    }
+
+                    // Auto-expand/collapse model group based on matches
+                    if (anyVehicleVisible)
+                    {
+                        anyModelHasMatches = true;
+
+                        // If there are matching vehicles and search is active, expand to show them
+                        if (hasSearch && modelGroup.IsLoaded)
+                        {
+                            modelGroup.IsExpanded = true;
+                        }
                     }
                 }
+
+                // Auto-expand/collapse commercial name group based on matches
+                if (anyModelHasMatches)
+                {
+                    anyCommercialNameHasMatches = true;
+
+                    // If there are matching models and search is active, expand to show them
+                    if (hasSearch && cng.IsLoaded)
+                    {
+                        cng.IsExpanded = true;
+                    }
+                }
+            }
+
+            // Auto-expand manufacturer group if it has matches
+            if (anyCommercialNameHasMatches && hasSearch)
+            {
+                mfgGroup.IsExpanded = true;
             }
         }
 

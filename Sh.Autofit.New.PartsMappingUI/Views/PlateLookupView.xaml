@@ -101,6 +101,10 @@
                         <Run Text="שם מסחרי: " FontWeight="Bold"/>
                         <Run Text="{Binding GovernmentVehicle.CommercialName}"/>
                     </TextBlock>
+                    <TextBlock Margin="0,2" FontSize="14">
+                        <Run Text="רמת גימור: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.TrimLevel}"/>
+                    </TextBlock>
                 </StackPanel>
 
                 <!-- Column 2 -->
@@ -116,6 +120,11 @@
                     <TextBlock Margin="0,2" FontSize="14">
                         <Run Text="דגם מנוע: " FontWeight="Bold"/>
                         <Run Text="{Binding GovernmentVehicle.EngineModel}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2" FontSize="14">
+                        <Run Text="נפח מנוע: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.EngineVolume}"/>
+                        <Run Text=" סמ&quot;ק"/>
                     </TextBlock>
                 </StackPanel>
 
@@ -191,11 +200,33 @@
                         <Run Text="שם מסחרי: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.CommercialName}"/>
                     </TextBlock>
+                </WrapPanel>
+                <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.FuelTypeName, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="סוג דלק: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.FuelTypeName}"/>
+                    </TextBlock>
                     <TextBlock Margin="0,2,15,2" FontSize="14"
                                Visibility="{Binding MatchedVehicle.EngineVolume, Converter={StaticResource NullToVisibilityConverter}}">
                         <Run Text="נפח מנוע: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.EngineVolume}"/>
                         <Run Text=" סמ&quot;ק"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.EngineModel, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="דגם מנוע: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.EngineModel}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.TransmissionType, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="תיבת הילוכים: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.TransmissionType}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.TrimLevel, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="רמת גימור: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.TrimLevel}"/>
                     </TextBlock>
                 </WrapPanel>
 

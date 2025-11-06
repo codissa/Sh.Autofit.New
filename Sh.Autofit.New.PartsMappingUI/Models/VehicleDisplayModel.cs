@@ -24,6 +24,8 @@ public partial class VehicleDisplayModel : ObservableObject
     public string? FuelTypeName { get; set; }
     public string? EngineModel { get; set; }
     public int? EngineVolume { get; set; }
+    public string? TransmissionType { get; set; }
+    public string? TrimLevel { get; set; }
 
     [ObservableProperty]
     private int _mappedPartsCount;
@@ -80,6 +82,14 @@ public partial class VehicleDisplayModel : ObservableObject
 
     public string EngineVolumeDisplay => EngineVolume.HasValue
         ? $"נפח מנוע: {EngineVolume} סמ\"ק"
+        : null;
+
+    public string TransmissionDisplay => !string.IsNullOrEmpty(TransmissionType)
+        ? $"תיבת הילוכים: {TransmissionType}"
+        : null;
+
+    public string TrimLevelDisplay => !string.IsNullOrEmpty(TrimLevel)
+        ? $"רמת גימור: {TrimLevel}"
         : null;
 
     public string PartsCountDisplay => $"חלקים ממופים: {MappedPartsCount}";
