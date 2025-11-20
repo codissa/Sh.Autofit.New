@@ -14,4 +14,15 @@ public interface IPartKitService
     Task RemovePartFromKitAsync(int kitItemId);
     Task<List<PartKitItemDisplayModel>> GetKitPartsAsync(int kitId);
     Task MapKitToVehiclesAsync(int kitId, List<int> vehicleTypeIds, string createdBy);
+
+    /// <summary>
+    /// Syncs all parts in a kit to share the same vehicle mappings.
+    /// For all vehicles that any part in the kit is mapped to, maps all other parts to those vehicles.
+    /// </summary>
+    Task<(int VehiclesMapped, int MappingsCreated)> SyncKitMappingsAsync(int kitId, string createdBy);
+
+    /// <summary>
+    /// Syncs all kits by running SyncKitMappingsAsync for each kit.
+    /// </summary>
+    Task<(int KitsSynced, int TotalMappingsCreated)> SyncAllKitsMappingsAsync(string createdBy);
 }

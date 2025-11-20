@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="auto"/>
+            <RowDefinition Height="170"/>
         </Grid.RowDefinitions>
 
         <!-- Search Section -->
@@ -71,10 +71,24 @@
 
         <!-- Government Vehicle Data -->
         <GroupBox Grid.Row="1"
-                  Header="נתוני רכב ממשרד התחבורה"
                   Padding="8"
                   Margin="0,0,0,8"
                   Visibility="{Binding GovernmentVehicle, Converter={StaticResource NullToVisibilityConverter}}">
+            <GroupBox.Header>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="נתוני רכב ממשרד התחבורה" FontWeight="Bold"/>
+                    <TextBlock Text=" - ירד מהכביש"
+                               Foreground="Red"
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               Visibility="{Binding IsOffRoad, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    <TextBlock Text=" - ייבוא אישי"
+                               Foreground="Red"
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               Visibility="{Binding IsPersonalImport, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+            </GroupBox.Header>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -100,6 +114,10 @@
                     <TextBlock Margin="0,2" FontSize="14">
                         <Run Text="שם מסחרי: " FontWeight="Bold"/>
                         <Run Text="{Binding GovernmentVehicle.CommercialName}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2" FontSize="14">
+                        <Run Text="מרכב: " FontWeight="Bold"/>
+                        <Run Text="{Binding GovernmentVehicle.ModelType}"/>
                     </TextBlock>
                     <TextBlock Margin="0,2" FontSize="14">
                         <Run Text="רמת גימור: " FontWeight="Bold"/>
@@ -173,10 +191,24 @@
 
         <!-- Matched Vehicle Section -->
         <GroupBox Grid.Row="2"
-                  Header="רכב תואם במערכת"
                   Padding="8"
                   Margin="0,0,0,8"
                   Visibility="{Binding MatchedVehicle, Converter={StaticResource NullToVisibilityConverter}}">
+            <GroupBox.Header>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="רכב תואם במערכת" FontWeight="Bold"/>
+                    <TextBlock Text=" - ירד מהכביש"
+                               Foreground="Red"
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               Visibility="{Binding IsOffRoad, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    <TextBlock Text=" - ייבוא אישי"
+                               Foreground="Red"
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               Visibility="{Binding IsPersonalImport, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+            </GroupBox.Header>
             <StackPanel>
                 <WrapPanel Orientation="Horizontal">
                     <TextBlock Margin="0,2,15,2" FontSize="14">
@@ -222,6 +254,11 @@
                                Visibility="{Binding MatchedVehicle.TransmissionType, Converter={StaticResource NullToVisibilityConverter}}">
                         <Run Text="תיבת הילוכים: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.TransmissionType}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.FinishLevel, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="מרכב: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.FinishLevel}"/>
                     </TextBlock>
                     <TextBlock Margin="0,2,15,2" FontSize="14"
                                Visibility="{Binding MatchedVehicle.TrimLevel, Converter={StaticResource NullToVisibilityConverter}}">

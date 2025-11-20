@@ -70,7 +70,8 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             // Load all vehicles
             _allVehicles = await _dataService.LoadVehiclesAsync();
 
-            // Group vehicles by manufacturer and model name (normalized to ignore whitespace)
+            // Group vehicles by manufacturer, model name, AND all distinguishing characteristics
+            // This splits models with different engine volumes, fuel types, transmissions, and trim levels
             var groups = _allVehicles
                 .GroupBy(v => new
                 {
@@ -78,7 +79,12 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                     ModelNameNormalized = v.ModelName.NormalizeForGrouping(),
                     v.ManufacturerName,
                     v.ManufacturerShortName,
-                    v.ModelName
+                    v.ModelName,
+                    // SPLIT BY THESE CRITERIA (NOT FinishLevel):
+                    v.EngineVolume,
+                    FuelTypeNormalized = v.FuelTypeName?.NormalizeForGrouping(),
+                    TransmissionTypeNormalized = v.TransmissionType?.NormalizeForGrouping(),
+                    TrimLevelNormalized = v.TrimLevel?.NormalizeForGrouping()
                 })
                 .Select(g => new VehicleModelGroup
                 {
@@ -89,27 +95,27 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                     YearFrom = g.Min(v => v.YearFrom),
                     YearTo = g.Max(v => v.YearFrom),
                     MappedPartsCount = 0, // Will be calculated when needed
-                    EngineVolumes = g.Where(v => v.EngineVolume.HasValue)
-                                    .Select(v => v.EngineVolume!.Value)
-                                    .Distinct()
-                                    .OrderBy(e => e)
-                                    .ToList(),
-                    FuelTypes = g.Where(v => !string.IsNullOrEmpty(v.FuelTypeName))
-                                .Select(v => v.FuelTypeName!)
-                                .Distinct()
-                                .ToList(),
+                    // Since we're grouping by these, each group has uniform values:
+                    EngineVolumes = g.Key.EngineVolume.HasValue
+                                    ? new List<int> { g.Key.EngineVolume.Value }
+                                    : new List<int>(),
+                    FuelTypes = !string.IsNullOrEmpty(g.First().FuelTypeName)
+                                ? new List<string> { g.First().FuelTypeName }
+                                : new List<string>(),
                     CommercialNames = g.Where(v => !string.IsNullOrEmpty(v.CommercialName))
                                       .Select(v => v.CommercialName!)
                                       .Distinct()
                                       .ToList(),
-                    TransmissionTypes = g.Where(v => !string.IsNullOrEmpty(v.TransmissionType))
-                                        .Select(v => v.TransmissionType!)
-                                        .Distinct()
-                                        .ToList(),
-                    TrimLevels = g.Where(v => !string.IsNullOrEmpty(v.TrimLevel))
-                                 .Select(v => v.TrimLevel!)
-                                 .Distinct()
-                                 .ToList()
+                    TransmissionTypes = !string.IsNullOrEmpty(g.First().TransmissionType)
+                                        ? new List<string> { g.First().TransmissionType }
+                                        : new List<string>(),
+                    FinishLevels = g.Where(v => !string.IsNullOrEmpty(v.FinishLevel))
+                                   .Select(v => v.FinishLevel!)
+                                   .Distinct()
+                                   .ToList(),
+                    TrimLevels = !string.IsNullOrEmpty(g.First().TrimLevel)
+                                 ? new List<string> { g.First().TrimLevel }
+                                 : new List<string>()
                 })
                 .OrderBy(g => g.ManufacturerShortName ?? g.ManufacturerName)
                 .ThenBy(g => g.ModelName)
@@ -205,14 +211,15 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             IsLoading = true;
             StatusMessage = "טוען חלקים ממופים...";
 
-            // Get all vehicle IDs for this model (using normalized comparison to ignore whitespace)
+            // Get all vehicle IDs for this VARIANT (matching all criteria: model, engine, fuel, transmission, trim)
             var vehicleIds = _allVehicles
                 .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(modelGroup.ManufacturerName) &&
-                           v.ModelName.EqualsIgnoringWhitespace(modelGroup.ModelName))
+                           v.ModelName.EqualsIgnoringWhitespace(modelGroup.ModelName) &&
+                           MatchesVariantCriteria(v, modelGroup))
                 .Select(v => v.VehicleTypeId)
                 .ToList();
 
-            StatusMessage = $"נמצאו {vehicleIds.Count} רכבים בדגם, טוען חלקים...";
+            StatusMessage = $"נמצאו {vehicleIds.Count} רכבים בווריאנט, טוען חלקים...";
 
             // Load parts for each vehicle and find common parts
             var partsByVehicle = new Dictionary<int, HashSet<string>>();
@@ -302,19 +309,20 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "ממפה חלקים לכל הרכבים בדגם...";
+                StatusMessage = "ממפה חלקים לכל הרכבים בווריאנט...";
 
-                // IMPORTANT: Get ALL vehicle IDs for this model (not just one)
+                // IMPORTANT: Get vehicle IDs for this VARIANT (matching all criteria)
                 var vehicleIds = _allVehicles
                     .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
+                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName) &&
+                               MatchesVariantCriteria(v, SelectedModelGroup))
                     .Select(v => v.VehicleTypeId)
                     .ToList();
 
                 var partNumbers = dialog.SelectedParts.Select(p => p.PartNumber).ToList();
                 await _dataService.MapPartsToVehiclesAsync(vehicleIds, partNumbers, "current_user");
 
-                StatusMessage = $"✓ מופו {partNumbers.Count} חלקים ל-{vehicleIds.Count} רכבים";
+                StatusMessage = $"✓ מופו {partNumbers.Count} חלקים ל-{vehicleIds.Count} רכבים בווריאנט";
                 await LoadMappedPartsAsync(SelectedModelGroup);
                 await LoadSuggestedPartsAsync(SelectedModelGroup);
             }
@@ -348,12 +356,13 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "מסיר חלק מכל הרכבים בדגם...";
+                StatusMessage = "מסיר חלק מכל הרכבים בווריאנט...";
 
-                // Get all vehicle IDs for this model
+                // Get vehicle IDs for this VARIANT (matching all criteria)
                 var vehicleIds = _allVehicles
                     .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
+                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName) &&
+                               MatchesVariantCriteria(v, SelectedModelGroup))
                     .Select(v => v.VehicleTypeId)
                     .ToList();
 
@@ -557,5 +566,45 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Checks if a vehicle matches the variant criteria of a model group
+    /// (engine volume, fuel type, transmission type, trim level)
+    /// </summary>
+    private bool MatchesVariantCriteria(VehicleDisplayModel vehicle, VehicleModelGroup modelGroup)
+    {
+        // Check engine volume
+        if (modelGroup.EngineVolumes.Any())
+        {
+            if (!vehicle.EngineVolume.HasValue || !modelGroup.EngineVolumes.Contains(vehicle.EngineVolume.Value))
+                return false;
+        }
+
+        // Check fuel type
+        if (modelGroup.FuelTypes.Any())
+        {
+            if (string.IsNullOrEmpty(vehicle.FuelTypeName) ||
+                !modelGroup.FuelTypes.Any(f => f.EqualsIgnoringWhitespace(vehicle.FuelTypeName)))
+                return false;
+        }
+
+        // Check transmission type
+        if (modelGroup.TransmissionTypes.Any())
+        {
+            if (string.IsNullOrEmpty(vehicle.TransmissionType) ||
+                !modelGroup.TransmissionTypes.Any(t => t.EqualsIgnoringWhitespace(vehicle.TransmissionType)))
+                return false;
+        }
+
+        // Check trim level (NOT finish level - we're not grouping by that)
+        if (modelGroup.TrimLevels.Any())
+        {
+            if (string.IsNullOrEmpty(vehicle.TrimLevel) ||
+                !modelGroup.TrimLevels.Any(t => t.EqualsIgnoringWhitespace(vehicle.TrimLevel)))
+                return false;
+        }
+
+        return true;
     }
 }

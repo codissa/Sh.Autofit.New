@@ -1,9 +1,11 @@
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
+using Sh.Autofit.New.PartsMappingUI.Helpers;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using static Sh.Autofit.New.PartsMappingUI.Helpers.VehicleMatchingHelper;
 
 namespace Sh.Autofit.New.PartsMappingUI.Views;
 
@@ -11,6 +13,7 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
 {
     private readonly IDataService _dataService;
     private readonly int _vehicleTypeId;
+    private readonly VehicleDisplayModel _vehicle;
     private List<SelectablePartModel> _allParts = new();
     private ObservableCollection<SelectablePartModel> _filteredParts = new();
 
@@ -25,13 +28,14 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         }
     }
 
-    public QuickMapDialog(IDataService dataService, int vehicleTypeId)
+    public QuickMapDialog(IDataService dataService, int vehicleTypeId, VehicleDisplayModel vehicle)
     {
         InitializeComponent();
         DataContext = this;
 
         _dataService = dataService;
         _vehicleTypeId = vehicleTypeId;
+        _vehicle = vehicle;
 
         PartsDataGrid.ItemsSource = _filteredParts;
 
@@ -49,8 +53,11 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         {
             IsLoading = true;
 
-            // Load all unmapped parts for this vehicle
-            var parts = await _dataService.LoadUnmappedPartsAsync(_vehicleTypeId);
+            // Load all unmapped parts for this model (not just this vehicle type)
+            // This ensures we don't show parts already mapped to other variants of the same model
+            var parts = await _dataService.LoadUnmappedPartsByModelAsync(
+                _vehicle.ManufacturerName,
+                _vehicle.ModelName);
 
             _allParts = parts.Select(p => new SelectablePartModel(p)).ToList();
             _filteredParts.Clear();
@@ -141,12 +148,48 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         {
             IsLoading = true;
 
+            var variantDescription = GetVariantDescription(_vehicle);
+
+            // Ask user: map to all model variants or just this variant?
+            var result = MessageBox.Show(
+                $"האם למפות {selectedParts.Count} חלקים לכל הווריאנטים של '{_vehicle.ModelName}'?\n\n" +
+                $"הווריאנט הנוכחי: {variantDescription}\n\n" +
+                "בחר 'כן' למיפוי לכל הווריאנטים (כל נפחי מנוע, תיבות הילוכים ורמות גימור),\n" +
+                "'לא' למיפוי רק לווריאנט המדויק הזה,\n" +
+                "או 'ביטול'.",
+                "בחירת היקף מיפוי",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question
+            );
+
+            if (result == MessageBoxResult.Cancel)
+                return;
+
             var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
-            var vehicleTypeIds = new List<int> { _vehicleTypeId };
+            List<int> vehicleTypeIds;
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Map to ALL variants of this model
+                var allVehicles = await _dataService.LoadVehiclesAsync();
+                vehicleTypeIds = allVehicles
+                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(_vehicle.ManufacturerName) &&
+                               v.ModelName.EqualsIgnoringWhitespace(_vehicle.ModelName))
+                    .Select(v => v.VehicleTypeId)
+                    .ToList();
+            }
+            else
+            {
+                // Map only to this specific variant
+                var allVehicles = await _dataService.LoadVehiclesAsync();
+                var sameVariantVehicles = GetSameVariantVehicles(allVehicles, _vehicle);
+                vehicleTypeIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
+            }
 
             await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, partNumbers, "QuickMap");
 
-            MessageBox.Show($"מופו {selectedParts.Count} חלקים בהצלחה", "הצלחה", MessageBoxButton.OK, MessageBoxImage.Information);
+            var scope = result == MessageBoxResult.Yes ? "כל הווריאנטים" : $"הווריאנט {variantDescription}";
+            MessageBox.Show($"מופו {selectedParts.Count} חלקים ל-{scope} ({vehicleTypeIds.Count} רכבים)", "הצלחה", MessageBoxButton.OK, MessageBoxImage.Information);
 
             DialogResult = true;
             Close();

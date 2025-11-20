@@ -254,45 +254,110 @@
 
             <!-- Parts Management Buttons -->
             <StackPanel Grid.Row="1"
-                       Orientation="Horizontal"
                        Margin="0,0,0,10"
                        Visibility="{Binding SelectedKit, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Button Content="➕ הוסף חלקים"
-                        Command="{Binding AddPartsToKitCommand}"
-                        Padding="12,6"
-                        Margin="0,0,10,0"
-                        Background="#4CAF50"
-                        Foreground="White"
-                        BorderThickness="0"
-                        FontSize="12"
-                        Cursor="Hand">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="4"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#45A049"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                    <Button Content="➕ הוסף חלקים"
+                            Command="{Binding AddPartsToKitCommand}"
+                            Padding="12,6"
+                            Margin="0,0,10,0"
+                            Background="#4CAF50"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="12"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#45A049"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
 
-                <TextBlock Text="{Binding StatusMessage}"
-                          VerticalAlignment="Center"
-                          Foreground="#666"
-                          FontSize="12"
-                          Margin="10,0,0,0"/>
+                    <Button Content="🔄 סנכרן ערכה זו"
+                            Command="{Binding SyncKitCommand}"
+                            Padding="12,6"
+                            Margin="0,0,10,0"
+                            Background="#9C27B0"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="12"
+                            Cursor="Hand"
+                            ToolTip="מפה את כל החלקים בערכה לכל הרכבים המשויכים לכל אחד מהחלקים">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#7B1FA2"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <Button Content="🔄 סנכרן כל הערכות"
+                            Command="{Binding SyncAllKitsCommand}"
+                            Padding="12,6"
+                            Margin="0,0,10,0"
+                            Background="#673AB7"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="12"
+                            Cursor="Hand"
+                            ToolTip="מסנכרן את כל הערכות במערכת">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="4"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#512DA8"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <TextBlock Text="{Binding StatusMessage}"
+                              VerticalAlignment="Center"
+                              Foreground="#666"
+                              FontSize="12"
+                              Margin="10,0,0,0"/>
+                </StackPanel>
             </StackPanel>
 
             <!-- Parts in Kit -->
@@ -311,6 +376,7 @@
                     <DataGridTextColumn Header="מקט" Binding="{Binding PartItemKey}" Width="120"/>
                     <DataGridTextColumn Header="שם חלק" Binding="{Binding PartName}" Width="*"/>
                     <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="150"/>
+                    <DataGridTextColumn Header="רכבים" Binding="{Binding VehicleCountDisplay, Mode=OneWay}" Width="100"/>
                     <DataGridTextColumn Header="במלאי" Binding="{Binding StockIcon, Mode=OneWay}" Width="60"/>
                     <DataGridTemplateColumn Header="פעולות" Width="80">
                         <DataGridTemplateColumn.CellTemplate>

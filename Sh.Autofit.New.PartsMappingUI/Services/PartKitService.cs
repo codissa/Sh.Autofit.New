@@ -234,4 +234,106 @@ public class PartKitService : IPartKitService
         // Use existing mapping service to map all parts to vehicles
         await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, partNumbers, createdBy);
     }
+
+    public async Task<(int VehiclesMapped, int MappingsCreated)> SyncKitMappingsAsync(int kitId, string createdBy)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Get all parts in the kit
+        var kitParts = await GetKitPartsAsync(kitId);
+        if (!kitParts.Any())
+            return (0, 0);
+
+        var partNumbers = kitParts.Select(p => p.PartItemKey).ToList();
+
+        // Collect all unique vehicles that any part in the kit is mapped to
+        var allVehicleIds = new HashSet<int>();
+        foreach (var partNumber in partNumbers)
+        {
+            var vehicles = await _dataService.LoadVehiclesForPartAsync(partNumber);
+            foreach (var vehicle in vehicles)
+            {
+                allVehicleIds.Add(vehicle.VehicleTypeId);
+            }
+        }
+
+        if (!allVehicleIds.Any())
+            return (0, 0);
+
+        // Get existing mappings to avoid duplicates
+        var existingMappings = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => m.IsActive && partNumbers.Contains(m.PartItemKey) && allVehicleIds.Contains(m.VehicleTypeId))
+            .Select(m => new { m.VehicleTypeId, m.PartItemKey })
+            .ToListAsync();
+
+        var existingMappingSet = new HashSet<(int VehicleTypeId, string PartItemKey)>(
+            existingMappings.Select(m => (m.VehicleTypeId, m.PartItemKey))
+        );
+
+        // Create new mappings for all parts to all vehicles
+        var mappingsCreated = 0;
+        var now = DateTime.UtcNow;
+        foreach (var vehicleId in allVehicleIds)
+        {
+            foreach (var partNumber in partNumbers)
+            {
+                // Skip if mapping already exists
+                if (!existingMappingSet.Contains((vehicleId, partNumber)))
+                {
+                    var mapping = new VehiclePartsMapping
+                    {
+                        VehicleTypeId = vehicleId,
+                        PartItemKey = partNumber,
+                        MappingSource = "kit_sync",
+                        Priority = 100,
+                        RequiresModification = false,
+                        VersionNumber = 1,
+                        IsCurrentVersion = true,
+                        IsActive = true,
+                        CreatedBy = createdBy,
+                        CreatedAt = now,
+                        UpdatedBy = createdBy,
+                        UpdatedAt = now
+                    };
+                    context.VehiclePartsMappings.Add(mapping);
+                    mappingsCreated++;
+                }
+            }
+        }
+
+        if (mappingsCreated > 0)
+        {
+            await context.SaveChangesAsync();
+        }
+
+        return (allVehicleIds.Count, mappingsCreated);
+    }
+
+    public async Task<(int KitsSynced, int TotalMappingsCreated)> SyncAllKitsMappingsAsync(string createdBy)
+    {
+        var kits = await LoadAllKitsAsync();
+        var totalMappingsCreated = 0;
+        var kitsSynced = 0;
+
+        foreach (var kit in kits)
+        {
+            try
+            {
+                var (_, mappingsCreated) = await SyncKitMappingsAsync(kit.PartKitId, createdBy);
+                if (mappingsCreated > 0)
+                {
+                    kitsSynced++;
+                }
+                totalMappingsCreated += mappingsCreated;
+            }
+            catch (Exception)
+            {
+                // Continue with other kits even if one fails
+                continue;
+            }
+        }
+
+        return (kitsSynced, totalMappingsCreated);
+    }
 }

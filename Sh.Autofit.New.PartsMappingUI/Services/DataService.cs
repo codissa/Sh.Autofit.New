@@ -38,6 +38,7 @@ public class DataService : IDataService
                 EngineModel = v.EngineModel,
                 EngineVolume = v.EngineVolume,
                 TransmissionType = v.TransmissionType,
+                FinishLevel = v.FinishLevel,
                 TrimLevel = v.TrimLevel
             })
             .ToListAsync();
@@ -164,6 +165,7 @@ public class DataService : IDataService
                 EngineModel = v.EngineModel,
                 EngineVolume = v.EngineVolume,
                 TransmissionType = v.TransmissionType,
+                FinishLevel = v.FinishLevel,
                 TrimLevel = v.TrimLevel
             })
             .ToListAsync();
@@ -291,6 +293,86 @@ public class DataService : IDataService
         return parts;
     }
 
+    public async Task<List<PartDisplayModel>> LoadUnmappedPartsByModelAsync(string manufacturerName, string modelName)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Find all vehicle types with this manufacturer and model name
+        var vehicleTypeIds = await context.VehicleTypes
+            .AsNoTracking()
+            .Include(v => v.Manufacturer)
+            .Where(v => v.IsActive &&
+                       (v.Manufacturer.ManufacturerName == manufacturerName ||
+                        v.Manufacturer.ManufacturerShortName == manufacturerName) &&
+                       v.ModelName == modelName)
+            .Select(v => v.VehicleTypeId)
+            .ToListAsync();
+
+        if (!vehicleTypeIds.Any())
+            return await context.VwParts
+                .AsNoTracking()
+                .Where(p => p.IsActive == 1)
+                .Select(p => new PartDisplayModel
+                {
+                    PartNumber = p.PartNumber ?? string.Empty,
+                    PartName = p.PartName ?? string.Empty,
+                    Category = p.Category,
+                    Manufacturer = p.Manufacturer,
+                    Model = p.Model,
+                    RetailPrice = p.RetailPrice,
+                    CostPrice = p.CostPrice,
+                    StockQuantity = p.StockQuantity,
+                    IsInStock = p.IsInStock == 1,
+                    IsActive = p.IsActive == 1,
+                    UniversalPart = p.UniversalPart,
+                    ImageUrl = p.ImageUrl,
+                    CompatibilityNotes = p.CompatibilityNotes,
+                    OemNumber1 = p.Oemnumber1,
+                    OemNumber2 = p.Oemnumber2,
+                    OemNumber3 = p.Oemnumber3,
+                    OemNumber4 = p.Oemnumber4,
+                    OemNumber5 = p.Oemnumber5
+                })
+                .ToListAsync();
+
+        // Get all part numbers mapped to ANY variant of this model
+        var mappedPartNumbers = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => vehicleTypeIds.Contains(m.VehicleTypeId) && m.IsActive && m.IsCurrentVersion)
+            .Select(m => m.PartItemKey)
+            .Distinct()
+            .ToListAsync();
+
+        // Load all active parts that are NOT in the mapped list
+        var parts = await context.VwParts
+            .AsNoTracking()
+            .Where(p => p.IsActive == 1 && !mappedPartNumbers.Contains(p.PartNumber))
+            .Select(p => new PartDisplayModel
+            {
+                PartNumber = p.PartNumber ?? string.Empty,
+                PartName = p.PartName ?? string.Empty,
+                Category = p.Category,
+                Manufacturer = p.Manufacturer,
+                Model = p.Model,
+                RetailPrice = p.RetailPrice,
+                CostPrice = p.CostPrice,
+                StockQuantity = p.StockQuantity,
+                IsInStock = p.IsInStock == 1,
+                IsActive = p.IsActive == 1,
+                UniversalPart = p.UniversalPart,
+                ImageUrl = p.ImageUrl,
+                CompatibilityNotes = p.CompatibilityNotes,
+                OemNumber1 = p.Oemnumber1,
+                OemNumber2 = p.Oemnumber2,
+                OemNumber3 = p.Oemnumber3,
+                OemNumber4 = p.Oemnumber4,
+                OemNumber5 = p.Oemnumber5
+            })
+            .ToListAsync();
+
+        return parts;
+    }
+
     public async Task<Dictionary<int, int>> LoadMappingCountsAsync()
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -359,17 +441,43 @@ public class DataService : IDataService
 
         // Find ALL vehicle IDs with the same ModelName, EngineVolume, TransmissionType, and TrimLevel from ANY manufacturer
         // This ensures parts are mapped to all years and all manufacturers with the same specifications
-        var allVehicleIdsToMap = await context.VehicleTypes
-            .Where(v => v.IsActive &&
-                       modelEngineGroups.Any(g =>
-                           g.ModelName == v.ModelName &&
-                           (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
-                           (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
-                           (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
-            .Select(v => v.VehicleTypeId)
+        // Fetch all active vehicles first, then filter in memory to avoid LINQ translation issues
+        var allActiveVehicles = await context.VehicleTypes
+            .Where(v => v.IsActive)
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                v.ModelName,
+                v.EngineVolume,
+                v.TransmissionType,
+                v.TrimLevel
+            })
             .ToListAsync();
 
+        // Filter in memory to match the model/engine/transmission/trim combinations
+        var allVehicleIdsToMap = allActiveVehicles
+            .Where(v => modelEngineGroups.Any(g =>
+                g.ModelName == v.ModelName &&
+                (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
+                (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
+                (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
+            .Select(v => v.VehicleTypeId)
+            .ToList();
+
         validVehicleTypeIds = allVehicleIdsToMap.Distinct().ToList();
+
+        // Clean up old inactive mappings first to avoid constraint issues on re-mapping
+        var oldInactiveMappings = await context.VehiclePartsMappings
+            .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
+                       partNumbers.Contains(m.PartItemKey) &&
+                       !m.IsActive &&
+                       !m.IsCurrentVersion)
+            .ToListAsync();
+
+        if (oldInactiveMappings.Any())
+        {
+            context.VehiclePartsMappings.RemoveRange(oldInactiveMappings);
+        }
 
         var existingMappings = await context.VehiclePartsMappings
             .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
@@ -455,18 +563,45 @@ public class DataService : IDataService
 
         // Find ALL vehicle IDs with the same ModelName, EngineVolume, TransmissionType, and TrimLevel from ANY manufacturer
         // This ensures parts are unmapped from all years and all manufacturers with the same specifications
-        var allVehicleIdsToUnmap = await context.VehicleTypes
-            .Where(v => v.IsActive &&
-                       modelEngineGroups.Any(g =>
-                           g.ModelName == v.ModelName &&
-                           (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
-                           (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
-                           (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
-            .Select(v => v.VehicleTypeId)
+        // Fetch all active vehicles first, then filter in memory to avoid LINQ translation issues
+        var allActiveVehicles = await context.VehicleTypes
+            .Where(v => v.IsActive)
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                v.ModelName,
+                v.EngineVolume,
+                v.TransmissionType,
+                v.TrimLevel
+            })
             .ToListAsync();
+
+        // Filter in memory to match the model/engine/transmission/trim combinations
+        var allVehicleIdsToUnmap = allActiveVehicles
+            .Where(v => modelEngineGroups.Any(g =>
+                g.ModelName == v.ModelName &&
+                (g.EngineVolume == null && v.EngineVolume == null || g.EngineVolume == v.EngineVolume) &&
+                (g.TransmissionType == null && v.TransmissionType == null || g.TransmissionType == v.TransmissionType) &&
+                (g.TrimLevel == null && v.TrimLevel == null || g.TrimLevel == v.TrimLevel)))
+            .Select(v => v.VehicleTypeId)
+            .ToList();
 
         validVehicleTypeIds = allVehicleIdsToUnmap.Distinct().ToList();
 
+        // First, delete any old inactive mappings to avoid unique constraint violations
+        var oldInactiveMappings = await context.VehiclePartsMappings
+            .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
+                       partNumbers.Contains(m.PartItemKey) &&
+                       !m.IsActive &&
+                       !m.IsCurrentVersion)
+            .ToListAsync();
+
+        if (oldInactiveMappings.Any())
+        {
+            context.VehiclePartsMappings.RemoveRange(oldInactiveMappings);
+        }
+
+        // Now get the active mappings to deactivate
         var mappingsToDeactivate = await context.VehiclePartsMappings
             .Where(m => validVehicleTypeIds.Contains(m.VehicleTypeId) &&
                        partNumbers.Contains(m.PartItemKey) &&
@@ -484,7 +619,7 @@ public class DataService : IDataService
             mapping.UpdatedAt = DateTime.UtcNow;
         }
 
-        if (mappingsToDeactivate.Any())
+        if (oldInactiveMappings.Any() || mappingsToDeactivate.Any())
         {
             await context.SaveChangesAsync();
         }
@@ -714,24 +849,46 @@ public class DataService : IDataService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // First, find or create the manufacturer
+        // First, find or create the manufacturer (case-insensitive search with trim)
+        var manufacturerName = (govRecord.ManufacturerName ?? "Unknown").Trim();
         var manufacturer = await context.Manufacturers
-            .FirstOrDefaultAsync(m => m.ManufacturerName == govRecord.ManufacturerName);
+            .FirstOrDefaultAsync(m => m.ManufacturerName.ToLower().Trim() == manufacturerName.ToLower());
 
         if (manufacturer == null)
         {
-            // Create new manufacturer
-            manufacturer = new Manufacturer
+            try
             {
-                ManufacturerName = govRecord.ManufacturerName ?? "Unknown",
-                ManufacturerShortName = govRecord.ManufacturerName ?? "Unknown",
-                CountryOfOrigin = "Unknown",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            context.Manufacturers.Add(manufacturer);
-            await context.SaveChangesAsync();
+                // Get the next available manufacturer code
+                var maxCode = await context.Manufacturers
+                    .AsNoTracking()
+                    .MaxAsync(m => (int?)m.ManufacturerCode) ?? 0;
+
+                // Create new manufacturer
+                manufacturer = new Manufacturer
+                {
+                    ManufacturerCode = maxCode + 1,
+                    ManufacturerName = manufacturerName,
+                    ManufacturerShortName = manufacturerName,
+                    CountryOfOrigin = "Unknown",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Manufacturers.Add(manufacturer);
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Race condition: another request created the same manufacturer
+                // Reload the manufacturer from the database
+                manufacturer = await context.Manufacturers
+                    .FirstOrDefaultAsync(m => m.ManufacturerName.ToLower().Trim() == manufacturerName.ToLower());
+
+                if (manufacturer == null)
+                {
+                    throw; // Re-throw if still not found (unexpected error)
+                }
+            }
         }
 
         // Create the vehicle type
@@ -1036,6 +1193,7 @@ public class DataService : IDataService
                 EngineModel = v.EngineModel,
                 EngineVolume = v.EngineVolume,
                 TransmissionType = v.TransmissionType,
+                FinishLevel = v.FinishLevel,
                 TrimLevel = v.TrimLevel
             })
             .ToListAsync();
@@ -1369,94 +1527,151 @@ public class DataService : IDataService
             .Distinct()
             .ToListAsync();
 
-        // Step 3: Find similar vehicles with 3 different strategies
-        var similarVehicleIds = new List<int>();
+        // Normalize target vehicle attributes for comparison
+        var commercialNameNormalized = targetVehicle.CommercialName.NormalizeForGrouping();
+        var modelNameNormalized = targetVehicle.ModelName.NormalizeForGrouping();
+        var trimLevelNormalized = targetVehicle.TrimLevel?.NormalizeForGrouping();
+        var fuelTypeNormalized = targetVehicle.FuelTypeName?.NormalizeForGrouping();
 
-        // Strategy 1: Same commercial name + overlapping years + same engine volume
-        var strategy1Vehicles = await context.VehicleTypes
+        // Step 3: Find similar vehicles with 4 different strategies (using normalized comparison)
+        // Fetch candidate vehicles with engine volume and year overlap, then filter by normalized names in-memory
+        var candidateVehicles = await context.VehicleTypes
             .AsNoTracking()
             .Where(v => v.IsActive &&
                        v.VehicleTypeId != vehicleTypeId &&
-                       v.CommercialName == targetVehicle.CommercialName &&
                        v.EngineVolume == targetVehicle.EngineVolume &&
                        ((v.YearFrom <= targetVehicle.YearFrom && v.YearFrom >= targetVehicle.YearFrom) ||
                         (v.YearFrom >= targetVehicle.YearFrom && v.YearFrom <= targetVehicle.YearFrom)))
-            .Select(v => v.VehicleTypeId)
+            .Select(v => new
+            {
+                v.VehicleTypeId,
+                v.ModelName,
+                v.CommercialName,
+                v.ManufacturerId,
+                v.TrimLevel,
+                v.FuelTypeName,
+                v.TransmissionType
+            })
             .ToListAsync();
 
-        // Strategy 2: Same model name in other commercial names + overlapping years + same engine volume
-        var strategy2Vehicles = await context.VehicleTypes
-            .AsNoTracking()
-            .Where(v => v.IsActive &&
-                       v.VehicleTypeId != vehicleTypeId &&
-                       v.ModelName == targetVehicle.ModelName &&
-                       v.CommercialName != targetVehicle.CommercialName &&
-                       v.EngineVolume == targetVehicle.EngineVolume &&
-                       ((v.YearFrom <= targetVehicle.YearFrom && v.YearFrom >= targetVehicle.YearFrom) ||
-                        (v.YearFrom >= targetVehicle.YearFrom && v.YearFrom <= targetVehicle.YearFrom)))
-            .Select(v => v.VehicleTypeId)
-            .ToListAsync();
+        // Strategy 1: Same commercial name + overlapping years + same engine volume + same trim + same fuel (HIGHEST - 10 points)
+        var strategy1Vehicles = candidateVehicles
+            .Where(v => v.CommercialName.EqualsIgnoringWhitespace(targetVehicle.CommercialName) &&
+                       (v.TrimLevel?.EqualsIgnoringWhitespace(targetVehicle.TrimLevel) ?? string.IsNullOrEmpty(targetVehicle.TrimLevel)) &&
+                       (v.FuelTypeName?.EqualsIgnoringWhitespace(targetVehicle.FuelTypeName) ?? string.IsNullOrEmpty(targetVehicle.FuelTypeName)))
+            .Select(v => new { v.VehicleTypeId, v.ModelName, v.CommercialName })
+            .ToList();
 
-        // Strategy 3: Same manufacturer + overlapping years + same engine volume
-        var strategy3Vehicles = await context.VehicleTypes
+        // Strategy 2: Same engine volume + overlapping years + same trim (HIGH - 6 points)
+        var strategy2Vehicles = candidateVehicles
+            .Where(v => !v.CommercialName.EqualsIgnoringWhitespace(targetVehicle.CommercialName) &&
+                       (v.TrimLevel?.EqualsIgnoringWhitespace(targetVehicle.TrimLevel) ?? string.IsNullOrEmpty(targetVehicle.TrimLevel)))
+            .Select(v => new { v.VehicleTypeId, v.ModelName, v.CommercialName })
+            .ToList();
+
+        // Strategy 3: Same manufacturer + same engine volume (MEDIUM - 3 points)
+        var allManufacturerVehicles = await context.VehicleTypes
             .AsNoTracking()
             .Where(v => v.IsActive &&
                        v.VehicleTypeId != vehicleTypeId &&
                        v.ManufacturerId == targetVehicle.ManufacturerId &&
-                       v.EngineVolume == targetVehicle.EngineVolume &&
-                       ((v.YearFrom <= targetVehicle.YearFrom && v.YearFrom >= targetVehicle.YearFrom) ||
-                        (v.YearFrom >= targetVehicle.YearFrom && v.YearFrom <= targetVehicle.YearFrom)))
-            .Select(v => v.VehicleTypeId)
+                       v.EngineVolume == targetVehicle.EngineVolume)
+            .Select(v => new { v.VehicleTypeId, v.ModelName, v.CommercialName })
             .ToListAsync();
 
-        // Combine all strategies
-        similarVehicleIds = strategy1Vehicles
-            .Concat(strategy2Vehicles)
-            .Concat(strategy3Vehicles)
-            .Distinct()
+        var strategy3Vehicles = allManufacturerVehicles
+            .Where(v => !v.ModelName.EqualsIgnoringWhitespace(targetVehicle.ModelName))
             .ToList();
 
-        if (similarVehicleIds.Count == 0)
+        // Strategy 4: Same commercial name (BASE - 2 points)
+        var allCommercialVehicles = await context.VehicleTypes
+            .AsNoTracking()
+            .Where(v => v.IsActive &&
+                       v.VehicleTypeId != vehicleTypeId)
+            .Select(v => new { v.VehicleTypeId, v.ModelName, v.CommercialName })
+            .ToListAsync();
+
+        var strategy4Vehicles = allCommercialVehicles
+            .Where(v => !v.ModelName.EqualsIgnoringWhitespace(targetVehicle.ModelName) &&
+                       v.CommercialName.EqualsIgnoringWhitespace(targetVehicle.CommercialName))
+            .ToList();
+
+        // Combine all strategies and calculate weighted scores per vehicle
+        var vehicleScores = new Dictionary<int, (int Score, string Reason, string SourceModel)>();
+
+        foreach (var vehicle in strategy1Vehicles)
+        {
+            if (!vehicleScores.ContainsKey(vehicle.VehicleTypeId))
+                vehicleScores[vehicle.VehicleTypeId] = (10, "שם מסחרי + נפח מנוע + שנים + רמת גימור + דלק", vehicle.ModelName ?? "");
+        }
+
+        foreach (var vehicle in strategy2Vehicles)
+        {
+            if (!vehicleScores.ContainsKey(vehicle.VehicleTypeId))
+                vehicleScores[vehicle.VehicleTypeId] = (6, "נפח מנוע + שנים + רמת גימור", vehicle.ModelName ?? "");
+        }
+
+        foreach (var vehicle in strategy3Vehicles)
+        {
+            if (!vehicleScores.ContainsKey(vehicle.VehicleTypeId))
+                vehicleScores[vehicle.VehicleTypeId] = (3, "אותו יצרן + נפח מנוע תואם", vehicle.ModelName ?? "");
+        }
+
+        foreach (var vehicle in strategy4Vehicles)
+        {
+            if (!vehicleScores.ContainsKey(vehicle.VehicleTypeId))
+                vehicleScores[vehicle.VehicleTypeId] = (2, "שם מסחרי תואם", vehicle.ModelName ?? "");
+        }
+
+        if (vehicleScores.Count == 0)
         {
             return new List<PartDisplayModel>();
         }
 
-        // Step 4: Get parts mapped to similar vehicles with scoring
-        var suggestedPartMappings = await context.VehiclePartsMappings
+        var similarVehicleIds = vehicleScores.Keys.ToList();
+
+        // Step 4: Get parts mapped to similar vehicles with cumulative scoring
+        var partScores = new Dictionary<string, (int TotalScore, List<string> SourceModels, string BestReason)>();
+
+        var vehicleMappings = await context.VehiclePartsMappings
             .AsNoTracking()
             .Where(m => similarVehicleIds.Contains(m.VehicleTypeId) &&
                        m.IsActive &&
                        !mappedPartNumbers.Contains(m.PartItemKey))
-            .GroupBy(m => new { m.PartItemKey, m.VehicleTypeId })
-            .Select(g => new
-            {
-                PartNumber = g.Key.PartItemKey,
-                VehicleId = g.Key.VehicleTypeId
-            })
             .ToListAsync();
 
-        // Calculate scores for each part
-        var partScores = suggestedPartMappings
-            .GroupBy(x => x.PartNumber)
-            .Select(g => new
+        foreach (var mapping in vehicleMappings)
+        {
+            var vehicleScore = vehicleScores[mapping.VehicleTypeId];
+
+            if (!partScores.ContainsKey(mapping.PartItemKey))
             {
-                PartNumber = g.Key,
-                Strategy1Count = g.Count(x => strategy1Vehicles.Contains(x.VehicleId)),
-                Strategy2Count = g.Count(x => strategy2Vehicles.Contains(x.VehicleId)),
-                Strategy3Count = g.Count(x => strategy3Vehicles.Contains(x.VehicleId)),
-                TotalCount = g.Count()
-            })
-            .Where(x => x.TotalCount >= 1) // At least 1 vehicle has this part
-            .OrderByDescending(x => x.Strategy1Count * 3 + x.Strategy2Count * 2 + x.Strategy3Count)
-            .Take(50)
-            .ToList();
+                partScores[mapping.PartItemKey] = (vehicleScore.Score, new List<string> { vehicleScore.SourceModel }, vehicleScore.Reason);
+            }
+            else
+            {
+                var current = partScores[mapping.PartItemKey];
+                current.SourceModels.Add(vehicleScore.SourceModel);
+                partScores[mapping.PartItemKey] = (
+                    current.TotalScore + vehicleScore.Score,
+                    current.SourceModels,
+                    vehicleScore.Score > GetScoreFromReason(current.BestReason) ? vehicleScore.Reason : current.BestReason
+                );
+            }
+        }
 
         if (partScores.Count == 0)
         {
             return new List<PartDisplayModel>();
         }
 
-        var suggestedPartNumbers = partScores.Select(s => s.PartNumber).ToList();
+        // Get top suggestions
+        var topSuggestions = partScores
+            .OrderByDescending(x => x.Value.TotalScore)
+            .Take(50)
+            .ToList();
+
+        var suggestedPartNumbers = topSuggestions.Select(s => s.Key).ToList();
 
         // Step 5: Get full part information
         var suggestions = await context.VwParts
@@ -1490,22 +1705,16 @@ public class DataService : IDataService
         // Calculate relevance scores and reasons
         foreach (var part in suggestions)
         {
-            var score = partScores.First(s => s.PartNumber == part.PartNumber);
+            var partScore = partScores[part.PartNumber];
+            part.RelevanceScore = partScore.TotalScore;
 
-            // Priority: Strategy1 > Strategy2 > Strategy3
-            var totalWeight = score.Strategy1Count * 3 + score.Strategy2Count * 2 + score.Strategy3Count;
-            part.RelevanceScore = (totalWeight * 100.0) / (similarVehicleIds.Count * 3);
+            var uniqueModels = partScore.SourceModels.Distinct().ToList();
+            var modelCount = uniqueModels.Count;
+            var modelsList = modelCount <= 3
+                ? string.Join(", ", uniqueModels)
+                : $"{uniqueModels.Count} דגמים";
 
-            // Build reason string
-            var reasons = new List<string>();
-            if (score.Strategy1Count > 0)
-                reasons.Add($"שם מסחרי זהה ({score.Strategy1Count})");
-            if (score.Strategy2Count > 0)
-                reasons.Add($"דגם זהה ({score.Strategy2Count})");
-            if (score.Strategy3Count > 0)
-                reasons.Add($"יצרן זהה ({score.Strategy3Count})");
-
-            part.RelevanceReason = string.Join(" + ", reasons);
+            part.RelevanceReason = $"{partScore.BestReason} ({modelsList})";
         }
 
         return suggestions.OrderByDescending(p => p.RelevanceScore).ToList();

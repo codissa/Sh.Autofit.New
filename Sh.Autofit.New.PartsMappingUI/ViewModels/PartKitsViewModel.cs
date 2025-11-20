@@ -117,6 +117,8 @@ public partial class PartKitsViewModel : ObservableObject
             foreach (var part in parts)
             {
                 KitParts.Add(part);
+                // Load vehicle mappings for each part
+                _ = LoadPartVehicleMappingsAsync(part);
             }
 
             StatusMessage = $"הערכה מכילה {KitParts.Count} חלקים";
@@ -128,6 +130,25 @@ public partial class PartKitsViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private async Task LoadPartVehicleMappingsAsync(PartKitItemDisplayModel part)
+    {
+        try
+        {
+            var vehicles = await _dataService.LoadVehiclesForPartAsync(part.PartItemKey);
+            part.MappedVehicles.Clear();
+            foreach (var vehicle in vehicles)
+            {
+                part.MappedVehicles.Add(vehicle);
+            }
+            part.VehicleCount = vehicles.Count;
+        }
+        catch (Exception ex)
+        {
+            // Silent fail for individual part vehicle loading
+            part.VehicleCount = 0;
         }
     }
 
@@ -368,6 +389,104 @@ public partial class PartKitsViewModel : ObservableObject
             {
                 StatusMessage = $"שגיאה בהסרת חלק: {ex.Message}";
                 MessageBox.Show($"שגיאה בהסרת חלק: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task SyncKitAsync()
+    {
+        if (SelectedKit == null)
+        {
+            MessageBox.Show("אנא בחר ערכה לסנכרון", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"סנכרון ערכה '{SelectedKit.KitName}' ימפה את כל החלקים בערכה לכל הרכבים שמופיעים באחד מהחלקים.\n\nהאם להמשיך?",
+            "אישור סנכרון ערכה",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question
+        );
+
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "מסנכרן ערכה...";
+
+                var (vehiclesMapped, mappingsCreated) = await _partKitService.SyncKitMappingsAsync(
+                    SelectedKit.PartKitId,
+                    "current_user" // TODO: Get from auth service
+                );
+
+                StatusMessage = $"סנכרון הושלם: {vehiclesMapped} רכבים, {mappingsCreated} מיפויים חדשים";
+                MessageBox.Show(
+                    $"הערכה סונכרנה בהצלחה!\n\nרכבים שמופו: {vehiclesMapped}\nמיפויים חדשים שנוצרו: {mappingsCreated}",
+                    "סנכרון הושלם",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+
+                // Reload the kit parts to show updated vehicle counts
+                await LoadKitPartsAsync(SelectedKit.PartKitId);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"שגיאה בסנכרון ערכה: {ex.Message}";
+                MessageBox.Show($"שגיאה בסנכרון ערכה: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task SyncAllKitsAsync()
+    {
+        var result = MessageBox.Show(
+            "סנכרון כל הערכות ימפה את כל החלקים בכל ערכה לכל הרכבים המשויכים לאחד החלקים.\n\nפעולה זו עלולה לקחת זמן רב.\n\nהאם להמשיך?",
+            "אישור סנכרון כל הערכות",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning
+        );
+
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "מסנכרן את כל הערכות...";
+
+                var (kitsSynced, totalMappingsCreated) = await _partKitService.SyncAllKitsMappingsAsync(
+                    "current_user" // TODO: Get from auth service
+                );
+
+                StatusMessage = $"סנכרון הושלם: {kitsSynced} ערכות, {totalMappingsCreated} מיפויים חדשים";
+                MessageBox.Show(
+                    $"כל הערכות סונכרנו בהצלחה!\n\nערכות שסונכרנו: {kitsSynced}\nמיפויים חדשים שנוצרו: {totalMappingsCreated}",
+                    "סנכרון הושלם",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+
+                // Reload the current kit if one is selected
+                if (SelectedKit != null)
+                {
+                    await LoadKitPartsAsync(SelectedKit.PartKitId);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"שגיאה בסנכרון ערכות: {ex.Message}";
+                MessageBox.Show($"שגיאה בסנכרון כל הערכות: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

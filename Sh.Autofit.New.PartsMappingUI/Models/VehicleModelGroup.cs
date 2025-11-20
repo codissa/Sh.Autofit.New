@@ -20,18 +20,39 @@ public partial class VehicleModelGroup : ObservableObject
     public List<string> FuelTypes { get; set; } = new List<string>();
     public List<string> CommercialNames { get; set; } = new List<string>();
     public List<string> TransmissionTypes { get; set; } = new List<string>();
-    public List<string> TrimLevels { get; set; } = new List<string>();
+    public List<string> FinishLevels { get; set; } = new List<string>();  // מרכב
+    public List<string> TrimLevels { get; set; } = new List<string>();    // רמת גימור
 
     public string DisplayName
     {
         get
         {
             var mfg = !string.IsNullOrEmpty(ManufacturerShortName) ? ManufacturerShortName : ManufacturerName;
-            var yearRange = GetYearRangeDisplay();
+            var parts = new List<string> { mfg, "-", ModelName };
 
-            return string.IsNullOrEmpty(yearRange)
-                ? $"{mfg} - {ModelName} ({VehicleCount} רכבים)"
-                : $"{mfg} - {ModelName} {yearRange} ({VehicleCount} רכבים)";
+            // Add distinguishing characteristics
+            if (EngineVolumes.Any())
+                parts.Add($"{EngineVolumesDisplay}");
+
+            if (FuelTypes.Any())
+                parts.Add(FuelTypesDisplay);
+
+            if (TransmissionTypes.Any())
+                parts.Add(TransmissionTypesDisplay);
+
+            if (FinishLevels.Any())
+                parts.Add($"({FinishLevelsDisplay})");
+
+            if (TrimLevels.Any())
+                parts.Add(TrimLevelsDisplay);
+
+            var yearRange = GetYearRangeDisplay();
+            if (!string.IsNullOrEmpty(yearRange))
+                parts.Add(yearRange);
+
+            parts.Add($"({VehicleCount} רכבים)");
+
+            return string.Join(" ", parts);
         }
     }
 
@@ -110,6 +131,28 @@ public partial class VehicleModelGroup : ObservableObject
                 return uniqueTransmissionTypes[0];
 
             return string.Join(", ", uniqueTransmissionTypes);
+        }
+    }
+
+    public string FinishLevelsDisplay
+    {
+        get
+        {
+            if (FinishLevels == null || !FinishLevels.Any())
+                return string.Empty;
+
+            var uniqueFinishLevels = FinishLevels
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Distinct()
+                .ToList();
+
+            if (uniqueFinishLevels.Count == 0)
+                return string.Empty;
+
+            if (uniqueFinishLevels.Count == 1)
+                return uniqueFinishLevels[0];
+
+            return string.Join(", ", uniqueFinishLevels);
         }
     }
 

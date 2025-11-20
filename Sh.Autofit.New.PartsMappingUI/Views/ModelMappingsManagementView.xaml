@@ -111,13 +111,78 @@
                                     BorderThickness="1">
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold" FontSize="13">
+                                        <Run Text="{Binding ManufacturerShortName}"/>
+                                        <Run Text=" - "/>
                                         <Run Text="{Binding ModelName}"/>
                                     </TextBlock>
-                                    <TextBlock Text="{Binding ManufacturerShortName}"
-                                              Foreground="#666"
-                                              FontSize="11"
-                                              Margin="0,3,0,0"/>
-                                    <TextBlock Foreground="Gray" FontSize="10" Margin="0,3,0,0">
+
+                                    <!-- Engine Volume -->
+                                    <TextBlock Foreground="#555" FontSize="11" Margin="0,3,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding EngineVolumesDisplay, Mode=OneWay}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="⚙️ "/>
+                                        <Run Text="{Binding EngineVolumesDisplay, Mode=OneWay}"/>
+                                    </TextBlock>
+
+                                    <!-- Fuel Type -->
+                                    <TextBlock Foreground="#555" FontSize="11" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FuelTypesDisplay, Mode=OneWay}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="⛽ "/>
+                                        <Run Text="{Binding FuelTypesDisplay, Mode=OneWay}"/>
+                                    </TextBlock>
+
+                                    <!-- Transmission -->
+                                    <TextBlock Foreground="#555" FontSize="11" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TransmissionTypesDisplay, Mode=OneWay}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="🔧 "/>
+                                        <Run Text="{Binding TransmissionTypesDisplay, Mode=OneWay}"/>
+                                    </TextBlock>
+
+                                    <!-- Trim Level (רמת גימור) -->
+                                    <TextBlock Foreground="#555" FontSize="11" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TrimLevelsDisplay, Mode=OneWay}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="✨ "/>
+                                        <Run Text="מרכב: "/>
+                                        <Run Text="{Binding TrimLevelsDisplay, Mode=OneWay}"/>
+                                    </TextBlock>
+
+                                    <!-- Vehicle Count and Years -->
+                                    <TextBlock Foreground="Gray" FontSize="10" Margin="0,4,0,0">
                                         <Run Text="רכבים: "/>
                                         <Run Text="{Binding VehicleCount}"/>
                                         <Run Text=" | שנים: "/>

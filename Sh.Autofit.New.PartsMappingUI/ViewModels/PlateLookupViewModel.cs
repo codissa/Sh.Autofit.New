@@ -8,6 +8,7 @@ using Sh.Autofit.New.PartsMappingUI.Services;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using static Sh.Autofit.New.PartsMappingUI.Helpers.VehicleMatchingHelper;
 
 namespace Sh.Autofit.New.PartsMappingUI.ViewModels;
 
@@ -48,6 +49,12 @@ public partial class PlateLookupViewModel : ObservableObject
     [ObservableProperty]
     private bool _showCopiedPopup;
 
+    [ObservableProperty]
+    private bool _isOffRoad;
+
+    [ObservableProperty]
+    private bool _isPersonalImport;
+
     public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinNumber ?? GovernmentVehicle?.VinChassis);
 
     private string CleanVin(string? vin)
@@ -87,6 +94,8 @@ public partial class PlateLookupViewModel : ObservableObject
             GovernmentVehicle = null;
             MatchedVehicle = null;
             MappedParts.Clear();
+            IsOffRoad = false;
+            IsPersonalImport = false;
 
             // Step 0: Check cache first! (Task 5 Performance Enhancement)
             StatusMessage = "בודק מטמון...";
@@ -170,19 +179,11 @@ public partial class PlateLookupViewModel : ObservableObject
                 }
                 else if (cachedRegistration.MatchStatus == "NotFoundInGovAPI")
                 {
-                    // This plate was previously not found in Gov API
-                    StatusMessage = $"רכב לא נמצא במאגר (מטמון - חיפוש #{cachedRegistration.LookupCount})";
+                    // This plate was previously not found, but let's try again
+                    // Government API might have been updated since last search
+                    StatusMessage = $"רכב לא נמצא בעבר (חיפוש #{cachedRegistration.LookupCount + 1}) - מנסה שוב...";
 
-                    // Update lookup count
-                    await _dataService.UpsertVehicleRegistrationAsync(
-                        PlateNumber,
-                        null,
-                        null,
-                        null,
-                        "NotFoundInGovAPI",
-                        "Previously not found in government API",
-                        "Cache");
-                    return;
+                    // Don't return - continue to Gov API search below
                 }
             }
 
@@ -217,11 +218,41 @@ public partial class PlateLookupViewModel : ObservableObject
 
             GovernmentVehicle = govVehicle;
             OnPropertyChanged(nameof(CleanVinNumber));
-            StatusMessage = "רכב נמצא, מחפש התאמה במערכת...";
+
+            // Check special vehicle statuses (in parallel)
+            var offRoadTask = _governmentApiService.IsVehicleOffRoadAsync(PlateNumber);
+            var personalImportTask = _governmentApiService.IsPersonalImportAsync(PlateNumber);
+
+            await Task.WhenAll(offRoadTask, personalImportTask);
+
+            IsOffRoad = offRoadTask.Result;
+            IsPersonalImport = personalImportTask.Result;
+
+            StatusMessage = "רכב נמצא, מחפש התאמה מדויקת במערכת...";
             apiResource = "Primary"; // You can enhance GovernmentApiService to return which resource was used
 
-            // Step 2: Find matching vehicle in our database
-            var matchedVehicle = await _vehicleMatchingService.FindMatchingVehicleTypeAsync(govVehicle);
+            // Step 2: Find matching vehicle in our database - use EXACT matching
+            // First, load all potential matches by model name
+            var potentialMatches = await _dataService.LoadVehiclesByModelAsync(
+                govVehicle.ManufacturerName ?? "",
+                govVehicle.CommercialName ?? "",
+                govVehicle.ModelName ?? "");
+
+            // Then filter to exact matches based on engine volume, fuel type, trim level, etc.
+            var exactMatches = VehicleMatchingHelper.GetExactMatches(potentialMatches, govVehicle);
+
+            VehicleDisplayModel? matchedVehicle = null;
+            if (exactMatches.Any())
+            {
+                // Prefer exact match
+                matchedVehicle = exactMatches.First();
+                StatusMessage = "נמצאה התאמה מדויקת!";
+            }
+            else
+            {
+                // Fallback to service matching (more lenient)
+                matchedVehicle = await _vehicleMatchingService.FindMatchingVehicleTypeAsync(govVehicle);
+            }
 
             int? matchedVehicleTypeId = matchedVehicle?.VehicleTypeId;
             int? matchedManufacturerId = matchedVehicle?.ManufacturerId;
@@ -310,8 +341,8 @@ public partial class PlateLookupViewModel : ObservableObject
 
         try
         {
-            // Use the old simple QuickMapDialog
-            var dialog = new Views.QuickMapDialog(_dataService, MatchedVehicle.VehicleTypeId);
+            // Use QuickMapDialog with variant-aware mapping
+            var dialog = new Views.QuickMapDialog(_dataService, MatchedVehicle.VehicleTypeId, MatchedVehicle);
             var result = dialog.ShowDialog();
 
             if (result == true)
@@ -349,6 +380,8 @@ public partial class PlateLookupViewModel : ObservableObject
         StatusMessage = string.Empty;
         HasResults = false;
         ShowCopiedPopup = false;
+        IsOffRoad = false;
+        IsPersonalImport = false;
         OnPropertyChanged(nameof(CleanVinNumber));
     }
 
@@ -430,10 +463,16 @@ public partial class PlateLookupViewModel : ObservableObject
         if (part == null || MatchedVehicle == null)
             return;
 
-        // Ask user if they want to unmap from just this vehicle or all vehicles with same model name
+        // Get variant description for better user messaging
+        var variantDescription = GetVariantDescription(MatchedVehicle);
+
+        // Ask user if they want to unmap from just this vehicle variant or all variants of the model
         var result = MessageBox.Show(
-            $"האם להסיר את '{part.PartName}' מכל הרכבים בדגם '{GovernmentVehicle?.ModelName}'?\n\n" +
-            "בחר 'כן' להסרה מכל הדגם, 'לא' להסרה מרכב זה בלבד, או 'ביטול'.",
+            $"האם להסיר את '{part.PartName}' מכל הווריאנטים של '{GovernmentVehicle?.ModelName}'?\n\n" +
+            $"הווריאנט הנוכחי: {variantDescription}\n\n" +
+            "בחר 'כן' להסרה מכל הווריאנטים של הדגם (כל נפחי מנוע, תיבות הילוכים ורמות גימור),\n" +
+            "'לא' להסרה רק מהווריאנט המדויק הזה (כולל שנות ייצור שונות),\n" +
+            "או 'ביטול'.",
             "אישור הסרת מיפוי",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Question
@@ -448,10 +487,10 @@ public partial class PlateLookupViewModel : ObservableObject
 
             if (result == MessageBoxResult.Yes)
             {
-                // Unmap from all vehicles with same model name
-                StatusMessage = "מסיר מיפוי מכל הרכבים בדגם...";
+                // Unmap from ALL variants of this model (all engine volumes, transmissions, trims)
+                StatusMessage = "מסיר מיפוי מכל הווריאנטים של הדגם...";
 
-                // Get all vehicles for this model (using normalized comparison to ignore whitespace)
+                // Get all vehicles for this model (only matching manufacturer and model name)
                 var allVehicles = await _dataService.LoadVehiclesAsync();
                 var vehicleIds = allVehicles
                     .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(GovernmentVehicle?.ManufacturerName) &&
@@ -464,19 +503,24 @@ public partial class PlateLookupViewModel : ObservableObject
                     new List<string> { part.PartNumber },
                     "current_user");
 
-                StatusMessage = $"המיפוי של '{part.PartName}' הוסר מכל רכבי {GovernmentVehicle?.ModelName}";
+                StatusMessage = $"המיפוי של '{part.PartName}' הוסר מכל ווריאנטים של {GovernmentVehicle?.ModelName} ({vehicleIds.Count} רכבים)";
             }
             else
             {
-                // Unmap from only this specific vehicle
-                StatusMessage = "מסיר מיפוי...";
+                // Unmap from only this specific variant (same engine, transmission, trim, etc.)
+                StatusMessage = "מסיר מיפוי מהווריאנט המדויק...";
+
+                // Get all vehicles with the same variant characteristics
+                var allVehicles = await _dataService.LoadVehiclesAsync();
+                var sameVariantVehicles = GetSameVariantVehicles(allVehicles, MatchedVehicle);
+                var vehicleIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
 
                 await _dataService.UnmapPartsFromVehiclesAsync(
-                    new List<int> { MatchedVehicle.VehicleTypeId },
+                    vehicleIds,
                     new List<string> { part.PartNumber },
                     "current_user");
 
-                StatusMessage = $"המיפוי של '{part.PartName}' הוסר מרכב זה";
+                StatusMessage = $"המיפוי של '{part.PartName}' הוסר מהווריאנט {variantDescription} ({vehicleIds.Count} רכבים)";
             }
 
             // Reload parts
@@ -525,25 +569,55 @@ public partial class PlateLookupViewModel : ObservableObject
         try
         {
             IsLoading = true;
-            StatusMessage = "ממפה חלק...";
 
-            // Map directly to ALL vehicles in the current model (model-level mapping)
-            var allVehicles = await _dataService.LoadVehiclesAsync();
+            var variantDescription = GetVariantDescription(MatchedVehicle);
 
-            // Get ALL vehicles from the current vehicle's model
-            var vehicleTypeIds = allVehicles
-                .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(MatchedVehicle.ManufacturerName) &&
-                           v.ModelName.EqualsIgnoringWhitespace(MatchedVehicle.ModelName))
-                .Select(v => v.VehicleTypeId)
-                .ToList();
+            // Ask user: map to all model variants or just this variant?
+            var result = MessageBox.Show(
+                $"האם למפות '{part.PartName}' לכל הווריאנטים של '{MatchedVehicle.ModelName}'?\n\n" +
+                $"הווריאנט הנוכחי: {variantDescription}\n\n" +
+                "בחר 'כן' למיפוי לכל הווריאנטים (כל נפחי מנוע, תיבות הילוכים ורמות גימור),\n" +
+                "'לא' למיפוי רק לווריאנט המדויק הזה,\n" +
+                "או 'ביטול'.",
+                "בחירת היקף מיפוי",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question
+            );
 
-            if (!vehicleTypeIds.Any())
+            if (result == MessageBoxResult.Cancel)
             {
-                StatusMessage = "לא נמצאו רכבים במודל זה";
+                IsLoading = false;
                 return;
             }
 
-            // Map the suggested part to ALL vehicles in the model
+            StatusMessage = "ממפה חלק...";
+
+            var allVehicles = await _dataService.LoadVehiclesAsync();
+            List<int> vehicleTypeIds;
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Map to ALL variants of this model
+                vehicleTypeIds = allVehicles
+                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(MatchedVehicle.ManufacturerName) &&
+                               v.ModelName.EqualsIgnoringWhitespace(MatchedVehicle.ModelName))
+                    .Select(v => v.VehicleTypeId)
+                    .ToList();
+            }
+            else
+            {
+                // Map only to this specific variant
+                var sameVariantVehicles = GetSameVariantVehicles(allVehicles, MatchedVehicle);
+                vehicleTypeIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
+            }
+
+            if (!vehicleTypeIds.Any())
+            {
+                StatusMessage = "לא נמצאו רכבים תואמים";
+                return;
+            }
+
+            // Map the suggested part to the selected vehicles
             await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, new List<string> { part.PartNumber }, "current_user");
 
             // Move from suggestions to mapped
@@ -557,7 +631,8 @@ public partial class PlateLookupViewModel : ObservableObject
             // Reload suggestions to reflect the new mapping
             await ReloadSuggestionsAsync();
 
-            StatusMessage = $"✓ מופה החלק {part.PartNumber} ל-{vehicleTypeIds.Count} רכבים במודל {MatchedVehicle.ModelName}";
+            var scope = result == MessageBoxResult.Yes ? "כל הווריאנטים" : $"הווריאנט {variantDescription}";
+            StatusMessage = $"✓ מופה החלק {part.PartNumber} ל-{vehicleTypeIds.Count} רכבים ({scope})";
         }
         catch (Exception ex)
         {

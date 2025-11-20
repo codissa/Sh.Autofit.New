@@ -25,7 +25,8 @@ public partial class VehicleDisplayModel : ObservableObject
     public string? EngineModel { get; set; }
     public int? EngineVolume { get; set; }
     public string? TransmissionType { get; set; }
-    public string? TrimLevel { get; set; }
+    public string? FinishLevel { get; set; }  // מרכב (sug_degem/ModelType from Gov API)
+    public string? TrimLevel { get; set; }    // רמת גימור (ramat_gimur from Gov API)
 
     [ObservableProperty]
     private int _mappedPartsCount;
@@ -86,6 +87,10 @@ public partial class VehicleDisplayModel : ObservableObject
 
     public string TransmissionDisplay => !string.IsNullOrEmpty(TransmissionType)
         ? $"תיבת הילוכים: {TransmissionType}"
+        : null;
+
+    public string FinishLevelDisplay => !string.IsNullOrEmpty(FinishLevel)
+        ? $"מרכב: {FinishLevel}"
         : null;
 
     public string TrimLevelDisplay => !string.IsNullOrEmpty(TrimLevel)

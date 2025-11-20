@@ -253,7 +253,7 @@
 
             <!-- Mapped Vehicles DataGrid -->
             <DataGrid Grid.Row="2"
-                     ItemsSource="{Binding MappedVehicles}"
+                     ItemsSource="{Binding MappedVehiclesView}"
                      AutoGenerateColumns="False"
                      IsReadOnly="True"
                      CanUserAddRows="False"
@@ -271,13 +271,46 @@
                         </Style.Triggers>
                     </Style>
                 </DataGrid.Style>
+                <DataGrid.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock FontWeight="Bold" FontSize="13" Foreground="#2196F3" Margin="5">
+                                    <Run Text="{Binding Name, Mode=OneWay}"/>
+                                    <Run Text=" (" Foreground="Gray"/>
+                                    <Run Text="{Binding ItemCount, Mode=OneWay}" Foreground="Gray"/>
+                                    <Run Text=")" Foreground="Gray"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                        <GroupStyle.ContainerStyle>
+                            <Style TargetType="{x:Type GroupItem}">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type GroupItem}">
+                                            <Expander IsExpanded="True" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="1" Margin="0,2">
+                                                <Expander.Header>
+                                                    <ContentPresenter />
+                                                </Expander.Header>
+                                                <ItemsPresenter />
+                                            </Expander>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </GroupStyle.ContainerStyle>
+                    </GroupStyle>
+                </DataGrid.GroupStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="יצרן" Binding="{Binding ManufacturerShortName}" Width="100"/>
-                    <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="150"/>
-                    <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialName}" Width="120"/>
-                    <DataGridTextColumn Header="שנה" Binding="{Binding YearFrom}" Width="80"/>
-                    <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="100"/>
-                    <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="100"/>
+                    <DataGridTextColumn Header="יצרן" Binding="{Binding ManufacturerShortName}" Width="80"/>
+                    <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="120"/>
+                    <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialName}" Width="100"/>
+                    <DataGridTextColumn Header="שנה" Binding="{Binding YearFrom}" Width="60"/>
+                    <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="80"/>
+                    <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="80"/>
+                    <DataGridTextColumn Header="תיבת הילוכים" Binding="{Binding TransmissionType}" Width="90"/>
+                    <DataGridTextColumn Header="מרכב" Binding="{Binding FinishLevel}" Width="70"/>
+                    <DataGridTextColumn Header="רמת גימור" Binding="{Binding TrimLevel}" Width="80"/>
                     <DataGridTemplateColumn Header="פעולות" Width="80">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -405,13 +438,16 @@
                     </Style>
                 </DataGrid.Style>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="יצרן" Binding="{Binding ManufacturerShortName}" Width="100"/>
-                    <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="150"/>
-                    <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialName}" Width="120"/>
-                    <DataGridTextColumn Header="שנה" Binding="{Binding YearFrom}" Width="80"/>
-                    <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="100"/>
-                    <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="100"/>
-                    <DataGridTextColumn Header="סיבה" Binding="{Binding SuggestionReason}" Width="120">
+                    <DataGridTextColumn Header="יצרן" Binding="{Binding ManufacturerShortName}" Width="80"/>
+                    <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="110"/>
+                    <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CommercialName}" Width="90"/>
+                    <DataGridTextColumn Header="שנה" Binding="{Binding YearFrom}" Width="60"/>
+                    <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="75"/>
+                    <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="75"/>
+                    <DataGridTextColumn Header="תיבת הילוכים" Binding="{Binding TransmissionType}" Width="80"/>
+                    <DataGridTextColumn Header="מרכב" Binding="{Binding FinishLevel}" Width="60"/>
+                    <DataGridTextColumn Header="רמת גימור" Binding="{Binding TrimLevel}" Width="70"/>
+                    <DataGridTextColumn Header="סיבה" Binding="{Binding SuggestionReason}" Width="100">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="#FF8C00"/>

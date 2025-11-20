@@ -12,6 +12,7 @@ public interface IDataService
     Task<List<PartDisplayModel>> LoadPartsAsync();
     Task<List<PartDisplayModel>> LoadMappedPartsAsync(int vehicleTypeId);
     Task<List<PartDisplayModel>> LoadUnmappedPartsAsync(int vehicleTypeId);
+    Task<List<PartDisplayModel>> LoadUnmappedPartsByModelAsync(string manufacturerName, string modelName);
     Task<Dictionary<int, int>> LoadMappingCountsAsync();
     Task<Dictionary<string, int>> LoadPartMappingCountsAsync();
     Task MapPartsToVehiclesAsync(List<int> vehicleTypeIds, List<string> partNumbers, string createdBy);
