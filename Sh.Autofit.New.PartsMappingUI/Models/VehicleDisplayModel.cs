@@ -6,6 +6,9 @@ public partial class VehicleDisplayModel : ObservableObject
 {
     public int VehicleTypeId { get; set; }
 
+    // Consolidated model ID (for new way mapping)
+    public int? ConsolidatedModelId { get; set; }
+
     [ObservableProperty]
     private bool _isSelected;
 

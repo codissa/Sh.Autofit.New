@@ -1,3 +1,4 @@
+using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
 using Sh.Autofit.New.PartsMappingUI.Helpers;
@@ -14,6 +15,7 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
     private readonly IDataService _dataService;
     private readonly int _vehicleTypeId;
     private readonly VehicleDisplayModel _vehicle;
+    private ConsolidatedVehicleModel? _consolidatedModel;
     private List<SelectablePartModel> _allParts = new();
     private ObservableCollection<SelectablePartModel> _filteredParts = new();
 
@@ -52,6 +54,9 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         try
         {
             IsLoading = true;
+
+            // Try to get consolidated model first (NEW WAY)
+            _consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(_vehicleTypeId);
 
             // Load all unmapped parts for this model (not just this vehicle type)
             // This ensures we don't show parts already mapped to other variants of the same model
@@ -148,6 +153,28 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         {
             IsLoading = true;
 
+            var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
+
+            // NEW WAY: Use consolidated model if available
+            if (_consolidatedModel != null)
+            {
+                await _dataService.MapPartsToConsolidatedModelAsync(
+                    _consolidatedModel.ConsolidatedModelId,
+                    partNumbers,
+                    "QuickMap");
+
+                var yearRange = _consolidatedModel.YearTo.HasValue
+                    ? $"{_consolidatedModel.YearFrom}-{_consolidatedModel.YearTo}"
+                    : $"{_consolidatedModel.YearFrom}+";
+
+                MessageBox.Show($"מופו {selectedParts.Count} חלקים לדגם מאוחד ({yearRange})", "הצלחה", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                DialogResult = true;
+                Close();
+                return;
+            }
+
+            // FALLBACK: Legacy approach
             var variantDescription = GetVariantDescription(_vehicle);
 
             // Ask user: map to all model variants or just this variant?
@@ -165,7 +192,6 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
             if (result == MessageBoxResult.Cancel)
                 return;
 
-            var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
             List<int> vehicleTypeIds;
 
             if (result == MessageBoxResult.Yes)

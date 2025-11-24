@@ -96,10 +96,10 @@
                     </TextBox.Style>
                 </TextBox>
 
-                <!-- Model Groups List -->
+                <!-- Consolidated Models List -->
                 <ListBox Grid.Row="3"
-                         ItemsSource="{Binding FilteredModelGroups}"
-                         SelectedItem="{Binding SelectedModelGroup}"
+                         ItemsSource="{Binding FilteredConsolidatedModels}"
+                         SelectedItem="{Binding SelectedConsolidatedModel}"
                          BorderThickness="0">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -111,7 +111,7 @@
                                     BorderThickness="1">
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold" FontSize="13">
-                                        <Run Text="{Binding ManufacturerShortName}"/>
+                                        <Run Text="{Binding Manufacturer.ManufacturerShortName}"/>
                                         <Run Text=" - "/>
                                         <Run Text="{Binding ModelName}"/>
                                     </TextBlock>
@@ -122,14 +122,15 @@
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding EngineVolumesDisplay, Mode=OneWay}" Value="">
+                                                    <DataTrigger Binding="{Binding EngineVolume}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                         <Run Text="⚙️ "/>
-                                        <Run Text="{Binding EngineVolumesDisplay, Mode=OneWay}"/>
+                                        <Run Text="{Binding EngineVolume}"/>
+                                        <Run Text=" סמ&quot;ק"/>
                                     </TextBlock>
 
                                     <!-- Fuel Type -->
@@ -138,14 +139,17 @@
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FuelTypesDisplay, Mode=OneWay}" Value="">
+                                                    <DataTrigger Binding="{Binding FuelTypeName}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding FuelTypeName}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                         <Run Text="⛽ "/>
-                                        <Run Text="{Binding FuelTypesDisplay, Mode=OneWay}"/>
+                                        <Run Text="{Binding FuelTypeName}"/>
                                     </TextBlock>
 
                                     <!-- Transmission -->
@@ -154,14 +158,17 @@
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding TransmissionTypesDisplay, Mode=OneWay}" Value="">
+                                                    <DataTrigger Binding="{Binding TransmissionType}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding TransmissionType}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                         <Run Text="🔧 "/>
-                                        <Run Text="{Binding TransmissionTypesDisplay, Mode=OneWay}"/>
+                                        <Run Text="{Binding TransmissionType}"/>
                                     </TextBlock>
 
                                     <!-- Trim Level (רמת גימור) -->
@@ -170,22 +177,41 @@
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding TrimLevelsDisplay, Mode=OneWay}" Value="">
+                                                    <DataTrigger Binding="{Binding TrimLevel}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding TrimLevel}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
-                                        <Run Text="✨ "/>
-                                        <Run Text="מרכב: "/>
-                                        <Run Text="{Binding TrimLevelsDisplay, Mode=OneWay}"/>
+                                        <Run Text="✨ גימור: "/>
+                                        <Run Text="{Binding TrimLevel}"/>
                                     </TextBlock>
 
-                                    <!-- Vehicle Count and Years -->
+                                    <!-- Finish Level (מרכב) -->
+                                    <TextBlock Foreground="#555" FontSize="11" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FinishLevel}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding FinishLevel}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="🚗 מרכב: "/>
+                                        <Run Text="{Binding FinishLevel}"/>
+                                    </TextBlock>
+
+                                    <!-- Year Range -->
                                     <TextBlock Foreground="Gray" FontSize="10" Margin="0,4,0,0">
-                                        <Run Text="רכבים: "/>
-                                        <Run Text="{Binding VehicleCount}"/>
-                                        <Run Text=" | שנים: "/>
+                                        <Run Text="שנים: "/>
                                         <Run Text="{Binding YearFrom}"/>
                                         <Run Text="-"/>
                                         <Run Text="{Binding YearTo}"/>
@@ -219,7 +245,7 @@
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedModelGroup}" Value="{x:Null}">
+                            <DataTrigger Binding="{Binding SelectedConsolidatedModel}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -227,36 +253,39 @@
                 </Border.Style>
                 <StackPanel>
                     <TextBlock FontSize="18" FontWeight="Bold">
-                        <Run Text="{Binding SelectedModelGroup.ManufacturerShortName}"/>
+                        <Run Text="{Binding SelectedConsolidatedModel.Manufacturer.ManufacturerShortName}"/>
                         <Run Text=" - "/>
-                        <Run Text="{Binding SelectedModelGroup.ModelName}"/>
+                        <Run Text="{Binding SelectedConsolidatedModel.ModelName}"/>
                     </TextBlock>
                     <TextBlock Foreground="#666"
                               FontSize="13"
                               Margin="0,5,0,0">
-                        <Run Text="{Binding SelectedModelGroup.VehicleCount}"/>
-                        <Run Text=" רכבים"/>
-                        <Run Text=" | שנים: "/>
-                        <Run Text="{Binding SelectedModelGroup.YearFrom}"/>
+                        <Run Text="שנים: "/>
+                        <Run Text="{Binding SelectedConsolidatedModel.YearFrom}"/>
                         <Run Text="-"/>
-                        <Run Text="{Binding SelectedModelGroup.YearTo}"/>
+                        <Run Text="{Binding SelectedConsolidatedModel.YearTo}"/>
                     </TextBlock>
                     <WrapPanel Margin="0,3,0,0">
                         <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
                             <Run Text="נפח מנוע: "/>
-                            <Run Text="{Binding SelectedModelGroup.EngineVolumesDisplay, Mode=OneWay}"/>
+                            <Run Text="{Binding SelectedConsolidatedModel.EngineVolume}"/>
+                            <Run Text=" סמ&quot;ק"/>
                         </TextBlock>
                         <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
                             <Run Text="סוג דלק: "/>
-                            <Run Text="{Binding SelectedModelGroup.FuelTypesDisplay, Mode=OneWay}"/>
+                            <Run Text="{Binding SelectedConsolidatedModel.FuelTypeName}"/>
                         </TextBlock>
                         <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
                             <Run Text="תיבת הילוכים: "/>
-                            <Run Text="{Binding SelectedModelGroup.TransmissionTypesDisplay, Mode=OneWay}"/>
+                            <Run Text="{Binding SelectedConsolidatedModel.TransmissionType}"/>
+                        </TextBlock>
+                        <TextBlock Foreground="#666" FontSize="12" Margin="0,0,15,0">
+                            <Run Text="רמת גימור: "/>
+                            <Run Text="{Binding SelectedConsolidatedModel.TrimLevel}"/>
                         </TextBlock>
                         <TextBlock Foreground="#666" FontSize="12">
-                            <Run Text="רמת גימור: "/>
-                            <Run Text="{Binding SelectedModelGroup.TrimLevelsDisplay, Mode=OneWay}"/>
+                            <Run Text="מרכב: "/>
+                            <Run Text="{Binding SelectedConsolidatedModel.FinishLevel}"/>
                         </TextBlock>
                     </WrapPanel>
                 </StackPanel>
@@ -270,7 +299,7 @@
                     <Style TargetType="StackPanel">
                         <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedModelGroup}" Value="{x:Null}">
+                            <DataTrigger Binding="{Binding SelectedConsolidatedModel}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -370,7 +399,7 @@
                     <Style TargetType="DataGrid">
                         <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedModelGroup}" Value="{x:Null}">
+                            <DataTrigger Binding="{Binding SelectedConsolidatedModel}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -433,7 +462,7 @@
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedModelGroup}" Value="{x:Null}">
+                            <DataTrigger Binding="{Binding SelectedConsolidatedModel}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -441,7 +470,7 @@
                 </Border.Style>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock Text="🚗" FontSize="72" HorizontalAlignment="Center" Margin="0,0,0,20"/>
-                    <TextBlock Text="בחר דגם מהרשימה לצפייה ועריכת מיפויים"
+                    <TextBlock Text="בחר דגם מאוחד מהרשימה לצפייה ועריכת מיפויים"
                               FontSize="18"
                               FontWeight="Bold"
                               HorizontalAlignment="Center"

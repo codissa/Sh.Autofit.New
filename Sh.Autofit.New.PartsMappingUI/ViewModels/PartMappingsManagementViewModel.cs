@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Helpers;
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
@@ -32,6 +33,10 @@ public partial class PartMappingsManagementViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<VehicleDisplayModel> _suggestedVehicles = new();
+
+    // Consolidated models for the selected part (NEW WAY)
+    [ObservableProperty]
+    private ObservableCollection<ConsolidatedVehicleModel> _consolidatedModels = new();
 
     [ObservableProperty]
     private string _partSearchText = string.Empty;
@@ -142,11 +147,30 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         {
             _ = LoadMappedVehiclesAsync(value.PartNumber);
             _ = LoadSuggestedVehiclesAsync(value.PartNumber);
+            _ = LoadConsolidatedModelsAsync(value.PartNumber);
         }
         else
         {
             MappedVehicles.Clear();
             SuggestedVehicles.Clear();
+            ConsolidatedModels.Clear();
+        }
+    }
+
+    private async Task LoadConsolidatedModelsAsync(string partNumber)
+    {
+        try
+        {
+            var models = await _dataService.LoadConsolidatedModelsForPartAsync(partNumber, includeCouplings: true);
+            ConsolidatedModels.Clear();
+            foreach (var model in models)
+            {
+                ConsolidatedModels.Add(model);
+            }
+        }
+        catch
+        {
+            ConsolidatedModels.Clear();
         }
     }
 
@@ -231,13 +255,41 @@ public partial class PartMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "ממפה חלק לרכבים...";
+                StatusMessage = "ממפה חלק למודלים מאוחדים...";
 
-                var vehicleIds = dialog.SelectedVehicles.Select(v => v.VehicleTypeId).ToList();
-                await _dataService.MapPartsToVehiclesAsync(vehicleIds, new List<string> { SelectedPart.PartNumber }, "current_user");
+                // NEW WAY: Get unique consolidated models for selected vehicles
+                var consolidatedModelIds = new HashSet<int>();
+                foreach (var vehicle in dialog.SelectedVehicles)
+                {
+                    var consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(vehicle.VehicleTypeId);
+                    if (consolidatedModel != null)
+                    {
+                        consolidatedModelIds.Add(consolidatedModel.ConsolidatedModelId);
+                    }
+                }
 
-                StatusMessage = "המיפוי בוצע בהצלחה";
+                if (consolidatedModelIds.Any())
+                {
+                    // Map to consolidated models (NEW WAY)
+                    foreach (var modelId in consolidatedModelIds)
+                    {
+                        await _dataService.MapPartsToConsolidatedModelAsync(
+                            modelId,
+                            new List<string> { SelectedPart.PartNumber },
+                            "current_user");
+                    }
+                    StatusMessage = $"✓ המיפוי בוצע ל-{consolidatedModelIds.Count} מודלים מאוחדים";
+                }
+                else
+                {
+                    // FALLBACK: Legacy approach for vehicles without consolidated models
+                    var vehicleIds = dialog.SelectedVehicles.Select(v => v.VehicleTypeId).ToList();
+                    await _dataService.MapPartsToVehiclesAsync(vehicleIds, new List<string> { SelectedPart.PartNumber }, "current_user");
+                    StatusMessage = $"✓ המיפוי בוצע ל-{vehicleIds.Count} רכבים (legacy)";
+                }
+
                 await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+                await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
             }
             catch (Exception ex)
             {
@@ -259,59 +311,66 @@ public partial class PartMappingsManagementViewModel : ObservableObject
 
         var variantDescription = GetVariantDescription(vehicle);
 
-        // Ask user if they want to unmap from just this vehicle variant or all variants of the model
+        // NEW WAY: Try to get consolidated model for this vehicle
+        var consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(vehicle.VehicleTypeId);
+
+        string message;
+        if (consolidatedModel != null)
+        {
+            message = $"האם להסיר את '{SelectedPart.PartName}' מהמודל המאוחד '{consolidatedModel.ModelName}'?\n\n" +
+                     $"שנים: {consolidatedModel.YearFrom}-{consolidatedModel.YearTo}\n\n" +
+                     "פעולה זו תסיר את החלק מכל השנים במודל המאוחד.";
+        }
+        else
+        {
+            message = $"האם להסיר את '{SelectedPart.PartName}' מהרכב '{vehicle.ModelName}'?\n\n" +
+                     $"הווריאנט: {variantDescription}";
+        }
+
         var result = MessageBox.Show(
-            $"האם להסיר את '{SelectedPart.PartName}' מכל הווריאנטים של '{vehicle.ModelName}'?\n\n" +
-            $"הווריאנט הנוכחי: {variantDescription}\n\n" +
-            "בחר 'כן' להסרה מכל הווריאנטים של הדגם (כל נפחי מנוע, תיבות הילוכים ורמות גימור),\n" +
-            "'לא' להסרה רק מהווריאנט המדויק הזה (כולל שנות ייצור שונות),\n" +
-            "או 'ביטול'.",
+            message,
             "אישור הסרת מיפוי",
-            MessageBoxButton.YesNoCancel,
+            MessageBoxButton.YesNo,
             MessageBoxImage.Question
         );
 
-        if (result == MessageBoxResult.Cancel)
+        if (result != MessageBoxResult.Yes)
             return;
 
         try
         {
             IsLoading = true;
 
-            List<int> vehicleIds;
-
-            if (result == MessageBoxResult.Yes)
+            if (consolidatedModel != null)
             {
-                // Unmap from ALL variants of this model
-                StatusMessage = "מסיר מיפוי מכל הווריאנטים של הדגם...";
-
-                var allVehicles = await _dataService.LoadVehiclesAsync();
-                vehicleIds = allVehicles
-                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(vehicle.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(vehicle.ModelName))
-                    .Select(v => v.VehicleTypeId)
-                    .ToList();
+                // NEW WAY: Unmap from consolidated model
+                StatusMessage = "מסיר מיפוי ממודל מאוחד...";
+                await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                    consolidatedModel.ConsolidatedModelId,
+                    new List<string> { SelectedPart.PartNumber },
+                    "current_user"
+                );
+                StatusMessage = $"המיפוי הוסר ממודל מאוחד {consolidatedModel.ModelName}";
             }
             else
             {
-                // Unmap from only this specific variant
-                StatusMessage = "מסיר מיפוי מהווריאנט המדויק...";
+                // FALLBACK: Legacy approach - unmap from specific vehicles
+                StatusMessage = "מסיר מיפוי (legacy)...";
 
                 var allVehicles = await _dataService.LoadVehiclesAsync();
                 var sameVariantVehicles = GetSameVariantVehicles(allVehicles, vehicle);
-                vehicleIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
+                var vehicleIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
+
+                await _dataService.UnmapPartsFromVehiclesAsync(
+                    vehicleIds,
+                    new List<string> { SelectedPart.PartNumber },
+                    "current_user"
+                );
+                StatusMessage = $"המיפוי הוסר מ-{vehicleIds.Count} רכבים (legacy)";
             }
 
-            await _dataService.UnmapPartsFromVehiclesAsync(
-                vehicleIds,
-                new List<string> { SelectedPart.PartNumber },
-                "current_user"
-            );
-
-            var scope = result == MessageBoxResult.Yes ? "כל הווריאנטים" : $"הווריאנט {variantDescription}";
-            StatusMessage = $"המיפוי הוסר מ-{scope} ({vehicleIds.Count} רכבים)";
-
             await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+            await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
         }
         catch (Exception ex)
         {
@@ -330,64 +389,48 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         if (vehicle == null || SelectedPart == null)
             return;
 
-        var variantDescription = GetVariantDescription(vehicle);
-
-        // Ask user if they want to map to all variants or just this variant
-        var result = MessageBox.Show(
-            $"האם למפות '{SelectedPart.PartName}' לכל הווריאנטים של '{vehicle.ModelName}'?\n\n" +
-            $"הווריאנט המוצע: {variantDescription}\n\n" +
-            "בחר 'כן' למיפוי לכל הווריאנטים (כל נפחי מנוע, תיבות הילוכים ורמות גימור),\n" +
-            "'לא' למיפוי רק לווריאנט המדויק הזה,\n" +
-            "או 'ביטול'.",
-            "בחירת היקף מיפוי",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Question
-        );
-
-        if (result == MessageBoxResult.Cancel)
-            return;
-
         try
         {
             IsLoading = true;
 
-            List<int> vehicleIds;
+            // NEW WAY: Get consolidated model for the suggested vehicle
+            var consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(vehicle.VehicleTypeId);
 
-            if (result == MessageBoxResult.Yes)
+            if (consolidatedModel != null)
             {
-                // Map to ALL variants of this model
-                StatusMessage = "ממפה לכל הווריאנטים...";
+                // Map to consolidated model (covers all years)
+                StatusMessage = $"ממפה למודל מאוחד {consolidatedModel.ModelName}...";
+                await _dataService.MapPartsToConsolidatedModelAsync(
+                    consolidatedModel.ConsolidatedModelId,
+                    new List<string> { SelectedPart.PartNumber },
+                    "current_user"
+                );
+                StatusMessage = $"✓ ההצעה אושרה - מופה למודל מאוחד {consolidatedModel.ModelName} (שנים {consolidatedModel.YearFrom}-{consolidatedModel.YearTo})";
+            }
+            else
+            {
+                // FALLBACK: Legacy approach - map to all variants of this model
+                StatusMessage = "ממפה לכל הווריאנטים (legacy)...";
 
                 var allVehicles = await _dataService.LoadVehiclesAsync();
-                vehicleIds = allVehicles
+                var vehicleIds = allVehicles
                     .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(vehicle.ManufacturerName) &&
                                v.ModelName.EqualsIgnoringWhitespace(vehicle.ModelName))
                     .Select(v => v.VehicleTypeId)
                     .ToList();
-            }
-            else
-            {
-                // Map only to this specific variant
-                StatusMessage = "ממפה לווריאנט המדויק...";
 
-                var allVehicles = await _dataService.LoadVehiclesAsync();
-                var sameVariantVehicles = GetSameVariantVehicles(allVehicles, vehicle);
-                vehicleIds = sameVariantVehicles.Select(v => v.VehicleTypeId).ToList();
+                await _dataService.MapPartsToVehiclesAsync(
+                    vehicleIds,
+                    new List<string> { SelectedPart.PartNumber },
+                    "current_user"
+                );
+                StatusMessage = $"✓ ההצעה אושרה - מופה ל-{vehicleIds.Count} רכבים (legacy)";
             }
 
-            // Add the mapping
-            await _dataService.MapPartsToVehiclesAsync(
-                vehicleIds,
-                new List<string> { SelectedPart.PartNumber },
-                "current_user"
-            );
-
-            var scope = result == MessageBoxResult.Yes ? "כל הווריאנטים" : $"הווריאנט {variantDescription}";
-            StatusMessage = $"ההצעה אושרה - מופה ל-{scope} ({vehicleIds.Count} רכבים)";
-
-            // Reload both lists
+            // Reload all lists
             await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
             await LoadSuggestedVehiclesAsync(SelectedPart.PartNumber);
+            await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
         }
         catch (Exception ex)
         {

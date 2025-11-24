@@ -34,6 +34,9 @@
             <TabItem Header="הצעות חכמות">
                 <views:SmartSuggestionsView DataContext="{Binding SmartSuggestionsViewModel}"/>
             </TabItem>
+            <TabItem Header="צימוד דגמים וחלקים">
+                <views:CouplingManagementView x:Name="CouplingManagementView"/>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

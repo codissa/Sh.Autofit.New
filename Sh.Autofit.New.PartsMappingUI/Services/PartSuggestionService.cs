@@ -423,7 +423,8 @@ public class PartSuggestionService : IPartSuggestionService
             .AsNoTracking()
             .Where(m => m.IsActive &&
                        m.IsCurrentVersion &&
-                       similarVehicleIds.Contains(m.VehicleTypeId))
+                       m.VehicleTypeId.HasValue &&
+                       similarVehicleIds.Contains(m.VehicleTypeId.Value))
             .Select(m => m.PartItemKey)
             .Distinct()
             .ToListAsync();

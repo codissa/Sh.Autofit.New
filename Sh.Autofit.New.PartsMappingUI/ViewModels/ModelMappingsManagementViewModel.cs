@@ -16,14 +16,15 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
     private readonly IDataService _dataService;
     private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
 
+    // Consolidated models (NEW WAY - primary)
     [ObservableProperty]
-    private ObservableCollection<VehicleModelGroup> _modelGroups = new();
+    private ObservableCollection<ConsolidatedVehicleModel> _consolidatedModels = new();
 
     [ObservableProperty]
-    private ObservableCollection<VehicleModelGroup> _filteredModelGroups = new();
+    private ObservableCollection<ConsolidatedVehicleModel> _filteredConsolidatedModels = new();
 
     [ObservableProperty]
-    private VehicleModelGroup? _selectedModelGroup;
+    private ConsolidatedVehicleModel? _selectedConsolidatedModel;
 
     [ObservableProperty]
     private ObservableCollection<PartDisplayModel> _mappedParts = new();
@@ -46,8 +47,6 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    private List<VehicleDisplayModel> _allVehicles = new();
-
     public ModelMappingsManagementViewModel(IDataService dataService, IDbContextFactory<ShAutofitContext> contextFactory)
     {
         _dataService = dataService;
@@ -56,80 +55,31 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await LoadModelGroupsAsync();
+        await LoadConsolidatedModelsAsync();
     }
 
     [RelayCommand]
-    private async Task LoadModelGroupsAsync()
+    private async Task LoadConsolidatedModelsAsync()
     {
         try
         {
             IsLoading = true;
-            StatusMessage = "טוען קבוצות דגמים...";
+            StatusMessage = "טוען דגמים מאוחדים...";
 
-            // Load all vehicles
-            _allVehicles = await _dataService.LoadVehiclesAsync();
+            // Load consolidated models directly from database (NEW WAY)
+            var models = await _dataService.LoadConsolidatedModelsAsync();
 
-            // Group vehicles by manufacturer, model name, AND all distinguishing characteristics
-            // This splits models with different engine volumes, fuel types, transmissions, and trim levels
-            var groups = _allVehicles
-                .GroupBy(v => new
-                {
-                    ManufacturerNameNormalized = v.ManufacturerName.NormalizeForGrouping(),
-                    ModelNameNormalized = v.ModelName.NormalizeForGrouping(),
-                    v.ManufacturerName,
-                    v.ManufacturerShortName,
-                    v.ModelName,
-                    // SPLIT BY THESE CRITERIA (NOT FinishLevel):
-                    v.EngineVolume,
-                    FuelTypeNormalized = v.FuelTypeName?.NormalizeForGrouping(),
-                    TransmissionTypeNormalized = v.TransmissionType?.NormalizeForGrouping(),
-                    TrimLevelNormalized = v.TrimLevel?.NormalizeForGrouping()
-                })
-                .Select(g => new VehicleModelGroup
-                {
-                    ManufacturerName = g.Key.ManufacturerName,
-                    ManufacturerShortName = g.Key.ManufacturerShortName,
-                    ModelName = g.Key.ModelName,
-                    VehicleCount = g.Count(),
-                    YearFrom = g.Min(v => v.YearFrom),
-                    YearTo = g.Max(v => v.YearFrom),
-                    MappedPartsCount = 0, // Will be calculated when needed
-                    // Since we're grouping by these, each group has uniform values:
-                    EngineVolumes = g.Key.EngineVolume.HasValue
-                                    ? new List<int> { g.Key.EngineVolume.Value }
-                                    : new List<int>(),
-                    FuelTypes = !string.IsNullOrEmpty(g.First().FuelTypeName)
-                                ? new List<string> { g.First().FuelTypeName }
-                                : new List<string>(),
-                    CommercialNames = g.Where(v => !string.IsNullOrEmpty(v.CommercialName))
-                                      .Select(v => v.CommercialName!)
-                                      .Distinct()
-                                      .ToList(),
-                    TransmissionTypes = !string.IsNullOrEmpty(g.First().TransmissionType)
-                                        ? new List<string> { g.First().TransmissionType }
-                                        : new List<string>(),
-                    FinishLevels = g.Where(v => !string.IsNullOrEmpty(v.FinishLevel))
-                                   .Select(v => v.FinishLevel!)
-                                   .Distinct()
-                                   .ToList(),
-                    TrimLevels = !string.IsNullOrEmpty(g.First().TrimLevel)
-                                 ? new List<string> { g.First().TrimLevel }
-                                 : new List<string>()
-                })
-                .OrderBy(g => g.ManufacturerShortName ?? g.ManufacturerName)
-                .ThenBy(g => g.ModelName)
-                .ToList();
-
-            ModelGroups.Clear();
-            foreach (var group in groups)
+            ConsolidatedModels.Clear();
+            foreach (var model in models.OrderBy(m => m.Manufacturer?.ManufacturerShortName ?? m.Manufacturer?.ManufacturerName)
+                                         .ThenBy(m => m.ModelName)
+                                         .ThenBy(m => m.YearFrom))
             {
-                ModelGroups.Add(group);
+                ConsolidatedModels.Add(model);
             }
 
             // Extract unique manufacturers
-            var manufacturers = groups
-                .Select(g => g.ManufacturerShortName ?? g.ManufacturerName)
+            var manufacturers = models
+                .Select(m => m.Manufacturer?.ManufacturerShortName ?? m.Manufacturer?.ManufacturerName ?? "לא ידוע")
                 .Distinct()
                 .OrderBy(m => m)
                 .ToList();
@@ -141,7 +91,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                 AvailableManufacturers.Add(mfg);
             }
 
-            StatusMessage = $"נטענו {ModelGroups.Count} קבוצות דגמים";
+            StatusMessage = $"נטענו {ConsolidatedModels.Count} דגמים מאוחדים";
             ApplyFilters();
         }
         catch (Exception ex)
@@ -167,35 +117,35 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
 
     private void ApplyFilters()
     {
-        var filtered = ModelGroups.AsEnumerable();
+        var filtered = ConsolidatedModels.AsEnumerable();
 
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(ModelSearchText))
         {
             var searchLower = ModelSearchText.ToLower();
             filtered = filtered.Where(m =>
-                m.ManufacturerName.ToLower().Contains(searchLower) ||
-                (m.ManufacturerShortName?.ToLower().Contains(searchLower) ?? false) ||
-                m.ModelName.ToLower().Contains(searchLower) ||
-                (m.CommercialNames != null && m.CommercialNames.Any(c => c.ToLower().Contains(searchLower))));
+                (m.Manufacturer?.ManufacturerName?.ToLower().Contains(searchLower) ?? false) ||
+                (m.Manufacturer?.ManufacturerShortName?.ToLower().Contains(searchLower) ?? false) ||
+                (m.ModelName?.ToLower().Contains(searchLower) ?? false) ||
+                (m.CommercialName?.ToLower().Contains(searchLower) ?? false));
         }
 
         // Apply manufacturer filter
         if (!string.IsNullOrEmpty(SelectedManufacturer) && SelectedManufacturer != "הכל")
         {
             filtered = filtered.Where(m =>
-                (m.ManufacturerShortName ?? m.ManufacturerName) == SelectedManufacturer);
+                (m.Manufacturer?.ManufacturerShortName ?? m.Manufacturer?.ManufacturerName) == SelectedManufacturer);
         }
 
-        FilteredModelGroups = new ObservableCollection<VehicleModelGroup>(filtered);
+        FilteredConsolidatedModels = new ObservableCollection<ConsolidatedVehicleModel>(filtered);
     }
 
-    partial void OnSelectedModelGroupChanged(VehicleModelGroup? value)
+    partial void OnSelectedConsolidatedModelChanged(ConsolidatedVehicleModel? value)
     {
         if (value != null)
         {
-            _ = LoadMappedPartsAsync(value);
-            _ = LoadSuggestedPartsAsync(value);
+            _ = LoadMappedPartsForConsolidatedModelAsync(value);
+            _ = LoadSuggestedPartsForConsolidatedModelAsync(value);
         }
         else
         {
@@ -204,45 +154,16 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         }
     }
 
-    private async Task LoadMappedPartsAsync(VehicleModelGroup modelGroup)
+    private async Task LoadMappedPartsForConsolidatedModelAsync(ConsolidatedVehicleModel model)
     {
         try
         {
             IsLoading = true;
-            StatusMessage = "טוען חלקים ממופים...";
+            StatusMessage = $"טוען חלקים ממודל מאוחד {model.ModelName}...";
 
-            // Get all vehicle IDs for this VARIANT (matching all criteria: model, engine, fuel, transmission, trim)
-            var vehicleIds = _allVehicles
-                .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(modelGroup.ManufacturerName) &&
-                           v.ModelName.EqualsIgnoringWhitespace(modelGroup.ModelName) &&
-                           MatchesVariantCriteria(v, modelGroup))
-                .Select(v => v.VehicleTypeId)
-                .ToList();
-
-            StatusMessage = $"נמצאו {vehicleIds.Count} רכבים בווריאנט, טוען חלקים...";
-
-            // Load parts for each vehicle and find common parts
-            var partsByVehicle = new Dictionary<int, HashSet<string>>();
-            foreach (var vehicleId in vehicleIds)
-            {
-                var parts = await _dataService.LoadMappedPartsAsync(vehicleId);
-                partsByVehicle[vehicleId] = parts.Select(p => p.PartNumber).ToHashSet();
-            }
-
-            // Find parts that are mapped to at least one vehicle in this model
-            var allPartNumbers = partsByVehicle.Values.SelectMany(p => p).Distinct().ToList();
-
-            StatusMessage = $"נמצאו {allPartNumbers.Count} חלקים ייחודיים, טוען פרטים...";
-
-            // Load full part information
-            var allParts = await _dataService.LoadPartsAsync();
-            var mappedPartsList = allParts.Where(p => allPartNumbers.Contains(p.PartNumber)).ToList();
-
-            // Calculate how many vehicles each part is mapped to
-            foreach (var part in mappedPartsList)
-            {
-                part.MappedVehiclesCount = partsByVehicle.Values.Count(v => v.Contains(part.PartNumber));
-            }
+            var mappedPartsList = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                model.ConsolidatedModelId,
+                includeCouplings: true);
 
             MappedParts.Clear();
             foreach (var part in mappedPartsList.OrderBy(p => p.PartNumber))
@@ -250,13 +171,17 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
                 MappedParts.Add(part);
             }
 
+            var yearRange = model.YearTo.HasValue
+                ? $"{model.YearFrom}-{model.YearTo}"
+                : $"{model.YearFrom}+";
+
             if (MappedParts.Count == 0)
             {
-                StatusMessage = $"אין חלקים ממופים לדגם {modelGroup.ModelName}. לחץ על 'הוסף חלקים' כדי להתחיל.";
+                StatusMessage = $"אין חלקים ממופים לדגם {model.ModelName} ({yearRange}). לחץ על 'הוסף חלקים' כדי להתחיל.";
             }
             else
             {
-                StatusMessage = $"{MappedParts.Count} חלקים ממופים לדגם זה";
+                StatusMessage = $"{MappedParts.Count} חלקים ממופים לדגם {model.ModelName} ({yearRange})";
             }
         }
         catch (Exception ex)
@@ -269,13 +194,14 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         }
     }
 
-    private async Task LoadSuggestedPartsAsync(VehicleModelGroup modelGroup)
+    private async Task LoadSuggestedPartsForConsolidatedModelAsync(ConsolidatedVehicleModel model)
     {
         try
         {
+            var manufacturerName = model.Manufacturer?.ManufacturerName ?? "";
             var suggestions = await _dataService.GetSuggestedPartsForModelAsync(
-                modelGroup.ManufacturerName,
-                modelGroup.ModelName);
+                manufacturerName,
+                model.ModelName ?? "");
 
             SuggestedParts.Clear();
             foreach (var part in suggestions)
@@ -293,7 +219,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task AddPartsToModelAsync()
     {
-        if (SelectedModelGroup == null)
+        if (SelectedConsolidatedModel == null)
         {
             MessageBox.Show("אנא בחר דגם", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -309,22 +235,21 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "ממפה חלקים לכל הרכבים בווריאנט...";
-
-                // IMPORTANT: Get vehicle IDs for this VARIANT (matching all criteria)
-                var vehicleIds = _allVehicles
-                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName) &&
-                               MatchesVariantCriteria(v, SelectedModelGroup))
-                    .Select(v => v.VehicleTypeId)
-                    .ToList();
-
                 var partNumbers = dialog.SelectedParts.Select(p => p.PartNumber).ToList();
-                await _dataService.MapPartsToVehiclesAsync(vehicleIds, partNumbers, "current_user");
 
-                StatusMessage = $"✓ מופו {partNumbers.Count} חלקים ל-{vehicleIds.Count} רכבים בווריאנט";
-                await LoadMappedPartsAsync(SelectedModelGroup);
-                await LoadSuggestedPartsAsync(SelectedModelGroup);
+                StatusMessage = $"ממפה {partNumbers.Count} חלקים למודל מאוחד...";
+                await _dataService.MapPartsToConsolidatedModelAsync(
+                    SelectedConsolidatedModel.ConsolidatedModelId,
+                    partNumbers,
+                    "current_user");
+
+                var yearRange = SelectedConsolidatedModel.YearTo.HasValue
+                    ? $"{SelectedConsolidatedModel.YearFrom}-{SelectedConsolidatedModel.YearTo}"
+                    : $"{SelectedConsolidatedModel.YearFrom}+";
+                StatusMessage = $"✓ מופו {partNumbers.Count} חלקים למודל {SelectedConsolidatedModel.ModelName} ({yearRange})";
+
+                await LoadMappedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
+                await LoadSuggestedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
             }
             catch (Exception ex)
             {
@@ -341,11 +266,15 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task RemovePartFromModelAsync(PartDisplayModel? part)
     {
-        if (part == null || SelectedModelGroup == null)
+        if (part == null || SelectedConsolidatedModel == null)
             return;
 
+        var yearRange = SelectedConsolidatedModel.YearTo.HasValue
+            ? $"{SelectedConsolidatedModel.YearFrom}-{SelectedConsolidatedModel.YearTo}"
+            : $"{SelectedConsolidatedModel.YearFrom}+";
+
         var result = MessageBox.Show(
-            $"האם להסיר את '{part.PartName}' מכל הרכבים בדגם '{SelectedModelGroup.ModelName}'?",
+            $"האם להסיר את '{part.PartName}' ממודל '{SelectedConsolidatedModel.ModelName}' ({yearRange})?",
             "אישור הסרה",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question
@@ -356,25 +285,17 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "מסיר חלק מכל הרכבים בווריאנט...";
+                StatusMessage = "מסיר חלק ממודל מאוחד...";
 
-                // Get vehicle IDs for this VARIANT (matching all criteria)
-                var vehicleIds = _allVehicles
-                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName) &&
-                               MatchesVariantCriteria(v, SelectedModelGroup))
-                    .Select(v => v.VehicleTypeId)
-                    .ToList();
-
-                await _dataService.UnmapPartsFromVehiclesAsync(
-                    vehicleIds,
+                await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                    SelectedConsolidatedModel.ConsolidatedModelId,
                     new List<string> { part.PartNumber },
                     "current_user"
                 );
+                StatusMessage = "החלק הוסר ממודל מאוחד בהצלחה";
 
-                StatusMessage = "החלק הוסר בהצלחה";
-                await LoadMappedPartsAsync(SelectedModelGroup);
-                await LoadSuggestedPartsAsync(SelectedModelGroup);
+                await LoadMappedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
+                await LoadSuggestedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
             }
             catch (Exception ex)
             {
@@ -391,7 +312,7 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task CopyMappingFromOtherModelAsync()
     {
-        if (SelectedModelGroup == null)
+        if (SelectedConsolidatedModel == null)
         {
             MessageBox.Show("אנא בחר דגם תחילה", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -399,9 +320,9 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
 
         try
         {
-            // Show dialog to select source model
-            var sourceModels = FilteredModelGroups
-                .Where(m => m != SelectedModelGroup) // Exclude current model
+            // Show dialog to select source model from consolidated models
+            var sourceModels = FilteredConsolidatedModels
+                .Where(m => m.ConsolidatedModelId != SelectedConsolidatedModel.ConsolidatedModelId) // Exclude current model
                 .ToList();
 
             if (!sourceModels.Any())
@@ -414,8 +335,8 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             var dialog = new Window
             {
                 Title = "בחר דגם מקור להעתקת מיפויים",
-                Width = 600,
-                Height = 400,
+                Width = 700,
+                Height = 500,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
                 FlowDirection = FlowDirection.RightToLeft
             };
@@ -427,9 +348,11 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             var listBox = new System.Windows.Controls.ListBox
             {
                 ItemsSource = sourceModels,
-                DisplayMemberPath = "DisplayName",
                 Margin = new Thickness(10)
             };
+
+            // Custom display template for consolidated models
+            listBox.ItemTemplate = CreateConsolidatedModelItemTemplate();
             System.Windows.Controls.Grid.SetRow(listBox, 0);
 
             var buttonPanel = new System.Windows.Controls.StackPanel
@@ -465,52 +388,42 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             grid.Children.Add(buttonPanel);
             dialog.Content = grid;
 
-            if (dialog.ShowDialog() == true && listBox.SelectedItem is VehicleModelGroup selectedSource)
+            if (dialog.ShowDialog() == true && listBox.SelectedItem is ConsolidatedVehicleModel selectedSource)
             {
                 IsLoading = true;
                 StatusMessage = "מעתיק מיפויים...";
 
-                // Get all vehicle IDs for source model
-                var sourceVehicleIds = _allVehicles
-                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(selectedSource.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(selectedSource.ModelName))
-                    .Select(v => v.VehicleTypeId)
-                    .ToList();
+                // Get parts from source consolidated model
+                var sourceParts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                    selectedSource.ConsolidatedModelId,
+                    includeCouplings: true);
 
-                // Get all vehicle IDs for target model
-                var targetVehicleIds = _allVehicles
-                    .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                               v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
-                    .Select(v => v.VehicleTypeId)
-                    .ToList();
+                var sourcePartNumbers = sourceParts.Select(p => p.PartNumber).ToList();
 
-                // Get all unique part numbers mapped to source vehicles
-                var sourcePartNumbers = new HashSet<string>();
-                foreach (var vehicleId in sourceVehicleIds)
-                {
-                    var parts = await _dataService.LoadMappedPartsAsync(vehicleId);
-                    foreach (var part in parts)
-                    {
-                        sourcePartNumbers.Add(part.PartNumber);
-                    }
-                }
-
-                // Copy mappings
-                await _dataService.MapPartsToVehiclesAsync(
-                    targetVehicleIds,
-                    sourcePartNumbers.ToList(),
+                // Map to target consolidated model
+                await _dataService.MapPartsToConsolidatedModelAsync(
+                    SelectedConsolidatedModel.ConsolidatedModelId,
+                    sourcePartNumbers,
                     "current_user");
 
-                StatusMessage = $"הועתקו {sourcePartNumbers.Count} חלקים מ-{selectedSource.ModelName}";
+                var sourceYearRange = selectedSource.YearTo.HasValue
+                    ? $"{selectedSource.YearFrom}-{selectedSource.YearTo}"
+                    : $"{selectedSource.YearFrom}+";
+                var targetYearRange = SelectedConsolidatedModel.YearTo.HasValue
+                    ? $"{SelectedConsolidatedModel.YearFrom}-{SelectedConsolidatedModel.YearTo}"
+                    : $"{SelectedConsolidatedModel.YearFrom}+";
+
+                StatusMessage = $"הועתקו {sourcePartNumbers.Count} חלקים";
+
                 MessageBox.Show(
-                    $"הועתקו בהצלחה {sourcePartNumbers.Count} חלקים מ-{selectedSource.ModelName} ל-{SelectedModelGroup.ModelName}",
+                    $"הועתקו בהצלחה {sourcePartNumbers.Count} חלקים מ-{selectedSource.ModelName} ({sourceYearRange}) ל-{SelectedConsolidatedModel.ModelName} ({targetYearRange})",
                     "הצלחה",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
                 // Reload parts
-                await LoadMappedPartsAsync(SelectedModelGroup);
-                await LoadSuggestedPartsAsync(SelectedModelGroup);
+                await LoadMappedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
+                await LoadSuggestedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
             }
         }
         catch (Exception ex)
@@ -524,10 +437,23 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         }
     }
 
+    private DataTemplate CreateConsolidatedModelItemTemplate()
+    {
+        // Create a simple text template showing model info
+        var template = new DataTemplate();
+        var factory = new FrameworkElementFactory(typeof(TextBlock));
+        factory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding
+        {
+            Converter = new ConsolidatedModelDisplayConverter()
+        });
+        template.VisualTree = factory;
+        return template;
+    }
+
     [RelayCommand]
     private async Task AcceptPartSuggestionAsync(PartDisplayModel? part)
     {
-        if (part == null || SelectedModelGroup == null)
+        if (part == null || SelectedConsolidatedModel == null)
             return;
 
         try
@@ -535,27 +461,19 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             IsLoading = true;
             StatusMessage = "ממפה חלק...";
 
-            // Map directly to ALL vehicles in the selected model (model-level mapping)
-            var vehicleTypeIds = _allVehicles
-                .Where(v => v.ManufacturerName.EqualsIgnoringWhitespace(SelectedModelGroup.ManufacturerName) &&
-                           v.ModelName.EqualsIgnoringWhitespace(SelectedModelGroup.ModelName))
-                .Select(v => v.VehicleTypeId)
-                .ToList();
+            await _dataService.MapPartsToConsolidatedModelAsync(
+                SelectedConsolidatedModel.ConsolidatedModelId,
+                new List<string> { part.PartNumber },
+                "current_user");
 
-            if (!vehicleTypeIds.Any())
-            {
-                MessageBox.Show("לא נמצאו רכבים במודל זה", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            // Map the suggested part to ALL vehicles in the model
-            await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, new List<string> { part.PartNumber }, "current_user");
-
-            StatusMessage = $"✓ מופה החלק {part.PartNumber} ל-{vehicleTypeIds.Count} רכבים במודל {SelectedModelGroup.ModelName}";
+            var yearRange = SelectedConsolidatedModel.YearTo.HasValue
+                ? $"{SelectedConsolidatedModel.YearFrom}-{SelectedConsolidatedModel.YearTo}"
+                : $"{SelectedConsolidatedModel.YearFrom}+";
+            StatusMessage = $"✓ מופה החלק {part.PartNumber} למודל {SelectedConsolidatedModel.ModelName} ({yearRange})";
 
             // Reload both lists
-            await LoadMappedPartsAsync(SelectedModelGroup);
-            await LoadSuggestedPartsAsync(SelectedModelGroup);
+            await LoadMappedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
+            await LoadSuggestedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
         }
         catch (Exception ex)
         {
@@ -567,44 +485,36 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             IsLoading = false;
         }
     }
+}
 
-    /// <summary>
-    /// Checks if a vehicle matches the variant criteria of a model group
-    /// (engine volume, fuel type, transmission type, trim level)
-    /// </summary>
-    private bool MatchesVariantCriteria(VehicleDisplayModel vehicle, VehicleModelGroup modelGroup)
+/// <summary>
+/// Converter to display consolidated model in a readable format
+/// </summary>
+public class ConsolidatedModelDisplayConverter : System.Windows.Data.IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
     {
-        // Check engine volume
-        if (modelGroup.EngineVolumes.Any())
+        if (value is ConsolidatedVehicleModel model)
         {
-            if (!vehicle.EngineVolume.HasValue || !modelGroup.EngineVolumes.Contains(vehicle.EngineVolume.Value))
-                return false;
-        }
+            var mfg = model.Manufacturer?.ManufacturerShortName ?? model.Manufacturer?.ManufacturerName ?? "לא ידוע";
+            var yearRange = model.YearTo.HasValue
+                ? $"{model.YearFrom}-{model.YearTo}"
+                : $"{model.YearFrom}+";
+            var engineVol = model.EngineVolume.HasValue ? $"{model.EngineVolume} סמ\"ק" : "";
+            var fuel = !string.IsNullOrEmpty(model.FuelTypeName) ? model.FuelTypeName : "";
 
-        // Check fuel type
-        if (modelGroup.FuelTypes.Any())
-        {
-            if (string.IsNullOrEmpty(vehicle.FuelTypeName) ||
-                !modelGroup.FuelTypes.Any(f => f.EqualsIgnoringWhitespace(vehicle.FuelTypeName)))
-                return false;
-        }
+            var parts = new List<string> { mfg, "-", model.ModelName ?? "" };
+            if (!string.IsNullOrEmpty(engineVol)) parts.Add(engineVol);
+            if (!string.IsNullOrEmpty(fuel)) parts.Add(fuel);
+            parts.Add($"({yearRange})");
 
-        // Check transmission type
-        if (modelGroup.TransmissionTypes.Any())
-        {
-            if (string.IsNullOrEmpty(vehicle.TransmissionType) ||
-                !modelGroup.TransmissionTypes.Any(t => t.EqualsIgnoringWhitespace(vehicle.TransmissionType)))
-                return false;
+            return string.Join(" ", parts);
         }
+        return value?.ToString() ?? "";
+    }
 
-        // Check trim level (NOT finish level - we're not grouping by that)
-        if (modelGroup.TrimLevels.Any())
-        {
-            if (string.IsNullOrEmpty(vehicle.TrimLevel) ||
-                !modelGroup.TrimLevels.Any(t => t.EqualsIgnoringWhitespace(vehicle.TrimLevel)))
-                return false;
-        }
-
-        return true;
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        throw new NotImplementedException();
     }
 }

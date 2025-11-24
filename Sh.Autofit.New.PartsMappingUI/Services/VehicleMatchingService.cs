@@ -47,12 +47,12 @@ public class VehicleMatchingService : IVehicleMatchingService
         // Step 2: Filter by model name or model code
         if (!string.IsNullOrWhiteSpace(govRecord.ModelName))
         {
+            string modelCodeString = "";
+                if (govRecord.ModelCode != null) modelCodeString = govRecord.ModelCode.Value.ToString("D4");
             var govModelName = govRecord.ModelName.Trim();
             query = query.Where(v =>
-                (v.ModelName != null && v.ModelName.Contains(govModelName)) ||
-                (v.ModelCode != null && v.ModelCode.Contains(govModelName)) ||
-                (v.ModelName != null && govModelName.Contains(v.ModelName)) ||
-                (v.ModelCode != null && govModelName.Contains(v.ModelCode)));
+                (v.ModelName != null && v.ModelName.Contains(govModelName)) &&
+                (v.ModelCode != null && v.ModelCode.Contains(modelCodeString)) );
         }
 
         // Step 3: Load vehicles first (we'll filter by year in memory after calculating ranges)
@@ -70,6 +70,7 @@ public class VehicleMatchingService : IVehicleMatchingService
                 ModelName = v.ModelName,
                 YearFrom = v.YearFrom,
                 YearTo = v.YearTo,
+                TransmissionType = v.TransmissionType,
                 VehicleCategory = v.VehicleCategory,
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,

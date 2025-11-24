@@ -31,27 +31,28 @@ BEGIN
         ModelCode INT NOT NULL,
         ModelName NVARCHAR(200) NOT NULL,
 
-        -- Uniqueness Attributes
+        -- Uniqueness Attributes (7 fields define a unique vehicle model)
+        -- ManufacturerCode + ModelCode + ModelName + EngineVolume + TrimLevel + TransmissionType + FuelType
         EngineVolume INT NULL,
         TrimLevel NVARCHAR(100) NULL,
-        FinishLevel NVARCHAR(100) NULL,
         TransmissionType NVARCHAR(50) NULL,
         FuelTypeCode INT NULL,
         FuelTypeName NVARCHAR(50) NULL,
-        NumberOfDoors INT NULL,
-        Horsepower INT NULL,
 
         -- Year Range (Auto-expanding)
         YearFrom INT NOT NULL,
         YearTo INT NULL,
 
-        -- Additional Common Attributes
+        -- Additional Attributes (NOT part of uniqueness - just metadata)
+        FinishLevel NVARCHAR(100) NULL,
+        NumberOfDoors INT NULL,
+        Horsepower INT NULL,
         CommercialName NVARCHAR(100) NULL,
         EngineModel NVARCHAR(100) NULL,
         VehicleCategory NVARCHAR(100) NULL,
         EmissionGroup INT NULL,
         GreenIndex INT NULL,
-        SafetyRating DECIMAL(3,2) NULL,
+        SafetyRating DECIMAL(10,2) NULL, -- Using larger precision to match MONEY type from VehicleTypes
         SafetyLevel INT NULL,
 
         -- Metadata
@@ -65,18 +66,15 @@ BEGIN
         CONSTRAINT FK_ConsolidatedModels_Manufacturer
             FOREIGN KEY (ManufacturerId) REFERENCES dbo.Manufacturers(ManufacturerId),
 
-        -- Unique Constraint on Natural Key (ensures no duplicates)
+        -- Unique Constraint on Natural Key (7 fields - ensures no duplicates)
         CONSTRAINT UQ_ConsolidatedModels_NaturalKey UNIQUE (
             ManufacturerCode,
             ModelCode,
             ModelName,
             EngineVolume,
             TrimLevel,
-            FinishLevel,
             TransmissionType,
-            FuelTypeCode,
-            NumberOfDoors,
-            Horsepower
+            FuelTypeCode
         ),
 
         -- Indexes for Performance

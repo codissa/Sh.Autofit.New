@@ -67,7 +67,12 @@ public partial class VehicleType
 
     public DateTime? LastSyncedAt { get; set; }
 
+    // Link to consolidated model (for audit trail and migration tracking)
+    public int? ConsolidatedModelId { get; set; }
+
     public virtual Manufacturer Manufacturer { get; set; }
+
+    public virtual ConsolidatedVehicleModel ConsolidatedModel { get; set; }
 
     public virtual ICollection<VehiclePartsMapping> VehiclePartsMappings { get; set; } = new List<VehiclePartsMapping>();
 

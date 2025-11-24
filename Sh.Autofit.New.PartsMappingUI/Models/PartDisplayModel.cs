@@ -37,6 +37,27 @@ public partial class PartDisplayModel : ObservableObject
     [ObservableProperty]
     private MappingStatus _mappingStatus = MappingStatus.Unmapped;
 
+    // Consolidated mapping type (Direct, CoupledModel, CoupledPart)
+    [ObservableProperty]
+    private string _mappingType = "Direct";
+
+    // Display icon for mapping type
+    public string MappingTypeIcon => MappingType switch
+    {
+        "Direct" => "🔵",      // Direct mapping
+        "CoupledModel" => "🟢", // Via coupled model
+        "CoupledPart" => "🟡",  // Via coupled part
+        _ => "⚪"
+    };
+
+    public string MappingTypeDisplay => MappingType switch
+    {
+        "Direct" => "מיפוי ישיר",
+        "CoupledModel" => "דרך דגם מצומד",
+        "CoupledPart" => "דרך חלק מצומד",
+        _ => ""
+    };
+
     // Suggestion properties
     [ObservableProperty]
     private double _relevanceScore;

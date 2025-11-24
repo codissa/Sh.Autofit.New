@@ -61,6 +61,7 @@ public partial class App : Application
         services.AddSingleton<ModelMappingsManagementViewModel>();
         services.AddSingleton<AnalyticsDashboardViewModel>();
         services.AddSingleton<SmartSuggestionsViewModel>();
+        services.AddSingleton<CouplingManagementViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();

@@ -8,7 +8,7 @@ public interface IDataService
     Task<List<VehicleDisplayModel>> LoadVehiclesAsync();
     Task<List<(string ManufacturerShortName, string ManufacturerName, string CommercialName, int Count)>> LoadVehicleGroupSummaryAsync();
     Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName);
-    Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName, int? engineVolume = null);
+    Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName, int? engineVolume = null, int? modelCode = null);
     Task<List<PartDisplayModel>> LoadPartsAsync();
     Task<List<PartDisplayModel>> LoadMappedPartsAsync(int vehicleTypeId);
     Task<List<PartDisplayModel>> LoadUnmappedPartsAsync(int vehicleTypeId);
@@ -54,4 +54,57 @@ public interface IDataService
 
     // Plate Lookup Suggestions
     Task<List<PartDisplayModel>> GetSuggestedPartsForVehicleAsync(int vehicleTypeId);
+
+    // =============================================
+    // CONSOLIDATED VEHICLE MODEL METHODS
+    // =============================================
+
+    // Load consolidated models (for browsing/selection)
+    Task<List<ConsolidatedVehicleModel>> LoadConsolidatedModelsAsync();
+
+    // Get consolidated models by lookup (ManufacturerCode + ModelCode + optional Year)
+    Task<List<ConsolidatedVehicleModel>> GetConsolidatedModelsForLookupAsync(int manufacturerCode, int modelCode, int? year = null);
+
+    // Get consolidated model by ID
+    Task<ConsolidatedVehicleModel?> GetConsolidatedModelByIdAsync(int consolidatedModelId);
+
+    // Get parts for a consolidated model (includes coupled models and parts)
+    Task<List<PartDisplayModel>> LoadMappedPartsForConsolidatedModelAsync(int consolidatedModelId, bool includeCouplings = true);
+
+    // Get consolidated models for a part (includes coupled parts)
+    Task<List<ConsolidatedVehicleModel>> LoadConsolidatedModelsForPartAsync(string partItemKey, bool includeCouplings = true);
+
+    // Map parts to consolidated models (NEW WAY)
+    Task MapPartsToConsolidatedModelAsync(int consolidatedModelId, List<string> partNumbers, string createdBy);
+
+    // Unmap parts from consolidated models
+    Task UnmapPartsFromConsolidatedModelAsync(int consolidatedModelId, List<string> partNumbers, string updatedBy);
+
+    // Get consolidated model from VehicleTypeId (for backward compatibility during transition)
+    Task<ConsolidatedVehicleModel?> GetConsolidatedModelForVehicleTypeAsync(int vehicleTypeId);
+
+    // =============================================
+    // MODEL COUPLING METHODS
+    // =============================================
+
+    Task<List<ModelCoupling>> GetModelCouplingsAsync(int consolidatedModelId);
+    Task<int> CreateModelCouplingAsync(int modelIdA, int modelIdB, string couplingType, string notes, string createdBy);
+    Task<bool> DeleteModelCouplingAsync(int couplingId);
+
+    // =============================================
+    // PART COUPLING METHODS
+    // =============================================
+
+    Task<List<PartCoupling>> GetPartCouplingsAsync(string partItemKey);
+    Task<int> CreatePartCouplingAsync(string partKeyA, string partKeyB, string couplingType, string notes, string createdBy);
+    Task<bool> DeletePartCouplingAsync(int couplingId);
+
+    // =============================================
+    // AUTO-EXPANSION (for government API sync)
+    // =============================================
+
+    Task AutoExpandYearRangeAsync(int consolidatedModelId, int newYear);
+
+    // Find or create a consolidated model for a VehicleType (used when auto-creating vehicles)
+    Task<ConsolidatedVehicleModel> FindOrCreateConsolidatedModelAsync(VehicleType vehicleType, Manufacturer manufacturer, string createdBy);
 }

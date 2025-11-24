@@ -18,5 +18,8 @@ public partial class MainWindow : Window
 
         // Wire up ModelMappingsManagementView with its ViewModel
         ModelMappingsManagementView.SetViewModel(viewModel.ModelMappingsManagementViewModel);
+
+        // Wire up CouplingManagementView with its ViewModel
+        CouplingManagementView.SetViewModel(viewModel.CouplingManagementViewModel);
     }
 }

@@ -14,6 +14,7 @@ public partial class MainViewModel : ObservableObject
     public ModelMappingsManagementViewModel ModelMappingsManagementViewModel { get; }
     public AnalyticsDashboardViewModel AnalyticsViewModel { get; }
     public SmartSuggestionsViewModel SmartSuggestionsViewModel { get; }
+    public CouplingManagementViewModel CouplingManagementViewModel { get; }
 
     public MainViewModel(
         MappingViewModel mappingViewModel,
@@ -22,7 +23,8 @@ public partial class MainViewModel : ObservableObject
         PartMappingsManagementViewModel partMappingsManagementViewModel,
         ModelMappingsManagementViewModel modelMappingsManagementViewModel,
         AnalyticsDashboardViewModel analyticsViewModel,
-        SmartSuggestionsViewModel smartSuggestionsViewModel)
+        SmartSuggestionsViewModel smartSuggestionsViewModel,
+        CouplingManagementViewModel couplingManagementViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
@@ -31,5 +33,6 @@ public partial class MainViewModel : ObservableObject
         ModelMappingsManagementViewModel = modelMappingsManagementViewModel;
         AnalyticsViewModel = analyticsViewModel;
         SmartSuggestionsViewModel = smartSuggestionsViewModel;
+        CouplingManagementViewModel = couplingManagementViewModel;
     }
 }

@@ -231,8 +231,30 @@ public class PartKitService : IPartKitService
         var kitParts = await GetKitPartsAsync(kitId);
         var partNumbers = kitParts.Select(p => p.PartItemKey).ToList();
 
-        // Use existing mapping service to map all parts to vehicles
-        await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, partNumbers, createdBy);
+        // NEW WAY: Get consolidated models for the vehicles and map to them
+        var consolidatedModelIds = new HashSet<int>();
+        foreach (var vehicleId in vehicleTypeIds)
+        {
+            var consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(vehicleId);
+            if (consolidatedModel != null)
+            {
+                consolidatedModelIds.Add(consolidatedModel.ConsolidatedModelId);
+            }
+        }
+
+        if (consolidatedModelIds.Any())
+        {
+            // Map to consolidated models
+            foreach (var modelId in consolidatedModelIds)
+            {
+                await _dataService.MapPartsToConsolidatedModelAsync(modelId, partNumbers, createdBy);
+            }
+        }
+        else
+        {
+            // FALLBACK: Legacy approach - map to individual vehicles
+            await _dataService.MapPartsToVehiclesAsync(vehicleTypeIds, partNumbers, createdBy);
+        }
     }
 
     public async Task<(int VehiclesMapped, int MappingsCreated)> SyncKitMappingsAsync(int kitId, string createdBy)
@@ -246,10 +268,20 @@ public class PartKitService : IPartKitService
 
         var partNumbers = kitParts.Select(p => p.PartItemKey).ToList();
 
-        // Collect all unique vehicles that any part in the kit is mapped to
-        var allVehicleIds = new HashSet<int>();
+        // NEW WAY: Collect all unique consolidated models that any part in the kit is mapped to
+        var allConsolidatedModelIds = new HashSet<int>();
+        var allVehicleIds = new HashSet<int>(); // For legacy fallback
+
         foreach (var partNumber in partNumbers)
         {
+            // Try consolidated models first
+            var consolidatedModels = await _dataService.LoadConsolidatedModelsForPartAsync(partNumber, includeCouplings: true);
+            foreach (var model in consolidatedModels)
+            {
+                allConsolidatedModelIds.Add(model.ConsolidatedModelId);
+            }
+
+            // Also collect legacy vehicle IDs for backward compatibility
             var vehicles = await _dataService.LoadVehiclesForPartAsync(partNumber);
             foreach (var vehicle in vehicles)
             {
@@ -257,47 +289,94 @@ public class PartKitService : IPartKitService
             }
         }
 
-        if (!allVehicleIds.Any())
-            return (0, 0);
-
-        // Get existing mappings to avoid duplicates
-        var existingMappings = await context.VehiclePartsMappings
-            .AsNoTracking()
-            .Where(m => m.IsActive && partNumbers.Contains(m.PartItemKey) && allVehicleIds.Contains(m.VehicleTypeId))
-            .Select(m => new { m.VehicleTypeId, m.PartItemKey })
-            .ToListAsync();
-
-        var existingMappingSet = new HashSet<(int VehicleTypeId, string PartItemKey)>(
-            existingMappings.Select(m => (m.VehicleTypeId, m.PartItemKey))
-        );
-
-        // Create new mappings for all parts to all vehicles
         var mappingsCreated = 0;
-        var now = DateTime.UtcNow;
-        foreach (var vehicleId in allVehicleIds)
+
+        // NEW WAY: Map to consolidated models
+        if (allConsolidatedModelIds.Any())
         {
-            foreach (var partNumber in partNumbers)
+            var existingConsolidatedMappings = await context.VehiclePartsMappings
+                .AsNoTracking()
+                .Where(m => m.IsActive && m.MappingLevel == "Consolidated" &&
+                           partNumbers.Contains(m.PartItemKey) &&
+                           m.ConsolidatedModelId.HasValue &&
+                           allConsolidatedModelIds.Contains(m.ConsolidatedModelId.Value))
+                .Select(m => new { m.ConsolidatedModelId, m.PartItemKey })
+                .ToListAsync();
+
+            var existingConsolidatedSet = new HashSet<(int ConsolidatedModelId, string PartItemKey)>(
+                existingConsolidatedMappings.Where(m => m.ConsolidatedModelId.HasValue)
+                    .Select(m => (m.ConsolidatedModelId!.Value, m.PartItemKey))
+            );
+
+            var now = DateTime.UtcNow;
+            foreach (var consolidatedModelId in allConsolidatedModelIds)
             {
-                // Skip if mapping already exists
-                if (!existingMappingSet.Contains((vehicleId, partNumber)))
+                foreach (var partNumber in partNumbers)
                 {
-                    var mapping = new VehiclePartsMapping
+                    if (!existingConsolidatedSet.Contains((consolidatedModelId, partNumber)))
                     {
-                        VehicleTypeId = vehicleId,
-                        PartItemKey = partNumber,
-                        MappingSource = "kit_sync",
-                        Priority = 100,
-                        RequiresModification = false,
-                        VersionNumber = 1,
-                        IsCurrentVersion = true,
-                        IsActive = true,
-                        CreatedBy = createdBy,
-                        CreatedAt = now,
-                        UpdatedBy = createdBy,
-                        UpdatedAt = now
-                    };
-                    context.VehiclePartsMappings.Add(mapping);
-                    mappingsCreated++;
+                        var mapping = new VehiclePartsMapping
+                        {
+                            ConsolidatedModelId = consolidatedModelId,
+                            VehicleTypeId = null, // NEW WAY: no individual vehicle ID
+                            PartItemKey = partNumber,
+                            MappingLevel = "Consolidated",
+                            MappingSource = "kit_sync",
+                            Priority = 100,
+                            RequiresModification = false,
+                            VersionNumber = 1,
+                            IsCurrentVersion = true,
+                            IsActive = true,
+                            CreatedBy = createdBy,
+                            CreatedAt = now,
+                            UpdatedBy = createdBy,
+                            UpdatedAt = now
+                        };
+                        context.VehiclePartsMappings.Add(mapping);
+                        mappingsCreated++;
+                    }
+                }
+            }
+        }
+        // FALLBACK: Also create legacy mappings for vehicles without consolidated models
+        else if (allVehicleIds.Any())
+        {
+            var existingMappings = await context.VehiclePartsMappings
+                .AsNoTracking()
+                .Where(m => m.IsActive && partNumbers.Contains(m.PartItemKey) && m.VehicleTypeId.HasValue && allVehicleIds.Contains(m.VehicleTypeId.Value))
+                .Select(m => new { VehicleTypeId = m.VehicleTypeId!.Value, m.PartItemKey })
+                .ToListAsync();
+
+            var existingMappingSet = new HashSet<(int VehicleTypeId, string PartItemKey)>(
+                existingMappings.Select(m => (m.VehicleTypeId, m.PartItemKey))
+            );
+
+            var now = DateTime.UtcNow;
+            foreach (var vehicleId in allVehicleIds)
+            {
+                foreach (var partNumber in partNumbers)
+                {
+                    if (!existingMappingSet.Contains((vehicleId, partNumber)))
+                    {
+                        var mapping = new VehiclePartsMapping
+                        {
+                            VehicleTypeId = vehicleId,
+                            PartItemKey = partNumber,
+                            MappingLevel = "Legacy",
+                            MappingSource = "kit_sync",
+                            Priority = 100,
+                            RequiresModification = false,
+                            VersionNumber = 1,
+                            IsCurrentVersion = true,
+                            IsActive = true,
+                            CreatedBy = createdBy,
+                            CreatedAt = now,
+                            UpdatedBy = createdBy,
+                            UpdatedAt = now
+                        };
+                        context.VehiclePartsMappings.Add(mapping);
+                        mappingsCreated++;
+                    }
                 }
             }
         }
@@ -307,7 +386,8 @@ public class PartKitService : IPartKitService
             await context.SaveChangesAsync();
         }
 
-        return (allVehicleIds.Count, mappingsCreated);
+        var totalTargets = allConsolidatedModelIds.Any() ? allConsolidatedModelIds.Count : allVehicleIds.Count;
+        return (totalTargets, mappingsCreated);
     }
 
     public async Task<(int KitsSynced, int TotalMappingsCreated)> SyncAllKitsMappingsAsync(string createdBy)
