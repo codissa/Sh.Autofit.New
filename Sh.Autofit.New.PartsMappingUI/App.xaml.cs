@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
 using Sh.Autofit.New.PartsMappingUI.ViewModels;
@@ -52,6 +53,10 @@ public partial class App : Application
         services.AddSingleton<IPartKitService, PartKitService>();
         services.AddSingleton<ISmartSuggestionsService, SmartSuggestionsService>();
 
+        // Register HttpClient and vehicle data sync services
+        services.AddHttpClient<IGovernmentVehicleDataService, GovernmentVehicleDataService>();
+        services.AddTransient<IVehicleDataSyncService, VehicleDataSyncService>();
+
         // Register ViewModels
         services.AddSingleton<MappingViewModel>();
         services.AddSingleton<MainViewModel>();
@@ -62,6 +67,7 @@ public partial class App : Application
         services.AddSingleton<AnalyticsDashboardViewModel>();
         services.AddSingleton<SmartSuggestionsViewModel>();
         services.AddSingleton<CouplingManagementViewModel>();
+        services.AddTransient<VehicleDataSyncViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();

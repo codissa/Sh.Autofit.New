@@ -37,6 +37,9 @@
             <TabItem Header="צימוד דגמים וחלקים">
                 <views:CouplingManagementView x:Name="CouplingManagementView"/>
             </TabItem>
+            <TabItem Header="סנכרון נתוני רכבים">
+                <views:VehicleDataSyncView x:Name="VehicleDataSyncView"/>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

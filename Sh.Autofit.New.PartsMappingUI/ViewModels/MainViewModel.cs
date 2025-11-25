@@ -15,6 +15,7 @@ public partial class MainViewModel : ObservableObject
     public AnalyticsDashboardViewModel AnalyticsViewModel { get; }
     public SmartSuggestionsViewModel SmartSuggestionsViewModel { get; }
     public CouplingManagementViewModel CouplingManagementViewModel { get; }
+    public VehicleDataSyncViewModel VehicleDataSyncViewModel { get; }
 
     public MainViewModel(
         MappingViewModel mappingViewModel,
@@ -24,7 +25,8 @@ public partial class MainViewModel : ObservableObject
         ModelMappingsManagementViewModel modelMappingsManagementViewModel,
         AnalyticsDashboardViewModel analyticsViewModel,
         SmartSuggestionsViewModel smartSuggestionsViewModel,
-        CouplingManagementViewModel couplingManagementViewModel)
+        CouplingManagementViewModel couplingManagementViewModel,
+        VehicleDataSyncViewModel vehicleDataSyncViewModel)
     {
         MappingViewModel = mappingViewModel;
         PlateLookupViewModel = plateLookupViewModel;
@@ -34,5 +36,6 @@ public partial class MainViewModel : ObservableObject
         AnalyticsViewModel = analyticsViewModel;
         SmartSuggestionsViewModel = smartSuggestionsViewModel;
         CouplingManagementViewModel = couplingManagementViewModel;
+        VehicleDataSyncViewModel = vehicleDataSyncViewModel;
     }
 }

@@ -21,5 +21,8 @@ public partial class MainWindow : Window
 
         // Wire up CouplingManagementView with its ViewModel
         CouplingManagementView.SetViewModel(viewModel.CouplingManagementViewModel);
+
+        // Wire up VehicleDataSyncView with its ViewModel
+        VehicleDataSyncView.SetViewModel(viewModel.VehicleDataSyncViewModel);
     }
 }
