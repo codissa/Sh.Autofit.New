@@ -7,6 +7,15 @@ public partial class VehicleModelGroup : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    [ObservableProperty]
+    private bool _hasCouplings;
+
+    [ObservableProperty]
+    private string _couplingInfo = string.Empty;
+
+    // If this group corresponds to a consolidated model, this will contain its id
+    public int? ConsolidatedModelId { get; set; }
+
     public string ManufacturerName { get; set; } = string.Empty;
     public string ManufacturerShortName { get; set; } = string.Empty;
     public string ModelName { get; set; } = string.Empty;

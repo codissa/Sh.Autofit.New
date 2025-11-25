@@ -70,6 +70,8 @@ public class VehicleMatchingService : IVehicleMatchingService
                 ModelName = v.ModelName,
                 YearFrom = v.YearFrom,
                 YearTo = v.YearTo,
+                TrimLevel = v.TrimLevel,
+                FinishLevel = v.FinishLevel,
                 TransmissionType = v.TransmissionType,
                 VehicleCategory = v.VehicleCategory,
                 CommercialName = v.CommercialName,

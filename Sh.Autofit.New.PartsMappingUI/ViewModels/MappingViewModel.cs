@@ -750,15 +750,46 @@ public partial class MappingViewModel : ObservableObject
 
             StatusMessage = "Creating mappings...";
 
-            var vehicleIds = selectedVehicles.Select(v => v.VehicleTypeId).ToList();
+            // NEW WAY: Get unique consolidated models for selected vehicles
+            var consolidatedModelIds = new HashSet<int>();
+            var vehiclesWithoutConsolidatedModel = new List<int>();
+
+            foreach (var vehicle in selectedVehicles)
+            {
+                if (vehicle.ConsolidatedModelId.HasValue)
+                {
+                    consolidatedModelIds.Add(vehicle.ConsolidatedModelId.Value);
+                }
+                else
+                {
+                    vehiclesWithoutConsolidatedModel.Add(vehicle.VehicleTypeId);
+                }
+            }
+
             var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
 
-            await _dataService.MapPartsToVehiclesAsync(vehicleIds, partNumbers, "UIUser");
+            // Map to consolidated models (NEW WAY)
+            if (consolidatedModelIds.Any())
+            {
+                foreach (var modelId in consolidatedModelIds)
+                {
+                    await _dataService.MapPartsToConsolidatedModelAsync(modelId, partNumbers, "UIUser");
+                }
+            }
+
+            // FALLBACK: Map to vehicles without consolidated models (legacy)
+            if (vehiclesWithoutConsolidatedModel.Any())
+            {
+                await _dataService.MapPartsToVehiclesAsync(vehiclesWithoutConsolidatedModel, partNumbers, "UIUser");
+            }
 
             // Reload mapping counts
             await RefreshMappingCountsAsync();
 
-            StatusMessage = $"Successfully mapped {selectedParts.Count} part(s) to {selectedVehicles.Count} vehicle(s)";
+            var consolidatedCount = consolidatedModelIds.Count;
+            var legacyCount = vehiclesWithoutConsolidatedModel.Count;
+            StatusMessage = $"Successfully mapped {selectedParts.Count} part(s) to {consolidatedCount} consolidated model(s)" +
+                           (legacyCount > 0 ? $" and {legacyCount} legacy vehicle(s)" : "");
             MessageBox.Show(StatusMessage, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -792,26 +823,89 @@ public partial class MappingViewModel : ObservableObject
                 return;
             }
 
+            // NEW WAY: Get unique consolidated models for selected vehicles
+            var consolidatedModelIds = new HashSet<int>();
+            var vehiclesWithoutConsolidatedModel = new List<int>();
+
+            foreach (var vehicle in selectedVehicles)
+            {
+                if (vehicle.ConsolidatedModelId.HasValue)
+                {
+                    consolidatedModelIds.Add(vehicle.ConsolidatedModelId.Value);
+                }
+                else
+                {
+                    vehiclesWithoutConsolidatedModel.Add(vehicle.VehicleTypeId);
+                }
+            }
+
+            // Check for coupled models
+            var modelsWithCouplings = 0;
+            var totalCoupledModelsAffected = 0;
+            if (consolidatedModelIds.Any())
+            {
+                foreach (var modelId in consolidatedModelIds)
+                {
+                    var couplings = await _dataService.GetModelCouplingsAsync(modelId);
+                    var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+                    if (activeCouplings.Any())
+                    {
+                        modelsWithCouplings++;
+                        totalCoupledModelsAffected += activeCouplings.Count;
+                    }
+                }
+            }
+
+            string confirmMessage;
+            if (modelsWithCouplings > 0)
+            {
+                confirmMessage = $"⚠️ WARNING: Coupled Models Detected!\n\n" +
+                                $"You are about to unmap {selectedParts.Count} part(s) from {selectedVehicles.Count} vehicle(s).\n\n" +
+                                $"{modelsWithCouplings} of the selected models have active couplings affecting {totalCoupledModelsAffected} additional model(s).\n\n" +
+                                $"The parts will be unmapped from ALL coupled models as well.\n\n" +
+                                $"💡 Tip: If you want to break the couplings first and manage models independently, use the 'Break Coupling' button in Coupling Management.\n\n" +
+                                "Continue with unmapping?";
+            }
+            else
+            {
+                confirmMessage = $"Unmap {selectedParts.Count} part(s) from {selectedVehicles.Count} vehicle(s)?";
+            }
+
             var result = MessageBox.Show(
-                $"Unmap {selectedParts.Count} part(s) from {selectedVehicles.Count} vehicle(s)?",
+                confirmMessage,
                 "Confirm Unmapping",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
+                modelsWithCouplings > 0 ? MessageBoxImage.Warning : MessageBoxImage.Question);
 
             if (result != MessageBoxResult.Yes)
                 return;
 
             StatusMessage = "Removing mappings...";
 
-            var vehicleIds = selectedVehicles.Select(v => v.VehicleTypeId).ToList();
             var partNumbers = selectedParts.Select(p => p.PartNumber).ToList();
 
-            await _dataService.UnmapPartsFromVehiclesAsync(vehicleIds, partNumbers, "UIUser");
+            // Unmap from consolidated models (NEW WAY) - this will also unmap from coupled models via triggers
+            if (consolidatedModelIds.Any())
+            {
+                foreach (var modelId in consolidatedModelIds)
+                {
+                    await _dataService.UnmapPartsFromConsolidatedModelAsync(modelId, partNumbers, "UIUser");
+                }
+            }
+
+            // FALLBACK: Unmap from vehicles without consolidated models (legacy)
+            if (vehiclesWithoutConsolidatedModel.Any())
+            {
+                await _dataService.UnmapPartsFromVehiclesAsync(vehiclesWithoutConsolidatedModel, partNumbers, "UIUser");
+            }
 
             // Reload mapping counts
             await RefreshMappingCountsAsync();
 
-            StatusMessage = $"Successfully unmapped {selectedParts.Count} part(s) from {selectedVehicles.Count} vehicle(s)";
+            var consolidatedCount = consolidatedModelIds.Count;
+            var legacyCount = vehiclesWithoutConsolidatedModel.Count;
+            StatusMessage = $"Successfully unmapped {selectedParts.Count} part(s) from {consolidatedCount} consolidated model(s)" +
+                           (legacyCount > 0 ? $" and {legacyCount} legacy vehicle(s)" : "");
             MessageBox.Show(StatusMessage, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)

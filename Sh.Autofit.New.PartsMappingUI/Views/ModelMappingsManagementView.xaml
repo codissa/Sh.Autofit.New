@@ -110,11 +110,56 @@
                                     BorderBrush="#E0E0E0"
                                     BorderThickness="1">
                                 <StackPanel>
-                                    <TextBlock FontWeight="SemiBold" FontSize="13">
-                                        <Run Text="{Binding Manufacturer.ManufacturerShortName}"/>
-                                        <Run Text=" - "/>
-                                        <Run Text="{Binding ModelName}"/>
-                                    </TextBlock>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center">
+                                            <Run Text="{Binding Manufacturer.ManufacturerShortName}"/>
+                                            <Run Text=" - "/>
+                                            <Run Text="{Binding ModelName}"/>
+                                        </TextBlock>
+
+                                        <!-- Coupling Info Button -->
+                                        <Button Grid.Column="1"
+                                                Command="{Binding DataContext.ShowCouplingInfoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="🔗"
+                                                FontSize="14"
+                                                Padding="6,2"
+                                                Margin="5,0,0,0"
+                                                Background="#FF9800"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                ToolTip="הצג מידע על צימוד">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Background="{TemplateBinding Background}"
+                                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                                        CornerRadius="4"
+                                                                        Padding="{TemplateBinding Padding}">
+                                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                                     VerticalAlignment="Center"/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Background" Value="#FB8C00"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </Grid>
 
                                     <!-- Engine Volume -->
                                     <TextBlock Foreground="#555" FontSize="11" Margin="0,3,0,0">

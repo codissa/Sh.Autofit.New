@@ -1525,13 +1525,54 @@ public class DataService : IDataService
             return new List<PartDisplayModel>();
         }
 
-        // Step 2: Get parts already mapped to this vehicle
-        var mappedPartNumbers = await context.VehiclePartsMappings
+        // Step 2: Get consolidated model for this vehicle (if exists)
+        var consolidatedModelId = targetVehicle.ConsolidatedModelId;
+
+        // Step 3: Get parts already mapped to this vehicle (both legacy and consolidated)
+        var mappedPartNumbersQuery = context.VehiclePartsMappings
             .AsNoTracking()
-            .Where(m => m.VehicleTypeId == vehicleTypeId && m.IsActive)
+            .Where(m => m.IsActive &&
+                       ((m.VehicleTypeId == vehicleTypeId) ||
+                        (consolidatedModelId.HasValue && m.ConsolidatedModelId == consolidatedModelId)));
+
+        var mappedPartNumbers = await mappedPartNumbersQuery
             .Select(m => m.PartItemKey)
             .Distinct()
             .ToListAsync();
+
+        // Step 4: Add parts from coupled models (highest priority - 15 points)
+        var coupledModelPartNumbers = new HashSet<string>();
+        if (consolidatedModelId.HasValue)
+        {
+            // Get coupled models
+            var coupledModels = await context.ModelCouplings
+                .AsNoTracking()
+                .Where(mc => mc.IsActive &&
+                            (mc.ConsolidatedModelId_A == consolidatedModelId.Value ||
+                             mc.ConsolidatedModelId_B == consolidatedModelId.Value))
+                .Select(mc => mc.ConsolidatedModelId_A == consolidatedModelId.Value
+                    ? mc.ConsolidatedModelId_B
+                    : mc.ConsolidatedModelId_A)
+                .ToListAsync();
+
+            if (coupledModels.Any())
+            {
+                // Get parts mapped to coupled models
+                var coupledParts = await context.VehiclePartsMappings
+                    .AsNoTracking()
+                    .Where(m => m.IsActive &&
+                               coupledModels.Contains(m.ConsolidatedModelId!.Value) &&
+                               !mappedPartNumbers.Contains(m.PartItemKey))
+                    .Select(m => m.PartItemKey)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var partKey in coupledParts)
+                {
+                    coupledModelPartNumbers.Add(partKey);
+                }
+            }
+        }
 
         // Normalize target vehicle attributes for comparison
         var commercialNameNormalized = targetVehicle.CommercialName.NormalizeForGrouping();
@@ -1539,7 +1580,7 @@ public class DataService : IDataService
         var trimLevelNormalized = targetVehicle.TrimLevel?.NormalizeForGrouping();
         var fuelTypeNormalized = targetVehicle.FuelTypeName?.NormalizeForGrouping();
 
-        // Step 3: Find similar vehicles with 4 different strategies (using normalized comparison)
+        // Step 5: Find similar vehicles with 4 different strategies (using normalized comparison)
         // Fetch candidate vehicles with engine volume and year overlap, then filter by normalized names in-memory
         var candidateVehicles = await context.VehicleTypes
             .AsNoTracking()
@@ -1636,8 +1677,14 @@ public class DataService : IDataService
 
         var similarVehicleIds = vehicleScores.Keys.ToList();
 
-        // Step 4: Get parts mapped to similar vehicles with cumulative scoring
+        // Step 6: Get parts mapped to similar vehicles with cumulative scoring
         var partScores = new Dictionary<string, (int TotalScore, List<string> SourceModels, string BestReason)>();
+
+        // Add coupled model parts first with highest score
+        foreach (var coupledPartKey in coupledModelPartNumbers)
+        {
+            partScores[coupledPartKey] = (15, new List<string> { "דגם מצומד" }, "דגם מצומד");
+        }
 
         var vehicleMappings = await context.VehiclePartsMappings
             .AsNoTracking()

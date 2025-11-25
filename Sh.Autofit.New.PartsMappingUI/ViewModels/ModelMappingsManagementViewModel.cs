@@ -269,15 +269,83 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         if (part == null || SelectedConsolidatedModel == null)
             return;
 
+        // Block removal of parts that come from part couplings only
+        if (part.MappingType == "CoupledPart")
+        {
+            MessageBox.Show(
+                $"החלק '{part.PartName}' ממופה דרך צימוד חלקים.\n\n" +
+                "לא ניתן להסיר את המיפוי מכאן.\n" +
+                "יש להיכנס לניהול צימודים ולהסיר את הצימוד בין החלקים.",
+                "לא ניתן להסיר מיפוי",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
         var yearRange = SelectedConsolidatedModel.YearTo.HasValue
             ? $"{SelectedConsolidatedModel.YearFrom}-{SelectedConsolidatedModel.YearTo}"
             : $"{SelectedConsolidatedModel.YearFrom}+";
 
+        // Check if this model has active couplings
+        var couplings = await _dataService.GetModelCouplingsAsync(SelectedConsolidatedModel.ConsolidatedModelId);
+        var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+        // Collect ALL models that will be affected (for parts inherited from coupled models)
+        var allAffectedModels = new List<int> { SelectedConsolidatedModel.ConsolidatedModelId };
+        var coupledModelNames = new List<string>();
+
+        foreach (var coupling in activeCouplings)
+        {
+            var otherModelId = coupling.ConsolidatedModelId_A == SelectedConsolidatedModel.ConsolidatedModelId
+                ? coupling.ConsolidatedModelId_B
+                : coupling.ConsolidatedModelId_A;
+
+            allAffectedModels.Add(otherModelId);
+
+            var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+            if (otherModel != null)
+            {
+                coupledModelNames.Add($"{otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName}");
+            }
+        }
+
+        string message;
+        MessageBoxImage messageIcon;
+
+        if (part.MappingType == "CoupledModel")
+        {
+            // Part comes from a coupled model - need to find which one and unmap from all
+            var coupledModelsText = string.Join(", ", coupledModelNames);
+
+            message = $"⚠️ החלק '{part.PartName}' ממופה דרך דגם מצומד!\n\n" +
+                     $"הדגם '{SelectedConsolidatedModel.Manufacturer?.ManufacturerShortName} {SelectedConsolidatedModel.ModelName}' מצומד עם:\n{coupledModelsText}\n\n" +
+                     $"האם להסיר את החלק מכל הדגמים המצומדים?\n\n" +
+                     "לחץ 'כן' להסרה מכולם (כולל מהדגם שממנו מגיע המיפוי), 'לא' לביטול.\n\n" +
+                     "💡 טיפ: אם ברצונך להסיר את הצימוד ולנהל כל דגם בנפרד, השתמש בכפתור 'שבור צימוד' בניהול צימודים.";
+            messageIcon = MessageBoxImage.Warning;
+        }
+        else if (activeCouplings.Any())
+        {
+            // Part is directly mapped to this model, but model has couplings
+            var coupledModelsText = string.Join(", ", coupledModelNames);
+
+            message = $"הדגם '{SelectedConsolidatedModel.Manufacturer?.ManufacturerShortName} {SelectedConsolidatedModel.ModelName}' מצומד עם:\n{coupledModelsText}\n\n" +
+                     $"האם להסיר את החלק '{part.PartName}' מדגם זה ומכל הדגמים המצומדים אליו?\n\n" +
+                     "לחץ 'כן' להסרה מכולם, 'לא' לביטול.\n\n" +
+                     "💡 טיפ: אם ברצונך להסיר את הצימוד ולנהל כל דגם בנפרד, השתמש בכפתור 'שבור צימוד' בניהול צימודים.";
+            messageIcon = MessageBoxImage.Warning;
+        }
+        else
+        {
+            message = $"האם להסיר את '{part.PartName}' ממודל '{SelectedConsolidatedModel.ModelName}' ({yearRange})?";
+            messageIcon = MessageBoxImage.Question;
+        }
+
         var result = MessageBox.Show(
-            $"האם להסיר את '{part.PartName}' ממודל '{SelectedConsolidatedModel.ModelName}' ({yearRange})?",
+            message,
             "אישור הסרה",
             MessageBoxButton.YesNo,
-            MessageBoxImage.Question
+            messageIcon
         );
 
         if (result == MessageBoxResult.Yes)
@@ -285,14 +353,82 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             try
             {
                 IsLoading = true;
-                StatusMessage = "מסיר חלק ממודל מאוחד...";
 
-                await _dataService.UnmapPartsFromConsolidatedModelAsync(
-                    SelectedConsolidatedModel.ConsolidatedModelId,
-                    new List<string> { part.PartNumber },
-                    "current_user"
-                );
-                StatusMessage = "החלק הוסר ממודל מאוחד בהצלחה";
+                if (part.MappingType == "CoupledModel")
+                {
+                    // Part is inherited from a coupled model - need to find which models have the direct mapping
+                    StatusMessage = "מזהה מיפויים ישירים...";
+
+                    // Check which of the coupled models actually have the direct mapping
+                    var modelsWithDirectMapping = new List<int>();
+
+                    foreach (var modelId in allAffectedModels)
+                    {
+                        // Load parts for this model WITHOUT coupling inheritance to see direct mappings only
+                        var directParts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                            modelId,
+                            includeCouplings: false);
+
+                        if (directParts.Any(p => p.PartNumber == part.PartNumber))
+                        {
+                            modelsWithDirectMapping.Add(modelId);
+                        }
+                    }
+
+                    if (modelsWithDirectMapping.Any())
+                    {
+                        StatusMessage = "מסיר מיפוי מכל הדגמים המצומדים...";
+
+                        // Unmap from all models that have the direct mapping
+                        foreach (var modelId in modelsWithDirectMapping)
+                        {
+                            await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                                modelId,
+                                new List<string> { part.PartNumber },
+                                "current_user");
+                        }
+
+                        StatusMessage = $"החלק הוסר מ-{modelsWithDirectMapping.Count} דגמים בהצלחה (כולל כל הדגמים המצומדים)";
+                    }
+                    else
+                    {
+                        StatusMessage = "לא נמצאו מיפויים ישירים להסרה";
+                        MessageBox.Show(
+                            "לא נמצא מיפוי ישיר לחלק זה באף אחד מהדגמים המצומדים.\n" +
+                            "ייתכן שהמיפוי כבר הוסר.",
+                            "שגיאה",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
+                }
+                else if (activeCouplings.Any())
+                {
+                    // Part is directly mapped to this model, and model has couplings
+                    // Unmap from ALL affected models (this model + all coupled models)
+                    StatusMessage = "מסיר מיפוי מכל הדגמים המצומדים...";
+
+                    foreach (var modelId in allAffectedModels)
+                    {
+                        await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                            modelId,
+                            new List<string> { part.PartNumber },
+                            "current_user");
+                    }
+
+                    StatusMessage = $"החלק הוסר מ-{allAffectedModels.Count} דגמים מצומדים בהצלחה";
+                }
+                else
+                {
+                    // No couplings - simple unmap
+                    StatusMessage = "מסיר חלק ממודל מאוחד...";
+
+                    await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                        SelectedConsolidatedModel.ConsolidatedModelId,
+                        new List<string> { part.PartNumber },
+                        "current_user"
+                    );
+                    StatusMessage = "החלק הוסר ממודל מאוחד בהצלחה";
+                }
 
                 await LoadMappedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
                 await LoadSuggestedPartsForConsolidatedModelAsync(SelectedConsolidatedModel);
@@ -483,6 +619,83 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowCouplingInfoAsync(ConsolidatedVehicleModel? model)
+    {
+        if (model == null) return;
+
+        try
+        {
+            // Get couplings for this model
+            var couplings = await _dataService.GetModelCouplingsAsync(model.ConsolidatedModelId);
+            var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+            if (!activeCouplings.Any())
+            {
+                MessageBox.Show(
+                    $"הדגם '{model.Manufacturer?.ManufacturerShortName} {model.ModelName}' לא מצומד לדגמים אחרים.",
+                    "מידע על צימוד",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // Get coupled model names
+            var coupledModelNames = new List<string>();
+            foreach (var coupling in activeCouplings)
+            {
+                var otherModelId = coupling.ConsolidatedModelId_A == model.ConsolidatedModelId
+                    ? coupling.ConsolidatedModelId_B
+                    : coupling.ConsolidatedModelId_A;
+
+                var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                if (otherModel != null)
+                {
+                    var yearRange = otherModel.YearTo.HasValue
+                        ? $"{otherModel.YearFrom}-{otherModel.YearTo}"
+                        : $"{otherModel.YearFrom}+";
+                    coupledModelNames.Add($"• {otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName} ({yearRange})");
+                }
+            }
+
+            var yearRangeDisplay = model.YearTo.HasValue
+                ? $"{model.YearFrom}-{model.YearTo}"
+                : $"{model.YearFrom}+";
+
+            var coupledModelsText = string.Join("\n", coupledModelNames);
+
+            MessageBox.Show(
+                $"🔗 הדגם '{model.Manufacturer?.ManufacturerShortName} {model.ModelName}' ({yearRangeDisplay})\n" +
+                $"מצומד עם {activeCouplings.Count} דגמים:\n\n" +
+                $"{coupledModelsText}\n\n" +
+                "החלקים הממופים לדגמים אלו משותפים לכולם.\n" +
+                "לניהול הצימודים, עבור לכרטיסייה 'ניהול צימודים'.",
+                "מידע על צימוד",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"שגיאה בטעינת מידע צימוד: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Check if a model has active couplings (for UI binding)
+    /// </summary>
+    public async Task<bool> HasCouplingsAsync(int consolidatedModelId)
+    {
+        try
+        {
+            var couplings = await _dataService.GetModelCouplingsAsync(consolidatedModelId);
+            return couplings.Any(c => c.IsActive);
+        }
+        catch
+        {
+            return false;
         }
     }
 }

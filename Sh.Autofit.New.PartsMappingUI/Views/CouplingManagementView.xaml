@@ -100,6 +100,19 @@
                                                     <Run Text="{Binding EngineVolume}"/>
                                                     <Run Text=" סמ&quot;ק"/>
                                                 </TextBlock>
+                                                <TextBlock Foreground="#888" FontSize="9">
+                                                    <Run Text="{Binding CommercialName}"/>
+                                                </TextBlock>
+                                                <TextBlock Foreground="#666" FontSize="9" Margin="0,2,0,0">
+                                                    <Run Text="תיבה: "/>
+                                                    <Run Text="{Binding TransmissionType}" FontWeight="SemiBold"/>
+                                                    <Run Text=" | "/>
+                                                    <Run Text="דלק: "/>
+                                                    <Run Text="{Binding FuelTypeName}" FontWeight="SemiBold"/>
+                                                    <Run Text=" | "/>
+                                                    <Run Text="רמת גימור: "/>
+                                                    <Run Text="{Binding TrimLevel}" FontWeight="SemiBold"/>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -165,9 +178,10 @@
                                   GridLinesVisibility="Horizontal"
                                   AlternatingRowBackground="#F9F9F9">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="יצרן" Binding="{Binding CoupledModel.Manufacturer.ManufacturerShortName}" Width="100"/>
-                                <DataGridTextColumn Header="דגם" Binding="{Binding CoupledModel.ModelName}" Width="*"/>
-                                <DataGridTextColumn Header="שנים" Width="80">
+                                <DataGridTextColumn Header="יצרן" Binding="{Binding CoupledModel.Manufacturer.ManufacturerShortName}" Width="80"/>
+                                <DataGridTextColumn Header="דגם" Binding="{Binding CoupledModel.ModelName}" Width="120"/>
+                                <DataGridTextColumn Header="שם מסחרי" Binding="{Binding CoupledModel.CommercialName}" Width="100"/>
+                                <DataGridTextColumn Header="שנים" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <MultiBinding StringFormat="{}{0}-{1}">
                                             <Binding Path="CoupledModel.YearFrom"/>
@@ -175,36 +189,68 @@
                                         </MultiBinding>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="נפח מנוע" Binding="{Binding CoupledModel.EngineVolume}" Width="80"/>
-                                <DataGridTextColumn Header="סוג צימוד" Binding="{Binding CouplingType}" Width="100"/>
-                                <DataGridTemplateColumn Header="פעולות" Width="80">
+                                <DataGridTextColumn Header="נפח" Binding="{Binding CoupledModel.EngineVolume}" Width="60"/>
+                                <DataGridTextColumn Header="תיבה" Binding="{Binding CoupledModel.TransmissionType}" Width="80"/>
+                                <DataGridTextColumn Header="דלק" Binding="{Binding CoupledModel.FuelTypeName}" Width="70"/>
+                                <DataGridTextColumn Header="גימור" Binding="{Binding CoupledModel.TrimLevel}" Width="90"/>
+                                <DataGridTextColumn Header="סוג צימוד" Binding="{Binding CouplingType}" Width="90"/>
+                                <DataGridTemplateColumn Header="פעולות" Width="150">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Button Content="🗑️"
-                                                    Command="{Binding DataContext.RemoveModelCouplingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}"
-                                                    Background="#F44336"
-                                                    Foreground="White"
-                                                    BorderThickness="0"
-                                                    Padding="8,4"
-                                                    Cursor="Hand"
-                                                    ToolTip="בטל צימוד">
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="Button">
-                                                                    <Border Background="{TemplateBinding Background}"
-                                                                            CornerRadius="3"
-                                                                            Padding="{TemplateBinding Padding}">
-                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                                    </Border>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Button Content="⚡ שבור"
+                                                        Command="{Binding DataContext.BreakModelCouplingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Background="#FF9800"
+                                                        Foreground="White"
+                                                        BorderThickness="0"
+                                                        Padding="8,4"
+                                                        Margin="0,0,5,0"
+                                                        Cursor="Hand"
+                                                        ToolTip="שבור צימוד - הדגם ירש את כל המיפויים והצימוד יבוטל">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                CornerRadius="3"
+                                                                                Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+
+                                                <Button Content="🗑️"
+                                                        Command="{Binding DataContext.RemoveModelCouplingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Background="#F44336"
+                                                        Foreground="White"
+                                                        BorderThickness="0"
+                                                        Padding="8,4"
+                                                        Cursor="Hand"
+                                                        ToolTip="בטל צימוד - ללא העתקת מיפויים">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                CornerRadius="3"
+                                                                                Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -415,6 +461,318 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- Recommended Couplings Tab -->
+            <TabItem Header="💡 המלצות צימוד">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,15">
+                        <TextBlock Text="המלצות צימוד דגמים" FontSize="20" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock Text="המלצות אוטומטיות על בסיס דגמים דומים (שם דגם, שנים, נפח מנוע, תיבת הילוכים)"
+                                   FontSize="12" Foreground="#666"/>
+                    </StackPanel>
+
+                    <!-- Actions Bar -->
+                    <Border Grid.Row="1" Background="#F5F5F5" CornerRadius="8" Padding="15" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Manufacturer Filter -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="סנן לפי יצרן:"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,10,0"
+                                           FontWeight="SemiBold"/>
+                                <ComboBox ItemsSource="{Binding AvailableManufacturersForRecommendations}"
+                                          SelectedItem="{Binding SelectedRecommendationManufacturer}"
+                                          MinWidth="200"
+                                          Padding="8,5"/>
+                            </StackPanel>
+
+                            <!-- Action Buttons -->
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                    <Button Content="🔄 רענן המלצות"
+                                            Command="{Binding RefreshRecommendationsCommand}"
+                                            Background="#2196F3"
+                                            Foreground="White"
+                                            Padding="15,8"
+                                            Margin="0,0,10,0"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            FontWeight="SemiBold">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                    CornerRadius="5"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                    <!-- Cancel Button -->
+                                    <Button Content="🛑 בטל"
+                                            Command="{Binding CancelRecommendationsCommand}"
+                                            Background="#FF9800"
+                                            Foreground="White"
+                                            Padding="15,8"
+                                            Margin="0,0,10,0"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            FontWeight="SemiBold">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                    CornerRadius="5"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsGeneratingRecommendations}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                <Button Content="✅ אשר הכל"
+                                        Command="{Binding ApproveAllRecommendationsCommand}"
+                                        Background="#4CAF50"
+                                        Foreground="White"
+                                        Padding="15,8"
+                                        Margin="0,0,10,0"
+                                        BorderThickness="0"
+                                        Cursor="Hand"
+                                        FontWeight="SemiBold">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                CornerRadius="5"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+
+                                <Button Content="❌ דחה הכל"
+                                        Command="{Binding RejectAllRecommendationsCommand}"
+                                        Background="#F44336"
+                                        Foreground="White"
+                                        Padding="15,8"
+                                        BorderThickness="0"
+                                        Cursor="Hand"
+                                        FontWeight="SemiBold">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                CornerRadius="5"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           Foreground="#666">
+                                    <Run Text="סה&quot;כ המלצות: "/>
+                                    <Run Text="{Binding RecommendationsCount, Mode=OneWay}" FontWeight="Bold"/>
+                                </TextBlock>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Recommendations DataGrid -->
+                    <DataGrid Grid.Row="2"
+                              ItemsSource="{Binding CouplingRecommendations}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              SelectionMode="Single"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F9F9F9"
+                              RowHeight="35">
+                        <DataGrid.Columns>
+                            <!-- Selection Checkbox -->
+                            <DataGridTemplateColumn Header="בחר" Width="50">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Model A -->
+                            <DataGridTextColumn Header="יצרן א'" Binding="{Binding ModelA.Manufacturer.ManufacturerShortName}" Width="80"/>
+                            <DataGridTextColumn Header="דגם א'" Binding="{Binding ModelA.ModelName}" Width="120"/>
+                            <DataGridTextColumn Header="שנים א'" Width="80">
+                                <DataGridTextColumn.Binding>
+                                    <MultiBinding StringFormat="{}{0}-{1}">
+                                        <Binding Path="ModelA.YearFrom"/>
+                                        <Binding Path="ModelA.YearTo"/>
+                                    </MultiBinding>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="נפח א'" Binding="{Binding ModelA.EngineVolume}" Width="60"/>
+                            <DataGridTextColumn Header="תיבה א'" Binding="{Binding ModelA.TransmissionType}" Width="70"/>
+                            <DataGridTextColumn Header="גימור א'" Binding="{Binding ModelA.TrimLevel}" Width="80"/>
+
+                            <!-- Separator -->
+                            <DataGridTextColumn Header="↔️" Width="30"/>
+
+                            <!-- Model B -->
+                            <DataGridTextColumn Header="יצרן ב'" Binding="{Binding ModelB.Manufacturer.ManufacturerShortName}" Width="80"/>
+                            <DataGridTextColumn Header="דגם ב'" Binding="{Binding ModelB.ModelName}" Width="120"/>
+                            <DataGridTextColumn Header="שנים ב'" Width="80">
+                                <DataGridTextColumn.Binding>
+                                    <MultiBinding StringFormat="{}{0}-{1}">
+                                        <Binding Path="ModelB.YearFrom"/>
+                                        <Binding Path="ModelB.YearTo"/>
+                                    </MultiBinding>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="נפח ב'" Binding="{Binding ModelB.EngineVolume}" Width="60"/>
+                            <DataGridTextColumn Header="תיבה ב'" Binding="{Binding ModelB.TransmissionType}" Width="70"/>
+                            <DataGridTextColumn Header="גימור ב'" Binding="{Binding ModelB.TrimLevel}" Width="80"/>
+
+                            <!-- Match Score -->
+                            <DataGridTextColumn Header="דירוג התאמה" Binding="{Binding MatchScore}" Width="80"/>
+                            <DataGridTextColumn Header="סיבה" Binding="{Binding MatchReason}" Width="*"/>
+
+                            <!-- Actions -->
+                            <DataGridTemplateColumn Header="פעולות" Width="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Content="✅ אשר"
+                                                    Command="{Binding DataContext.ApproveRecommendationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Background="#4CAF50"
+                                                    Foreground="White"
+                                                    Padding="8,4"
+                                                    Margin="0,0,5,0"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    FontSize="11">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border Background="{TemplateBinding Background}"
+                                                                            CornerRadius="3"
+                                                                            Padding="{TemplateBinding Padding}">
+                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                            <Button Content="❌ דחה"
+                                                    Command="{Binding DataContext.RejectRecommendationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Background="#F44336"
+                                                    Foreground="White"
+                                                    Padding="8,4"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    FontSize="11">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border Background="{TemplateBinding Background}"
+                                                                            CornerRadius="3"
+                                                                            Padding="{TemplateBinding Padding}">
+                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Empty State -->
+                    <Border Grid.Row="2"
+                            Background="#F5F5F5"
+                            CornerRadius="8"
+                            Padding="20"
+                            Visibility="{Binding NoRecommendations, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="💡" FontSize="48" HorizontalAlignment="Center"/>
+                            <TextBlock Text="אין המלצות צימוד זמינות"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,10,0,5"/>
+                            <TextBlock Text="לחץ על 'רענן המלצות' כדי לקבל המלצות אוטומטיות"
+                                       FontSize="12"
+                                       Foreground="#666"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>

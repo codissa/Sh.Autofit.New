@@ -61,6 +61,75 @@ public partial class PlateLookupViewModel : ObservableObject
 
     public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinNumber ?? GovernmentVehicle?.VinChassis);
 
+    // Display engine volume - use government API if available, otherwise use matched vehicle
+    public int? DisplayEngineVolume
+    {
+        get
+        {
+            // Priority 1: Government API data
+            if (GovernmentVehicle?.EngineVolume.HasValue == true && GovernmentVehicle.EngineVolume.Value > 0)
+                return GovernmentVehicle.EngineVolume.Value;
+
+            // Priority 2: Matched vehicle data
+            if (MatchedVehicle?.EngineVolume.HasValue == true && MatchedVehicle.EngineVolume.Value > 0)
+                return MatchedVehicle.EngineVolume.Value;
+
+            // Priority 3: Consolidated model data
+            if (ConsolidatedModel?.EngineVolume.HasValue == true && ConsolidatedModel.EngineVolume.Value > 0)
+                return ConsolidatedModel.EngineVolume.Value;
+
+            return null;
+        }
+    }
+
+    // Display year range from consolidated model (or manufacturing year as fallback)
+    public string DisplayYearRange
+    {
+        get
+        {
+            // Priority 1: Consolidated model year range
+            if (ConsolidatedModel != null)
+            {
+                var yearFrom = ConsolidatedModel.YearFrom;
+                var yearTo = ConsolidatedModel.YearTo;
+
+                if (yearTo.HasValue)
+                {
+                    if (yearFrom == yearTo.Value)
+                        return $"{yearFrom}"; // Single year
+                    else
+                        return $"{yearFrom}-{yearTo}"; // Range
+                }
+                else
+                {
+                    return $"{yearFrom}+"; // Open-ended range
+                }
+            }
+
+            // Priority 2: Government vehicle manufacturing year
+            if (GovernmentVehicle?.ManufacturingYear.HasValue == true)
+                return GovernmentVehicle.ManufacturingYear.Value.ToString();
+
+            // Priority 3: Matched vehicle year
+            if (MatchedVehicle?.YearFrom > 0)
+            {
+                if (MatchedVehicle.YearTo.HasValue && MatchedVehicle.YearTo.Value > 0)
+                {
+                    if (MatchedVehicle.YearFrom == MatchedVehicle.YearTo.Value)
+                        return $"{MatchedVehicle.YearFrom}";
+                    else
+                        return $"{MatchedVehicle.YearFrom}-{MatchedVehicle.YearTo}";
+                }
+                else
+                {
+                    return $"{MatchedVehicle.YearFrom}+";
+                }
+            }
+
+            return "לא ידוע";
+        }
+    }
+
     private string CleanVin(string? vin)
     {
         if (string.IsNullOrWhiteSpace(vin))
@@ -123,6 +192,9 @@ public partial class PlateLookupViewModel : ObservableObject
 
                     if (MatchedVehicle != null)
                     {
+                        // Get consolidated model for this vehicle
+                        ConsolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(cachedRegistration.VehicleTypeId.Value);
+
                         // Reconstruct GovernmentVehicle from cached data for display
                         GovernmentVehicle = new GovernmentVehicleRecord
                         {
@@ -136,12 +208,27 @@ public partial class PlateLookupViewModel : ObservableObject
                             VinNumber = cachedRegistration.Vin
                         };
                         OnPropertyChanged(nameof(CleanVinNumber));
+                        OnPropertyChanged(nameof(DisplayEngineVolume));
+                        OnPropertyChanged(nameof(DisplayYearRange));
 
-                        // Load mapped parts
+                        // Load mapped parts using consolidated model approach
                         StatusMessage = "טוען חלקים ממופים...";
-                        var cachedParts = await _dataService.LoadMappedPartsByModelNameAsync(
-                            cachedRegistration.GovManufacturerName ?? "",
-                            cachedRegistration.GovModelName ?? "");
+                        List<PartDisplayModel> cachedParts;
+
+                        if (ConsolidatedModel != null)
+                        {
+                            // Load from consolidated model (includes couplings)
+                            cachedParts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                                ConsolidatedModel.ConsolidatedModelId,
+                                includeCouplings: true);
+                        }
+                        else
+                        {
+                            // Fallback to legacy approach by model name
+                            cachedParts = await _dataService.LoadMappedPartsByModelNameAsync(
+                                cachedRegistration.GovManufacturerName ?? "",
+                                cachedRegistration.GovModelName ?? "");
+                        }
 
                         MappedParts.Clear();
                         foreach (var part in cachedParts)
@@ -223,6 +310,8 @@ public partial class PlateLookupViewModel : ObservableObject
 
             GovernmentVehicle = govVehicle;
             OnPropertyChanged(nameof(CleanVinNumber));
+            OnPropertyChanged(nameof(DisplayEngineVolume));
+            OnPropertyChanged(nameof(DisplayYearRange));
 
             // Check special vehicle statuses (in parallel)
             var offRoadTask = _governmentApiService.IsVehicleOffRoadAsync(PlateNumber);
@@ -283,11 +372,15 @@ public partial class PlateLookupViewModel : ObservableObject
             }
 
             MatchedVehicle = matchedVehicle;
+            OnPropertyChanged(nameof(DisplayEngineVolume));
+            OnPropertyChanged(nameof(DisplayYearRange));
 
             // Step 2.8: Get consolidated model for this vehicle (NEW WAY)
             if (matchedVehicleTypeId.HasValue)
             {
                 ConsolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(matchedVehicleTypeId.Value);
+                OnPropertyChanged(nameof(DisplayEngineVolume));
+                OnPropertyChanged(nameof(DisplayYearRange));
             }
 
             // Step 2.9: Cache the lookup result (Task 5)
@@ -371,14 +464,9 @@ public partial class PlateLookupViewModel : ObservableObject
 
             if (result == true)
             {
-                // Refresh mapped parts list
+                // Refresh mapped parts list using consolidated model approach
                 StatusMessage = "מעדכן רשימת חלקים...";
-                var parts = await _dataService.LoadMappedPartsAsync(MatchedVehicle.VehicleTypeId);
-                MappedParts.Clear();
-                foreach (var part in parts)
-                {
-                    MappedParts.Add(part);
-                }
+                await ReloadMappedPartsAsync();
 
                 // Reload suggestions
                 await ReloadSuggestionsAsync();
@@ -459,14 +547,14 @@ public partial class PlateLookupViewModel : ObservableObject
             {
                 // User selected a different match
                 MatchedVehicle = dialog.SelectedVehicle;
+
+                // Reset ConsolidatedModel so it gets reloaded for the new vehicle
+                ConsolidatedModel = null;
+
                 StatusMessage = "טוען חלקים ממופים...";
 
-                var parts = await _dataService.LoadMappedPartsAsync(MatchedVehicle.VehicleTypeId);
-                MappedParts.Clear();
-                foreach (var part in parts)
-                {
-                    MappedParts.Add(part);
-                }
+                // Load parts using consolidated model approach
+                await ReloadMappedPartsAsync();
 
                 StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים לרכב זה";
             }
@@ -489,24 +577,114 @@ public partial class PlateLookupViewModel : ObservableObject
         if (part == null || MatchedVehicle == null)
             return;
 
+        // Check if this part comes from a coupled model/part
+        if (part.MappingType == "CoupledModel")
+        {
+            MessageBox.Show(
+                $"החלק '{part.PartName}' ממופה דרך דגם מצומד.\n\n" +
+                "לא ניתן להסיר את המיפוי מכאן.\n" +
+                "יש להיכנס לניהול צימודים ולהסיר את הצימוד בין הדגמים, או להסיר את המיפוי מהדגם המצומד עצמו.",
+                "לא ניתן להסיר מיפוי",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (part.MappingType == "CoupledPart")
+        {
+            MessageBox.Show(
+                $"החלק '{part.PartName}' ממופה דרך צימוד חלקים.\n\n" +
+                "לא ניתן להסיר את המיפוי מכאן.\n" +
+                "יש להיכנס לניהול צימודים ולהסיר את הצימוד בין החלקים.",
+                "לא ניתן להסיר מיפוי",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
         try
         {
             IsLoading = true;
 
-            // NEW WAY: Use consolidated model if available
+            // NEW WAY: Use consolidated model if available (only for Direct mappings)
             if (ConsolidatedModel != null)
             {
-                StatusMessage = "מסיר מיפוי מהדגם המאוחד...";
+                // Check if this model has active couplings
+                var couplings = await _dataService.GetModelCouplingsAsync(ConsolidatedModel.ConsolidatedModelId);
+                var activeCouplings = couplings.Where(c => c.IsActive).ToList();
 
-                await _dataService.UnmapPartsFromConsolidatedModelAsync(
-                    ConsolidatedModel.ConsolidatedModelId,
-                    new List<string> { part.PartNumber },
-                    "current_user");
+                if (activeCouplings.Any())
+                {
+                    // Get coupled model names for display
+                    var coupledModelNames = new List<string>();
+                    foreach (var coupling in activeCouplings)
+                    {
+                        var otherModelId = coupling.ConsolidatedModelId_A == ConsolidatedModel.ConsolidatedModelId
+                            ? coupling.ConsolidatedModelId_B
+                            : coupling.ConsolidatedModelId_A;
 
-                var yearRange = ConsolidatedModel.YearTo.HasValue
-                    ? $"{ConsolidatedModel.YearFrom}-{ConsolidatedModel.YearTo}"
-                    : $"{ConsolidatedModel.YearFrom}+";
-                StatusMessage = $"המיפוי של '{part.PartName}' הוסר מהדגם המאוחד ({yearRange})";
+                        var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                        if (otherModel != null)
+                        {
+                            coupledModelNames.Add($"{otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName}");
+                        }
+                    }
+
+                    var coupledModelsText = string.Join(", ", coupledModelNames);
+
+                    var confirmResult = MessageBox.Show(
+                        $"הדגם '{ConsolidatedModel.Manufacturer?.ManufacturerShortName} {ConsolidatedModel.ModelName}' מצומד עם:\n{coupledModelsText}\n\n" +
+                        $"האם להסיר את החלק '{part.PartName}' מדגם זה ומכל הדגמים המצומדים אליו?\n\n" +
+                        "לחץ 'כן' להסרה מכולם, 'לא' לביטול.\n\n" +
+                        "💡 טיפ: אם ברצונך להסיר את הצימוד ולנהל כל דגם בנפרד, השתמש בכפתור 'שבור צימוד' בניהול צימודים.",
+                        "אישור הסרת מיפוי מדגמים מצומדים",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning
+                    );
+
+                    if (confirmResult != MessageBoxResult.Yes)
+                    {
+                        IsLoading = false;
+                        return;
+                    }
+
+                    // Unmap from this model AND all coupled models
+                    StatusMessage = "מסיר מיפוי מהדגם ומכל הדגמים המצומדים...";
+
+                    var modelsToUnmapFrom = new List<int> { ConsolidatedModel.ConsolidatedModelId };
+                    foreach (var coupling in activeCouplings)
+                    {
+                        var otherModelId = coupling.ConsolidatedModelId_A == ConsolidatedModel.ConsolidatedModelId
+                            ? coupling.ConsolidatedModelId_B
+                            : coupling.ConsolidatedModelId_A;
+                        modelsToUnmapFrom.Add(otherModelId);
+                    }
+
+                    foreach (var modelId in modelsToUnmapFrom)
+                    {
+                        await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                            modelId,
+                            new List<string> { part.PartNumber },
+                            "current_user");
+                    }
+
+                    StatusMessage = $"המיפוי של '{part.PartName}' הוסר מ-{modelsToUnmapFrom.Count} דגמים מצומדים";
+                }
+                else
+                {
+                    // No couplings - simple unmap
+                    StatusMessage = "מסיר מיפוי מהדגם המאוחד...";
+
+                    await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                        ConsolidatedModel.ConsolidatedModelId,
+                        new List<string> { part.PartNumber },
+                        "current_user");
+
+                    var yearRange = ConsolidatedModel.YearTo.HasValue
+                        ? $"{ConsolidatedModel.YearFrom}-{ConsolidatedModel.YearTo}"
+                        : $"{ConsolidatedModel.YearFrom}+";
+                    StatusMessage = $"המיפוי של '{part.PartName}' הוסר מהדגם המאוחד ({yearRange})";
+                }
             }
             else
             {
@@ -584,6 +762,64 @@ public partial class PlateLookupViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Reloads mapped parts using the consolidated model approach with coupling support
+    /// </summary>
+    private async Task ReloadMappedPartsAsync()
+    {
+        if (MatchedVehicle == null) return;
+
+        try
+        {
+            List<PartDisplayModel> parts;
+
+            if (ConsolidatedModel != null)
+            {
+                // Load from consolidated model (includes couplings)
+                parts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                    ConsolidatedModel.ConsolidatedModelId,
+                    includeCouplings: true);
+            }
+            else
+            {
+                // Need to find the consolidated model for this vehicle
+                await using var context = await _contextFactory.CreateDbContextAsync();
+                var vehicleType = await context.VehicleTypes
+                    .Include(vt => vt.ConsolidatedModel)
+                    .FirstOrDefaultAsync(vt => vt.VehicleTypeId == MatchedVehicle.VehicleTypeId);
+
+                if (vehicleType?.ConsolidatedModel != null)
+                {
+                    ConsolidatedModel = vehicleType.ConsolidatedModel;
+                    parts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                        ConsolidatedModel.ConsolidatedModelId,
+                        includeCouplings: true);
+                }
+                else
+                {
+                    // Fallback to legacy approach
+                    parts = await _dataService.LoadMappedPartsAsync(MatchedVehicle.VehicleTypeId);
+                }
+            }
+
+            MappedParts.Clear();
+            foreach (var part in parts)
+            {
+                MappedParts.Add(part);
+            }
+        }
+        catch
+        {
+            // Fallback to legacy approach if consolidated model fails
+            var parts = await _dataService.LoadMappedPartsAsync(MatchedVehicle.VehicleTypeId);
+            MappedParts.Clear();
+            foreach (var part in parts)
+            {
+                MappedParts.Add(part);
+            }
         }
     }
 
@@ -718,6 +954,67 @@ public partial class PlateLookupViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowCouplingInfoAsync(ConsolidatedVehicleModel? model)
+    {
+        if (model == null) return;
+
+        try
+        {
+            // Get couplings for this model
+            var couplings = await _dataService.GetModelCouplingsAsync(model.ConsolidatedModelId);
+            var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+            if (!activeCouplings.Any())
+            {
+                MessageBox.Show(
+                    $"הדגם '{model.Manufacturer?.ManufacturerShortName} {model.ModelName}' לא מצומד לדגמים אחרים.",
+                    "מידע על צימוד",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // Get coupled model names
+            var coupledModelNames = new List<string>();
+            foreach (var coupling in activeCouplings)
+            {
+                var otherModelId = coupling.ConsolidatedModelId_A == model.ConsolidatedModelId
+                    ? coupling.ConsolidatedModelId_B
+                    : coupling.ConsolidatedModelId_A;
+
+                var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                if (otherModel != null)
+                {
+                    var yearRange = otherModel.YearTo.HasValue
+                        ? $"{otherModel.YearFrom}-{otherModel.YearTo}"
+                        : $"{otherModel.YearFrom}+";
+                    coupledModelNames.Add($"• {otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName} ({yearRange})");
+                }
+            }
+
+            var yearRangeDisplay = model.YearTo.HasValue
+                ? $"{model.YearFrom}-{model.YearTo}"
+                : $"{model.YearFrom}+";
+
+            var coupledModelsText = string.Join("\n", coupledModelNames);
+
+            MessageBox.Show(
+                $"🔗 הדגם '{model.Manufacturer?.ManufacturerShortName} {model.ModelName}' ({yearRangeDisplay})\n" +
+                $"מצומד עם {activeCouplings.Count} דגמים:\n\n" +
+                $"{coupledModelsText}\n\n" +
+                "החלקים הממופים לדגמים אלו משותפים לכולם.\n" +
+                "לניהול הצימודים, עבור לכרטיסייה 'ניהול צימודים'.",
+                "מידע על צימוד",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"שגיאה בטעינת מידע צימוד: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

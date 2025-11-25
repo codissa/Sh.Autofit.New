@@ -317,9 +317,40 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         string message;
         if (consolidatedModel != null)
         {
-            message = $"האם להסיר את '{SelectedPart.PartName}' מהמודל המאוחד '{consolidatedModel.ModelName}'?\n\n" +
-                     $"שנים: {consolidatedModel.YearFrom}-{consolidatedModel.YearTo}\n\n" +
-                     "פעולה זו תסיר את החלק מכל השנים במודל המאוחד.";
+            // Check if this model has active couplings
+            var couplings = await _dataService.GetModelCouplingsAsync(consolidatedModel.ConsolidatedModelId);
+            var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+            if (activeCouplings.Any())
+            {
+                // Get coupled model names for display
+                var coupledModelNames = new List<string>();
+                foreach (var coupling in activeCouplings)
+                {
+                    var otherModelId = coupling.ConsolidatedModelId_A == consolidatedModel.ConsolidatedModelId
+                        ? coupling.ConsolidatedModelId_B
+                        : coupling.ConsolidatedModelId_A;
+
+                    var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                    if (otherModel != null)
+                    {
+                        coupledModelNames.Add($"{otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName}");
+                    }
+                }
+
+                var coupledModelsText = string.Join(", ", coupledModelNames);
+
+                message = $"הדגם '{consolidatedModel.Manufacturer?.ManufacturerShortName} {consolidatedModel.ModelName}' מצומד עם:\n{coupledModelsText}\n\n" +
+                         $"האם להסיר את החלק '{SelectedPart.PartName}' מדגם זה ומכל הדגמים המצומדים אליו?\n\n" +
+                         "לחץ 'כן' להסרה מכולם, 'לא' לביטול.\n\n" +
+                         "💡 טיפ: אם ברצונך להסיר את הצימוד ולנהל כל דגם בנפרד, השתמש בכפתור 'שבור צימוד' בניהול צימודים.";
+            }
+            else
+            {
+                message = $"האם להסיר את '{SelectedPart.PartName}' מהמודל המאוחד '{consolidatedModel.ModelName}'?\n\n" +
+                         $"שנים: {consolidatedModel.YearFrom}-{consolidatedModel.YearTo}\n\n" +
+                         "פעולה זו תסיר את החלק מכל השנים במודל המאוחד.";
+            }
         }
         else
         {
@@ -331,7 +362,9 @@ public partial class PartMappingsManagementViewModel : ObservableObject
             message,
             "אישור הסרת מיפוי",
             MessageBoxButton.YesNo,
-            MessageBoxImage.Question
+            consolidatedModel != null && (await _dataService.GetModelCouplingsAsync(consolidatedModel.ConsolidatedModelId)).Any(c => c.IsActive)
+                ? MessageBoxImage.Warning
+                : MessageBoxImage.Question
         );
 
         if (result != MessageBoxResult.Yes)
@@ -343,14 +376,45 @@ public partial class PartMappingsManagementViewModel : ObservableObject
 
             if (consolidatedModel != null)
             {
-                // NEW WAY: Unmap from consolidated model
-                StatusMessage = "מסיר מיפוי ממודל מאוחד...";
-                await _dataService.UnmapPartsFromConsolidatedModelAsync(
-                    consolidatedModel.ConsolidatedModelId,
-                    new List<string> { SelectedPart.PartNumber },
-                    "current_user"
-                );
-                StatusMessage = $"המיפוי הוסר ממודל מאוחד {consolidatedModel.ModelName}";
+                // Check for couplings again
+                var couplings = await _dataService.GetModelCouplingsAsync(consolidatedModel.ConsolidatedModelId);
+                var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+                if (activeCouplings.Any())
+                {
+                    // Unmap from this model AND all coupled models
+                    StatusMessage = "מסיר מיפוי מהדגם ומכל הדגמים המצומדים...";
+
+                    var modelsToUnmapFrom = new List<int> { consolidatedModel.ConsolidatedModelId };
+                    foreach (var coupling in activeCouplings)
+                    {
+                        var otherModelId = coupling.ConsolidatedModelId_A == consolidatedModel.ConsolidatedModelId
+                            ? coupling.ConsolidatedModelId_B
+                            : coupling.ConsolidatedModelId_A;
+                        modelsToUnmapFrom.Add(otherModelId);
+                    }
+
+                    foreach (var modelId in modelsToUnmapFrom)
+                    {
+                        await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                            modelId,
+                            new List<string> { SelectedPart.PartNumber },
+                            "current_user");
+                    }
+
+                    StatusMessage = $"המיפוי הוסר מ-{modelsToUnmapFrom.Count} דגמים מצומדים";
+                }
+                else
+                {
+                    // NEW WAY: Unmap from consolidated model (no couplings)
+                    StatusMessage = "מסיר מיפוי ממודל מאוחד...";
+                    await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                        consolidatedModel.ConsolidatedModelId,
+                        new List<string> { SelectedPart.PartNumber },
+                        "current_user"
+                    );
+                    StatusMessage = $"המיפוי הוסר ממודל מאוחד {consolidatedModel.ModelName}";
+                }
             }
             else
             {
