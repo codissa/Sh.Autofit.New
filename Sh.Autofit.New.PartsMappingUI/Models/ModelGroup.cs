@@ -19,6 +19,7 @@ public partial class ModelGroup : ObservableObject
 
     public string ModelName { get; set; } = string.Empty;
     public string ManufacturerShortName { get; set; } = string.Empty;
+    public int ManufacturerCode { get; set; }
     public string CommercialName { get; set; } = string.Empty;
     public int VehicleCount { get; set; }
     public int? YearFrom { get; set; }

@@ -48,7 +48,7 @@ public class DataService : IDataService
         return vehicles;
     }
 
-    public async Task<List<(string ManufacturerShortName, string ManufacturerName, string CommercialName, int Count)>> LoadVehicleGroupSummaryAsync()
+    public async Task<List<(string ManufacturerShortName, string ManufacturerName, int ManufacturerCode, string CommercialName, int Count)>> LoadVehicleGroupSummaryAsync()
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
@@ -60,18 +60,20 @@ public class DataService : IDataService
             {
                 ManufacturerShortName = v.Manufacturer.ManufacturerShortName ?? v.Manufacturer.ManufacturerName,
                 ManufacturerName = v.Manufacturer.ManufacturerName,
+                ManufacturerCode = v.Manufacturer.ManufacturerCode,
                 CommercialName = v.CommercialName ?? string.Empty
             })
             .Select(g => new
             {
                 g.Key.ManufacturerShortName,
                 g.Key.ManufacturerName,
+                g.Key.ManufacturerCode,
                 g.Key.CommercialName,
                 Count = g.Count()
             })
             .ToListAsync();
 
-        return summary.Select(s => (s.ManufacturerShortName, s.ManufacturerName, s.CommercialName, s.Count)).ToList();
+        return summary.Select(s => (s.ManufacturerShortName, s.ManufacturerName, s.ManufacturerCode, s.CommercialName, s.Count)).ToList();
     }
 
     public async Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName)
@@ -130,18 +132,17 @@ public class DataService : IDataService
         return result;
     }
 
-    public async Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(string manufacturerShortName, string commercialName, string modelName, int? engineVolume = null, int? modelCode = null)
+    public async Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(int manufacturerCode, string commercialName, string modelName, int? engineVolume = null, int? modelCode = null)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
         string modelCodeString ="";
         if (modelCode != null)    modelCodeString = modelCode.Value.ToString("D4");
-        // Build query with optional engine volume filter
+        // Build query with optional engine volume filter using manufacturer code
         var query = context.VehicleTypes
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive &&
-                       (v.Manufacturer.ManufacturerShortName == manufacturerShortName ||
-                        ( v.Manufacturer.ManufacturerName == manufacturerShortName))  &&
+                       v.Manufacturer.ManufacturerCode == manufacturerCode &&
                        v.ModelName == modelName && v.ModelCode == modelCodeString) ;
 
         // Add engine volume filter if specified
@@ -870,24 +871,21 @@ public class DataService : IDataService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // First, find or create the manufacturer (case-insensitive search with trim)
+        // First, find or create the manufacturer by manufacturer code
+        var manufacturerCode = govRecord.ManufacturerCode ?? 0;
         var manufacturerName = (govRecord.ManufacturerName ?? "Unknown").Trim();
+
         var manufacturer = await context.Manufacturers
-            .FirstOrDefaultAsync(m => m.ManufacturerName.ToLower().Trim() == manufacturerName.ToLower());
+            .FirstOrDefaultAsync(m => m.ManufacturerCode == manufacturerCode);
 
         if (manufacturer == null)
         {
             try
             {
-                // Get the next available manufacturer code
-                var maxCode = await context.Manufacturers
-                    .AsNoTracking()
-                    .MaxAsync(m => (int?)m.ManufacturerCode) ?? 0;
-
-                // Create new manufacturer
+                // Create new manufacturer with the code from government API
                 manufacturer = new Manufacturer
                 {
-                    ManufacturerCode = maxCode + 1,
+                    ManufacturerCode = manufacturerCode,
                     ManufacturerName = manufacturerName,
                     ManufacturerShortName = manufacturerName,
                     CountryOfOrigin = "Unknown",
@@ -903,7 +901,7 @@ public class DataService : IDataService
                 // Race condition: another request created the same manufacturer
                 // Reload the manufacturer from the database
                 manufacturer = await context.Manufacturers
-                    .FirstOrDefaultAsync(m => m.ManufacturerName.ToLower().Trim() == manufacturerName.ToLower());
+                    .FirstOrDefaultAsync(m => m.ManufacturerCode == manufacturerCode);
 
                 if (manufacturer == null)
                 {

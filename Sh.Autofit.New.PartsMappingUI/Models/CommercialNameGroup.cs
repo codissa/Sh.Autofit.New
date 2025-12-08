@@ -19,6 +19,7 @@ public partial class CommercialNameGroup : ObservableObject
 
     public string CommercialName { get; set; } = string.Empty;
     public string ManufacturerShortName { get; set; } = string.Empty;
+    public int ManufacturerCode { get; set; }
     public int VehicleCount { get; set; }
 
     public ObservableCollection<ModelGroup> ModelGroups { get; set; } = new();

@@ -31,13 +31,10 @@ public class VehicleMatchingService : IVehicleMatchingService
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive);
 
-        // Step 1: Filter by manufacturer name (broad filter in DB)
-        if (!string.IsNullOrWhiteSpace(govRecord.ManufacturerName))
+        // Step 1: Filter by manufacturer code (exact match in DB)
+        if (govRecord.ManufacturerCode.HasValue && govRecord.ManufacturerCode.Value > 0)
         {
-            var govManufacturerName = govRecord.ManufacturerName.Trim();
-            query = query.Where(v =>
-                v.Manufacturer.ManufacturerName == govManufacturerName ||
-                v.Manufacturer.ManufacturerShortName == govManufacturerName);
+            query = query.Where(v => v.Manufacturer.ManufacturerCode == govRecord.ManufacturerCode.Value);
         }
         else
         {

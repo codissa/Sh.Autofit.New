@@ -184,7 +184,7 @@ public partial class PlateLookupViewModel : ObservableObject
                 {
                     // Load the matched vehicle from our database
                     var vehicles = await _dataService.LoadVehiclesByModelAsync(
-                        cachedRegistration.VehicleType?.Manufacturer?.ManufacturerShortName ?? "",
+                        cachedRegistration.VehicleType?.Manufacturer?.ManufacturerCode ?? 0,
                         cachedRegistration.VehicleType?.CommercialName ?? "",
                         cachedRegistration.VehicleType?.ModelName ?? "");
 
@@ -326,12 +326,12 @@ public partial class PlateLookupViewModel : ObservableObject
             apiResource = "Primary"; // You can enhance GovernmentApiService to return which resource was used
 
             // Step 2: Find matching vehicle in our database - use EXACT matching
-            // First, load all potential matches by model name
+            // First, load all potential matches by manufacturer code and model name
             var potentialMatches = await _dataService.LoadVehiclesByModelAsync(
-                govVehicle.ManufacturerName ?? "",
+                govVehicle.ManufacturerCode ?? 0,
                 govVehicle.CommercialName ?? "",
                 govVehicle.ModelName ?? "",
-                govVehicle.EngineVolume, 
+                govVehicle.EngineVolume,
                 govVehicle.ModelCode);
 
             // Then filter to exact matches based on engine volume, fuel type, trim level, etc.

@@ -115,12 +115,14 @@ public partial class MappingViewModel : ObservableObject
                 {
                     ManufacturerShortName = mg.Key,
                     ManufacturerName = mg.First().ManufacturerName, // Use the first manufacturer name for display
+                    ManufacturerCode = mg.First().ManufacturerCode, // Use the manufacturer code
                     CommercialNameGroups = new ObservableCollection<CommercialNameGroup>(
                         mg.Select(g =>
                         {
                             var cng = new CommercialNameGroup
                             {
                                 ManufacturerShortName = g.ManufacturerShortName,
+                                ManufacturerCode = g.ManufacturerCode,
                                 CommercialName = g.CommercialName,
                                 VehicleCount = g.Count
                             };
@@ -237,6 +239,7 @@ public partial class MappingViewModel : ObservableObject
                 var modelGroup = new ModelGroup
                 {
                     ManufacturerShortName = group.ManufacturerShortName,
+                    ManufacturerCode = group.ManufacturerCode,
                     CommercialName = group.CommercialName ?? string.Empty,
                     ModelName = m.ModelName,
                     VehicleCount = m.Count,
@@ -288,9 +291,9 @@ public partial class MappingViewModel : ObservableObject
             group.IsLoading = true;
             StatusMessage = $"Loading vehicles for {group.ModelName}...";
 
-            // Load vehicles for this model (with optional engine volume filter)
+            // Load vehicles for this model (with optional engine volume filter using manufacturer code)
             var vehicles = await _dataService.LoadVehiclesByModelAsync(
-                group.ManufacturerShortName,
+                group.ManufacturerCode,
                 group.CommercialName,
                 group.ModelName,
                 group.EngineVolume);

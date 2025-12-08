@@ -13,6 +13,7 @@ public partial class ManufacturerGroup : ObservableObject
 
     public string ManufacturerShortName { get; set; } = string.Empty;
     public string ManufacturerName { get; set; } = string.Empty;
+    public int ManufacturerCode { get; set; }
 
     public ObservableCollection<CommercialNameGroup> CommercialNameGroups { get; set; } = new();
 
