@@ -30,6 +30,8 @@ public partial class VehicleDisplayModel : ObservableObject
     public string? TransmissionType { get; set; }
     public string? FinishLevel { get; set; }  // מרכב (sug_degem/ModelType from Gov API)
     public string? TrimLevel { get; set; }    // רמת גימור (ramat_gimur from Gov API)
+    public int? Horsepower { get; set; }      // Horsepower (koah_sus from Gov API)
+    public string? DriveType { get; set; }    // Drive type (technologiat_hanaa_nm from Gov API)
 
     [ObservableProperty]
     private int _mappedPartsCount;
@@ -98,6 +100,14 @@ public partial class VehicleDisplayModel : ObservableObject
 
     public string TrimLevelDisplay => !string.IsNullOrEmpty(TrimLevel)
         ? $"רמת גימור: {TrimLevel}"
+        : null;
+
+    public string HorsepowerDisplay => Horsepower.HasValue
+        ? $"כוח סוס: {Horsepower} כ\"ס"
+        : null;
+
+    public string DriveTypeDisplay => !string.IsNullOrEmpty(DriveType)
+        ? $"הנעה: {DriveType}"
         : null;
 
     public string PartsCountDisplay => $"חלקים ממופים: {MappedPartsCount}";

@@ -25,9 +25,9 @@ public partial class Manufacturer
 
     public DateTime? LastSyncedAt { get; set; }
 
+    public virtual ICollection<ConsolidatedVehicleModel> ConsolidatedVehicleModels { get; set; } = new List<ConsolidatedVehicleModel>();
+
     public virtual ICollection<VehicleRegistration> VehicleRegistrations { get; set; } = new List<VehicleRegistration>();
 
     public virtual ICollection<VehicleType> VehicleTypes { get; set; } = new List<VehicleType>();
-
-    public virtual ICollection<ConsolidatedVehicleModel> ConsolidatedVehicleModels { get; set; } = new List<ConsolidatedVehicleModel>();
 }

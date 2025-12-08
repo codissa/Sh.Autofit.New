@@ -365,6 +365,17 @@
                         <Run Text="מרכב: " FontWeight="Bold"/>
                         <Run Text="{Binding MatchedVehicle.TrimLevel}"/>
                     </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.Horsepower, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="כוח סוס: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.Horsepower}"/>
+                        <Run Text=" כ&quot;ס"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,2,15,2" FontSize="14"
+                               Visibility="{Binding MatchedVehicle.DriveType, Converter={StaticResource NullToVisibilityConverter}}">
+                        <Run Text="הנעה: " FontWeight="Bold"/>
+                        <Run Text="{Binding MatchedVehicle.DriveType}"/>
+                    </TextBlock>
                 </WrapPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Center">

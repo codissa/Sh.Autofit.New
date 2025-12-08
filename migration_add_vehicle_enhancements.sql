@@ -197,8 +197,14 @@ ConsolidatedVehicleModels (EXISTING COLUMNS TO UPDATE):
 - TrimLevel ← most common from variants
 
 Matching Strategy:
-Match API records to VehicleTypes using:
-1. tozeret_cd = GovernmentManufacturerCode
-2. degem_cd = GovernmentModelCode
-3. shnat_yitzur = Year (allow ±1 year tolerance, check against YearFrom/YearTo)
+Precise three-part key matching:
+1. tozeret_cd (manufacturer code) = Manufacturer.ManufacturerCode
+2. degem_cd (model code) = VehicleType.ModelCode
+3. degem_nm (model name) = VehicleType.ModelName
+4. shnat_yitzur (year) falls within YearFrom/YearTo (±1 year tolerance)
+
+Lookup key format: "{ManufacturerCode}_{ModelCode}_{ModelName}"
+Example: "8_2341_corolla" matches Toyota Corolla variants
+
+After sync, populates GovernmentManufacturerCode and GovernmentModelCode for future use.
 */

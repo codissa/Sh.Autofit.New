@@ -175,9 +175,9 @@ public partial class CouplingManagementViewModel : ObservableObject
             foreach (var coupling in couplings)
             {
                 // Get the "other" model in the coupling
-                var coupledModelId = coupling.ConsolidatedModelId_A == model.ConsolidatedModelId
-                    ? coupling.ConsolidatedModelId_B
-                    : coupling.ConsolidatedModelId_A;
+                var coupledModelId = coupling.ConsolidatedModelIdA == model.ConsolidatedModelId
+                    ? coupling.ConsolidatedModelIdB
+                    : coupling.ConsolidatedModelIdA;
 
                 var coupledModel = await _dataService.GetConsolidatedModelByIdAsync(coupledModelId);
                 if (coupledModel != null)
@@ -463,9 +463,9 @@ public partial class CouplingManagementViewModel : ObservableObject
             foreach (var coupling in couplings)
             {
                 // Get the "other" part in the coupling
-                var coupledPartKey = coupling.PartItemKey_A == part.PartNumber
-                    ? coupling.PartItemKey_B
-                    : coupling.PartItemKey_A;
+                var coupledPartKey = coupling.PartItemKeyA == part.PartNumber
+                    ? coupling.PartItemKeyB
+                    : coupling.PartItemKeyA;
 
                 // Find part info
                 var coupledPart = AllParts.FirstOrDefault(p => p.PartNumber == coupledPartKey);
@@ -746,14 +746,14 @@ public partial class CouplingManagementViewModel : ObservableObject
             {
                 var allCouplings = await context.ModelCouplings
                     .Where(mc => mc.IsActive)
-                    .Select(mc => new { mc.ConsolidatedModelId_A, mc.ConsolidatedModelId_B })
+                    .Select(mc => new { mc.ConsolidatedModelIdA, mc.ConsolidatedModelIdB })
                     .ToListAsync(cancellationToken);
 
                 foreach (var coupling in allCouplings)
                 {
                     existingCouplings.Add((
-                        Math.Min(coupling.ConsolidatedModelId_A, coupling.ConsolidatedModelId_B),
-                        Math.Max(coupling.ConsolidatedModelId_A, coupling.ConsolidatedModelId_B)
+                        Math.Min(coupling.ConsolidatedModelIdA, coupling.ConsolidatedModelIdB),
+                        Math.Max(coupling.ConsolidatedModelIdA, coupling.ConsolidatedModelIdB)
                     ));
                 }
             }

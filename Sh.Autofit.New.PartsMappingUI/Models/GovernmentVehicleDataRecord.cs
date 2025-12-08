@@ -20,7 +20,12 @@ public class GovernmentVehicleDataRecord
     public string? ManufacturerShortName { get; set; }
 
     [JsonPropertyName("degem_cd")]
-    public string? ModelCode { get; set; }
+    public object? ModelCodeRaw { get; set; }
+
+    /// <summary>
+    /// Gets the model code as a string (handles both string and numeric values from API)
+    /// </summary>
+    public string? ModelCode => ModelCodeRaw?.ToString();
 
     [JsonPropertyName("degem_nm")]
     public string? ModelName { get; set; }
@@ -88,35 +93,44 @@ public class GovernmentVehicleDataRecord
     /// </summary>
     public string GetStandardizedDriveType()
     {
-        var driveInfo = DriveTypeTech ?? DriveTypeName ?? "";
+        //if drive drie type tech is null add empty string in drive info
+        // if drive type name is null or לא ידוע קוד add empty string in drive info
+        //else concat them with space
 
-        if (driveInfo.Contains("4X4", StringComparison.OrdinalIgnoreCase) ||
-            driveInfo.Contains("4WD", StringComparison.OrdinalIgnoreCase) ||
-            driveInfo.Contains("ארבעה גלגלים", StringComparison.OrdinalIgnoreCase))
-        {
-            return "4WD";
-        }
+        var tech = DriveTypeTech ?? "";
+        var name = (DriveTypeName == null || DriveTypeName == "לא ידוע קוד") ? "" : DriveTypeName;
 
-        if (driveInfo.Contains("AWD", StringComparison.OrdinalIgnoreCase) ||
-            driveInfo.Contains("כפולה", StringComparison.OrdinalIgnoreCase))
-        {
-            return "AWD";
-        }
+        var driveInfo = $"{tech} {name}".Trim();
 
-        if (driveInfo.Contains("FWD", StringComparison.OrdinalIgnoreCase) ||
-            driveInfo.Contains("קדמית", StringComparison.OrdinalIgnoreCase))
-        {
-            return "FWD";
-        }
 
-        if (driveInfo.Contains("RWD", StringComparison.OrdinalIgnoreCase) ||
-            driveInfo.Contains("אחורית", StringComparison.OrdinalIgnoreCase))
-        {
-            return "RWD";
-        }
+        //if (driveInfo.Contains("4X4", StringComparison.OrdinalIgnoreCase) ||
+        //    driveInfo.Contains("4WD", StringComparison.OrdinalIgnoreCase) ||
+        //    driveInfo.Contains("ארבעה גלגלים", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    return "4WD";
+        //}
 
-        // Default to 2WD if "הנעה רגילה" or unknown
-        return "2WD";
+        //if (driveInfo.Contains("AWD", StringComparison.OrdinalIgnoreCase) ||
+        //    driveInfo.Contains("כפולה", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    return "AWD";
+        //}
+
+        //if (driveInfo.Contains("FWD", StringComparison.OrdinalIgnoreCase) ||
+        //    driveInfo.Contains("קדמית", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    return "FWD";
+        //}
+
+        //if (driveInfo.Contains("RWD", StringComparison.OrdinalIgnoreCase) ||
+        //    driveInfo.Contains("אחורית", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    return "RWD";
+        //}
+
+        //// Default to 2WD if "הנעה רגילה" or unknown
+        //return "2WD";
+        return driveInfo;
     }
 
     /// <summary>

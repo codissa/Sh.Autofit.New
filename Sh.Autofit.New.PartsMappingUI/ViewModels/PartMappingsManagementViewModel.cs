@@ -327,9 +327,9 @@ public partial class PartMappingsManagementViewModel : ObservableObject
                 var coupledModelNames = new List<string>();
                 foreach (var coupling in activeCouplings)
                 {
-                    var otherModelId = coupling.ConsolidatedModelId_A == consolidatedModel.ConsolidatedModelId
-                        ? coupling.ConsolidatedModelId_B
-                        : coupling.ConsolidatedModelId_A;
+                    var otherModelId = coupling.ConsolidatedModelIdA == consolidatedModel.ConsolidatedModelId
+                        ? coupling.ConsolidatedModelIdB
+                        : coupling.ConsolidatedModelIdA;
 
                     var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
                     if (otherModel != null)
@@ -388,9 +388,9 @@ public partial class PartMappingsManagementViewModel : ObservableObject
                     var modelsToUnmapFrom = new List<int> { consolidatedModel.ConsolidatedModelId };
                     foreach (var coupling in activeCouplings)
                     {
-                        var otherModelId = coupling.ConsolidatedModelId_A == consolidatedModel.ConsolidatedModelId
-                            ? coupling.ConsolidatedModelId_B
-                            : coupling.ConsolidatedModelId_A;
+                        var otherModelId = coupling.ConsolidatedModelIdA == consolidatedModel.ConsolidatedModelId
+                            ? coupling.ConsolidatedModelIdB
+                            : coupling.ConsolidatedModelIdA;
                         modelsToUnmapFrom.Add(otherModelId);
                     }
 

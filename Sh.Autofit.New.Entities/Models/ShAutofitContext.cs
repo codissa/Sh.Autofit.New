@@ -15,9 +15,15 @@ public partial class ShAutofitContext : DbContext
 
     public virtual DbSet<ApiSyncLog> ApiSyncLogs { get; set; }
 
+    public virtual DbSet<ConsolidatedVehicleModel> ConsolidatedVehicleModels { get; set; }
+
     public virtual DbSet<Manufacturer> Manufacturers { get; set; }
 
     public virtual DbSet<MappingStatistic> MappingStatistics { get; set; }
+
+    public virtual DbSet<ModelCoupling> ModelCouplings { get; set; }
+
+    public virtual DbSet<PartCoupling> PartCouplings { get; set; }
 
     public virtual DbSet<PartKit> PartKits { get; set; }
 
@@ -42,13 +48,6 @@ public partial class ShAutofitContext : DbContext
     public virtual DbSet<VehicleType> VehicleTypes { get; set; }
 
     public virtual DbSet<VwPart> VwParts { get; set; }
-
-    // New entities for consolidated models and couplings
-    public virtual DbSet<ConsolidatedVehicleModel> ConsolidatedVehicleModels { get; set; }
-
-    public virtual DbSet<ModelCoupling> ModelCouplings { get; set; }
-
-    public virtual DbSet<PartCoupling> PartCouplings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -77,6 +76,56 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.SyncType)
                 .IsRequired()
                 .HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<ConsolidatedVehicleModel>(entity =>
+        {
+            entity.HasKey(e => e.ConsolidatedModelId).HasName("PK__Consolid__DA24079C927A14D0");
+
+            entity.HasIndex(e => e.IsActive, "IX_ConsolidatedModels_Active");
+
+            entity.HasIndex(e => e.ManufacturerId, "IX_ConsolidatedModels_Manufacturer");
+
+            entity.HasIndex(e => e.ManufacturerCode, "IX_ConsolidatedModels_ManufacturerCode");
+
+            entity.HasIndex(e => new { e.ManufacturerCode, e.ModelCode }, "IX_ConsolidatedModels_ManufacturerModel");
+
+            entity.HasIndex(e => e.ModelCode, "IX_ConsolidatedModels_ModelCode");
+
+            entity.HasIndex(e => new { e.YearFrom, e.YearTo }, "IX_ConsolidatedModels_YearRange");
+
+            entity.HasIndex(e => new { e.ManufacturerCode, e.ModelCode, e.ModelName, e.EngineVolume, e.TrimLevel, e.TransmissionType, e.FuelTypeCode }, "UQ_ConsolidatedModels_NaturalKey").IsUnique();
+
+            entity.Property(e => e.CommercialName).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasDefaultValue("MIGRATION");
+            entity.Property(e => e.DriveType).HasMaxLength(50);
+            entity.Property(e => e.EngineModel).HasMaxLength(100);
+            entity.Property(e => e.FinishLevel).HasMaxLength(100);
+            entity.Property(e => e.FuelTypeName).HasMaxLength(50);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.ModelName)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.SafetyRating).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.TransmissionType).HasMaxLength(50);
+            entity.Property(e => e.TrimLevel).HasMaxLength(100);
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            entity.Property(e => e.VehicleCategory).HasMaxLength(100);
+            entity.Property(e => e.WeightRange).HasMaxLength(50);
+
+            entity.HasOne(d => d.Manufacturer).WithMany(p => p.ConsolidatedVehicleModels)
+                .HasForeignKey(d => d.ManufacturerId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ConsolidatedModels_Manufacturer");
         });
 
         modelBuilder.Entity<Manufacturer>(entity =>
@@ -120,6 +169,136 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(getdate())");
+        });
+
+        modelBuilder.Entity<ModelCoupling>(entity =>
+        {
+            entity.HasKey(e => e.ModelCouplingId).HasName("PK__ModelCou__22DE5D073C7E6B8A");
+
+            entity.HasIndex(e => e.IsActive, "IX_ModelCouplings_Active");
+
+            entity.HasIndex(e => e.ConsolidatedModelIdA, "IX_ModelCouplings_ModelA");
+
+            entity.HasIndex(e => e.ConsolidatedModelIdB, "IX_ModelCouplings_ModelB");
+
+            entity.HasIndex(e => new { e.ConsolidatedModelIdA, e.ConsolidatedModelIdB }, "UQ_ModelCouplings_Pair").IsUnique();
+
+            entity.Property(e => e.ConsolidatedModelIdA).HasColumnName("ConsolidatedModelId_A");
+            entity.Property(e => e.ConsolidatedModelIdB).HasColumnName("ConsolidatedModelId_B");
+            entity.Property(e => e.CouplingType)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue("SameParts");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+
+            entity.HasOne(d => d.ConsolidatedModelIdANavigation).WithMany(p => p.ModelCouplingConsolidatedModelIdANavigations)
+                .HasForeignKey(d => d.ConsolidatedModelIdA)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ModelCouplings_ModelA");
+
+            entity.HasOne(d => d.ConsolidatedModelIdBNavigation).WithMany(p => p.ModelCouplingConsolidatedModelIdBNavigations)
+                .HasForeignKey(d => d.ConsolidatedModelIdB)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ModelCouplings_ModelB");
+        });
+
+        modelBuilder.Entity<PartCoupling>(entity =>
+        {
+            entity.HasKey(e => e.PartCouplingId).HasName("PK__PartCoup__A8B4D5BE1660755D");
+
+            entity.HasIndex(e => e.IsActive, "IX_PartCouplings_Active");
+
+            entity.HasIndex(e => e.PartItemKeyA, "IX_PartCouplings_PartA");
+
+            entity.HasIndex(e => e.PartItemKeyB, "IX_PartCouplings_PartB");
+
+            entity.HasIndex(e => new { e.PartItemKeyA, e.PartItemKeyB }, "UQ_PartCouplings_Pair").IsUnique();
+
+            entity.Property(e => e.CouplingType)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue("Compatible");
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.PartItemKeyA)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasColumnName("PartItemKey_A");
+            entity.Property(e => e.PartItemKeyB)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasColumnName("PartItemKey_B");
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<PartKit>(entity =>
+        {
+            entity.HasKey(e => e.PartKitId).HasName("PK__PartKit__455CE485733BE5E6");
+
+            entity.ToTable("PartKit");
+
+            entity.HasIndex(e => e.CreatedBy, "IX_PartKit_CreatedBy");
+
+            entity.HasIndex(e => e.IsActive, "IX_PartKit_IsActive");
+
+            entity.HasIndex(e => e.KitName, "UK_PartKit_KitName").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.KitName)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<PartKitItem>(entity =>
+        {
+            entity.HasKey(e => e.PartKitItemId).HasName("PK__PartKitI__E0F163B51123C8D9");
+
+            entity.ToTable("PartKitItem");
+
+            entity.HasIndex(e => e.PartItemKey, "IX_PartKitItem_PartItemKey");
+
+            entity.HasIndex(e => e.PartKitId, "IX_PartKitItem_PartKitId");
+
+            entity.HasIndex(e => new { e.PartKitId, e.PartItemKey }, "UK_PartKitItem_Kit_Part").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.PartItemKey)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.HasOne(d => d.PartKit).WithMany(p => p.PartKitItems)
+                .HasForeignKey(d => d.PartKitId)
+                .HasConstraintName("FK_PartKitItem_PartKit");
         });
 
         modelBuilder.Entity<PartsMetadatum>(entity =>
@@ -248,7 +427,11 @@ public partial class ShAutofitContext : DbContext
 
             entity.HasIndex(e => e.IsActive, "IX_VPMappings_Active");
 
+            entity.HasIndex(e => e.ConsolidatedModelId, "IX_VPMappings_ConsolidatedModel");
+
             entity.HasIndex(e => e.IsCurrentVersion, "IX_VPMappings_CurrentVersion");
+
+            entity.HasIndex(e => e.MappingLevel, "IX_VPMappings_MappingLevel");
 
             entity.HasIndex(e => e.PartItemKey, "IX_VPMappings_PartItemKey");
 
@@ -256,7 +439,13 @@ public partial class ShAutofitContext : DbContext
 
             entity.HasIndex(e => e.VehicleTypeId, "IX_VPMappings_VehicleType");
 
-            entity.HasIndex(e => new { e.VehicleTypeId, e.PartItemKey, e.IsCurrentVersion, e.IsActive }, "UQ_VehiclePartsMappings_Current").IsUnique();
+            entity.HasIndex(e => new { e.ConsolidatedModelId, e.PartItemKey, e.IsCurrentVersion, e.IsActive }, "UQ_VehiclePartsMappings_Consolidated")
+                .IsUnique()
+                .HasFilter("([ConsolidatedModelId] IS NOT NULL)");
+
+            entity.HasIndex(e => new { e.VehicleTypeId, e.PartItemKey, e.IsCurrentVersion, e.IsActive }, "UQ_VehiclePartsMappings_Current")
+                .IsUnique()
+                .HasFilter("([VehicleTypeId] IS NOT NULL)");
 
             entity.Property(e => e.CompatibilityNotes).HasMaxLength(500);
             entity.Property(e => e.ConfidenceScore).HasColumnType("decimal(5, 2)");
@@ -272,6 +461,10 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.InstallationNotes).HasMaxLength(1000);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.IsCurrentVersion).HasDefaultValue(true);
+            entity.Property(e => e.MappingLevel)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasDefaultValue("Legacy");
             entity.Property(e => e.MappingSource)
                 .IsRequired()
                 .HasMaxLength(50)
@@ -285,9 +478,12 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.UpdatedBy).HasMaxLength(100);
             entity.Property(e => e.VersionNumber).HasDefaultValue(1);
 
+            entity.HasOne(d => d.ConsolidatedModel).WithMany(p => p.VehiclePartsMappings)
+                .HasForeignKey(d => d.ConsolidatedModelId)
+                .HasConstraintName("FK_VPMappings_ConsolidatedModel");
+
             entity.HasOne(d => d.VehicleType).WithMany(p => p.VehiclePartsMappings)
                 .HasForeignKey(d => d.VehicleTypeId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_VPMappings_VehicleType");
         });
 
@@ -333,17 +529,27 @@ public partial class ShAutofitContext : DbContext
         {
             entity.HasKey(e => e.RegistrationId).HasName("PK__VehicleR__6EF58810517590E5");
 
+            entity.HasIndex(e => new { e.GovManufacturerName, e.GovModelName }, "IX_VehicleReg_GovModel");
+
+            entity.HasIndex(e => e.LastLookupDate, "IX_VehicleReg_LastLookupDate").IsDescending();
+
             entity.HasIndex(e => e.LicensePlate, "IX_VehicleReg_LicensePlate");
+
+            entity.HasIndex(e => e.MatchStatus, "IX_VehicleReg_MatchStatus");
 
             entity.HasIndex(e => e.VehicleTypeId, "IX_VehicleReg_VehicleType");
 
             entity.HasIndex(e => e.LicensePlate, "UQ__VehicleR__026BC15CCA97FFFF").IsUnique();
 
+            entity.Property(e => e.ApiResourceUsed).HasMaxLength(100);
             entity.Property(e => e.Color).HasMaxLength(50);
             entity.Property(e => e.CurrentOwner).HasMaxLength(200);
             entity.Property(e => e.FirstLookupDate)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.GovFuelType).HasMaxLength(50);
+            entity.Property(e => e.GovManufacturerName).HasMaxLength(200);
+            entity.Property(e => e.GovModelName).HasMaxLength(200);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.LastLookupDate)
                 .HasPrecision(3)
@@ -352,6 +558,11 @@ public partial class ShAutofitContext : DbContext
                 .IsRequired()
                 .HasMaxLength(20);
             entity.Property(e => e.LookupCount).HasDefaultValue(1);
+            entity.Property(e => e.MatchReason).HasMaxLength(500);
+            entity.Property(e => e.MatchStatus)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue("Pending");
             entity.Property(e => e.Vin)
                 .HasMaxLength(50)
                 .HasColumnName("VIN");
@@ -373,6 +584,10 @@ public partial class ShAutofitContext : DbContext
 
             entity.HasIndex(e => e.CommercialName, "IX_VehicleTypes_CommercialName");
 
+            entity.HasIndex(e => e.ConsolidatedModelId, "IX_VehicleTypes_ConsolidatedModel");
+
+            entity.HasIndex(e => new { e.GovernmentManufacturerCode, e.GovernmentModelCode }, "IX_VehicleTypes_GovCodes");
+
             entity.HasIndex(e => e.ManufacturerId, "IX_VehicleTypes_Manufacturer");
 
             entity.HasIndex(e => e.ModelCode, "IX_VehicleTypes_ModelCode");
@@ -384,14 +599,17 @@ public partial class ShAutofitContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(getdate())")
                 .HasAnnotation("Relational:DefaultConstraintName", "DF__VehicleTy__Creat__5441852A");
+            entity.Property(e => e.DriveType).HasMaxLength(50);
             entity.Property(e => e.EngineModel).HasMaxLength(100);
             entity.Property(e => e.FinishLevel).HasMaxLength(100);
             entity.Property(e => e.FrontTireSize).HasMaxLength(50);
             entity.Property(e => e.FuelTypeName).HasMaxLength(50);
+            entity.Property(e => e.GovernmentModelCode).HasMaxLength(50);
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasAnnotation("Relational:DefaultConstraintName", "DF__VehicleTy__IsAct__534D60F1");
             entity.Property(e => e.LastSyncedAt).HasPrecision(3);
+            entity.Property(e => e.LastSyncedFromGov).HasColumnType("datetime");
             entity.Property(e => e.ModelCode).HasMaxLength(50);
             entity.Property(e => e.ModelName)
                 .IsRequired()
@@ -405,6 +623,10 @@ public partial class ShAutofitContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasAnnotation("Relational:DefaultConstraintName", "DF__VehicleTy__Updat__5535A963");
             entity.Property(e => e.VehicleCategory).HasMaxLength(100);
+
+            entity.HasOne(d => d.ConsolidatedModel).WithMany(p => p.VehicleTypes)
+                .HasForeignKey(d => d.ConsolidatedModelId)
+                .HasConstraintName("FK_VehicleTypes_ConsolidatedModel");
 
             entity.HasOne(d => d.Manufacturer).WithMany(p => p.VehicleTypes)
                 .HasForeignKey(d => d.ManufacturerId)
@@ -462,239 +684,6 @@ public partial class ShAutofitContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false);
         });
-
-        modelBuilder.Entity<PartKit>(entity =>
-        {
-            entity.HasKey(e => e.PartKitId);
-
-            entity.ToTable("PartKit");
-
-            entity.HasIndex(e => e.IsActive, "IX_PartKit_IsActive");
-
-            entity.HasIndex(e => e.CreatedBy, "IX_PartKit_CreatedBy");
-
-            entity.HasIndex(e => e.KitName, "UK_PartKit_KitName").IsUnique();
-
-            entity.Property(e => e.KitName)
-                .IsRequired()
-                .HasMaxLength(200);
-
-            entity.Property(e => e.Description)
-                .HasMaxLength(1000);
-
-            entity.Property(e => e.IsActive)
-                .IsRequired()
-                .HasDefaultValue(true);
-
-            entity.Property(e => e.CreatedBy)
-                .IsRequired()
-                .HasMaxLength(100);
-
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100);
-
-            entity.Property(e => e.UpdatedAt)
-                .HasPrecision(3);
-        });
-
-        modelBuilder.Entity<PartKitItem>(entity =>
-        {
-            entity.HasKey(e => e.PartKitItemId);
-
-            entity.ToTable("PartKitItem");
-
-            entity.HasIndex(e => e.PartKitId, "IX_PartKitItem_PartKitId");
-
-            entity.HasIndex(e => e.PartItemKey, "IX_PartKitItem_PartItemKey");
-
-            entity.HasIndex(e => new { e.PartKitId, e.PartItemKey }, "UK_PartKitItem_Kit_Part").IsUnique();
-
-            entity.Property(e => e.PartItemKey)
-                .IsRequired()
-                .HasMaxLength(50);
-
-            entity.Property(e => e.Notes)
-                .HasMaxLength(500);
-
-            entity.Property(e => e.CreatedBy)
-                .IsRequired()
-                .HasMaxLength(100);
-
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getutcdate())");
-
-            entity.HasOne(d => d.PartKit)
-                .WithMany(p => p.PartKitItems)
-                .HasForeignKey(d => d.PartKitId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_PartKitItem_PartKit");
-        });
-
-        // =============================================
-        // NEW ENTITY CONFIGURATIONS
-        // =============================================
-
-        modelBuilder.Entity<ConsolidatedVehicleModel>(entity =>
-        {
-            entity.HasKey(e => e.ConsolidatedModelId);
-
-            entity.HasIndex(e => e.ManufacturerId, "IX_ConsolidatedModels_Manufacturer");
-            entity.HasIndex(e => e.ManufacturerCode, "IX_ConsolidatedModels_ManufacturerCode");
-            entity.HasIndex(e => e.ModelCode, "IX_ConsolidatedModels_ModelCode");
-            entity.HasIndex(e => new { e.ManufacturerCode, e.ModelCode }, "IX_ConsolidatedModels_ManufacturerModel");
-            entity.HasIndex(e => new { e.YearFrom, e.YearTo }, "IX_ConsolidatedModels_YearRange");
-            entity.HasIndex(e => e.IsActive, "IX_ConsolidatedModels_Active");
-
-            // Unique constraint on 7 fields that define a unique vehicle model
-            entity.HasIndex(e => new
-            {
-                e.ManufacturerCode,
-                e.ModelCode,
-                e.ModelName,
-                e.EngineVolume,
-                e.TrimLevel,
-                e.TransmissionType,
-                e.FuelTypeCode
-            }, "UQ_ConsolidatedModels_NaturalKey").IsUnique();
-
-            entity.Property(e => e.ModelName)
-                .IsRequired()
-                .HasMaxLength(200);
-            entity.Property(e => e.TrimLevel).HasMaxLength(100);
-            entity.Property(e => e.FinishLevel).HasMaxLength(100);
-            entity.Property(e => e.TransmissionType).HasMaxLength(50);
-            entity.Property(e => e.FuelTypeName).HasMaxLength(50);
-            entity.Property(e => e.CommercialName).HasMaxLength(100);
-            entity.Property(e => e.EngineModel).HasMaxLength(100);
-            entity.Property(e => e.VehicleCategory).HasMaxLength(100);
-            entity.Property(e => e.SafetyRating).HasColumnType("decimal(3, 2)");
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.UpdatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.CreatedBy)
-                .IsRequired()
-                .HasMaxLength(100)
-                .HasDefaultValue("MIGRATION");
-            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
-
-            entity.HasOne(d => d.Manufacturer)
-                .WithMany(p => p.ConsolidatedVehicleModels)
-                .HasForeignKey(d => d.ManufacturerId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ConsolidatedModels_Manufacturer");
-        });
-
-        modelBuilder.Entity<ModelCoupling>(entity =>
-        {
-            entity.HasKey(e => e.ModelCouplingId);
-
-            entity.HasIndex(e => e.ConsolidatedModelId_A, "IX_ModelCouplings_ModelA");
-            entity.HasIndex(e => e.ConsolidatedModelId_B, "IX_ModelCouplings_ModelB");
-            entity.HasIndex(e => e.IsActive, "IX_ModelCouplings_Active");
-            entity.HasIndex(e => new { e.ConsolidatedModelId_A, e.ConsolidatedModelId_B }, "UQ_ModelCouplings_Pair").IsUnique();
-
-            entity.Property(e => e.CouplingType)
-                .IsRequired()
-                .HasMaxLength(50)
-                .HasDefaultValue("SameParts");
-            entity.Property(e => e.Notes).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.CreatedBy)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.UpdatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-
-            entity.HasOne(d => d.ConsolidatedModelA)
-                .WithMany(p => p.ModelCouplingsAsModelA)
-                .HasForeignKey(d => d.ConsolidatedModelId_A)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ModelCouplings_ModelA");
-
-            entity.HasOne(d => d.ConsolidatedModelB)
-                .WithMany(p => p.ModelCouplingsAsModelB)
-                .HasForeignKey(d => d.ConsolidatedModelId_B)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_ModelCouplings_ModelB");
-        });
-
-        modelBuilder.Entity<PartCoupling>(entity =>
-        {
-            entity.HasKey(e => e.PartCouplingId);
-
-            entity.HasIndex(e => e.PartItemKey_A, "IX_PartCouplings_PartA");
-            entity.HasIndex(e => e.PartItemKey_B, "IX_PartCouplings_PartB");
-            entity.HasIndex(e => e.IsActive, "IX_PartCouplings_Active");
-            entity.HasIndex(e => new { e.PartItemKey_A, e.PartItemKey_B }, "UQ_PartCouplings_Pair").IsUnique();
-
-            entity.Property(e => e.PartItemKey_A)
-                .IsRequired()
-                .HasMaxLength(20);
-            entity.Property(e => e.PartItemKey_B)
-                .IsRequired()
-                .HasMaxLength(20);
-            entity.Property(e => e.CouplingType)
-                .IsRequired()
-                .HasMaxLength(50)
-                .HasDefaultValue("Compatible");
-            entity.Property(e => e.Notes).HasMaxLength(500);
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.CreatedBy)
-                .IsRequired()
-                .HasMaxLength(100);
-            entity.Property(e => e.UpdatedAt)
-                .HasPrecision(3)
-                .HasDefaultValueSql("(getdate())");
-            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-        });
-
-        // Update VehicleType to include ConsolidatedModelId relationship
-        modelBuilder.Entity<VehicleType>()
-            .HasOne(d => d.ConsolidatedModel)
-            .WithMany(p => p.VehicleTypes)
-            .HasForeignKey(d => d.ConsolidatedModelId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
-            .HasConstraintName("FK_VehicleTypes_ConsolidatedModel");
-
-        // Update VehiclePartsMapping configuration for new fields
-        modelBuilder.Entity<VehiclePartsMapping>()
-            .Property(e => e.VehicleTypeId)
-            .IsRequired(false); // Now nullable
-
-        modelBuilder.Entity<VehiclePartsMapping>()
-            .Property(e => e.MappingLevel)
-            .HasMaxLength(20)
-            .HasDefaultValue("Legacy");
-
-        modelBuilder.Entity<VehiclePartsMapping>()
-            .HasOne(d => d.ConsolidatedModel)
-            .WithMany(p => p.VehiclePartsMappings)
-            .HasForeignKey(d => d.ConsolidatedModelId)
-            .OnDelete(DeleteBehavior.ClientSetNull)
-            .HasConstraintName("FK_VPMappings_ConsolidatedModel");
-
-        // Update Manufacturer to include ConsolidatedVehicleModels navigation
-        modelBuilder.Entity<Manufacturer>()
-            .HasMany(p => p.ConsolidatedVehicleModels)
-            .WithOne(d => d.Manufacturer)
-            .HasForeignKey(d => d.ManufacturerId);
 
         OnModelCreatingGeneratedFunctions(modelBuilder);
         OnModelCreatingPartial(modelBuilder);

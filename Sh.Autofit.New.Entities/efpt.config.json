@@ -20,11 +20,31 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[ConsolidatedVehicleModels]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Manufacturers]",
          "ObjectType": 0
       },
       {
          "Name": "[dbo].[MappingStatistics]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ModelCouplings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PartCouplings]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PartKit]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PartKitItem]",
          "ObjectType": 0
       },
       {
@@ -68,7 +88,23 @@
          "ObjectType": 3
       },
       {
+         "Name": "[dbo].[sp_AutoExpandYearRange]",
+         "ObjectType": 1
+      },
+      {
          "Name": "[dbo].[sp_BulkInsertMappings]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_GetConsolidatedModelsForLookup]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_GetConsolidatedModelsForPart]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[sp_GetPartsForConsolidatedModel]",
          "ObjectType": 1
       },
       {
@@ -80,8 +116,20 @@
          "ObjectType": 1
       },
       {
+         "Name": "[dbo].[sp_UpsertConsolidatedMapping]",
+         "ObjectType": 1
+      },
+      {
          "Name": "[dbo].[sp_UpsertMapping]",
          "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[fn_GetCoupledModels]",
+         "ObjectType": 2
+      },
+      {
+         "Name": "[dbo].[fn_GetCoupledParts]",
+         "ObjectType": 2
       },
       {
          "Name": "[dbo].[fn_GetPrimaryOEM]",

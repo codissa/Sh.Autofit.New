@@ -13,8 +13,12 @@ namespace Sh.Autofit.New.Entities.Models
 {
     public partial interface IShAutofitContextProcedures
     {
+        Task<int> sp_AutoExpandYearRangeAsync(int? consolidatedModelId, int? newYear, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<sp_BulkInsertMappingsResult>> sp_BulkInsertMappingsAsync(string mappings, string username, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<List<sp_GetConsolidatedModelsForLookupResult>> sp_GetConsolidatedModelsForLookupAsync(int? manufacturerCode, int? modelCode, int? year, bool? includeInactive, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<List<sp_GetConsolidatedModelsForPartResult>> sp_GetConsolidatedModelsForPartAsync(string partItemKey, bool? includeInactive, bool? includeCoupledModels, bool? includeCoupledParts, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<sp_GetVehiclesForPartResult>> sp_GetVehiclesForPartAsync(string partItemKey, bool? includeInactive, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<List<sp_UpsertConsolidatedMappingResult>> sp_UpsertConsolidatedMappingAsync(int? consolidatedModelId, string partItemKey, string mappingSource, decimal? confidenceScore, int? priority, int? fitsYearFrom, int? fitsYearTo, bool? requiresModification, string compatibilityNotes, string installationNotes, string username, string changeReason, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<sp_UpsertMappingResult>> sp_UpsertMappingAsync(int? vehicleTypeId, string partItemKey, string mappingSource, decimal? confidenceScore, int? priority, int? fitsYearFrom, int? fitsYearTo, bool? requiresModification, string compatibilityNotes, string installationNotes, string username, string changeReason, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
     }
 }

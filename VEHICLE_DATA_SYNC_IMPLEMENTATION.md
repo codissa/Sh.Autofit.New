@@ -138,27 +138,17 @@ dotnet build
 
 All errors should be resolved.
 
-### Step 4: Populate Government Codes (Important for Matching)
-The sync uses `GovernmentManufacturerCode` and `GovernmentModelCode` to match vehicles. You need to populate these codes for existing vehicles.
+### Step 4: Run the First Sync! 🚀
 
-**Options**:
+The matching now uses **manufacturer name + model name**, so it will work immediately without needing to pre-populate government codes!
 
-**Option A: Manual Population for Major Manufacturers**
-```sql
--- Example: Toyota vehicles
-UPDATE vt
-SET vt.GovernmentManufacturerCode = 8,  -- Toyota's government code
-    vt.GovernmentModelCode = 'XXXX'     -- Model-specific code
-FROM VehicleTypes vt
-INNER JOIN Manufacturers m ON vt.ManufacturerId = m.ManufacturerId
-WHERE m.ManufacturerShortName = 'Toyota';
-```
+**What Happens on First Sync**:
+1. ✅ Matches vehicles by manufacturer name + model name + year
+2. ✅ Updates all vehicle data (horsepower, drive type, etc.)
+3. ✅ **Automatically populates** `GovernmentManufacturerCode` and `GovernmentModelCode`
+4. ✅ Future syncs will be even more accurate using these codes
 
-**Option B: Gradual Population**
-Let the sync populate codes as vehicles are looked up. Initially, only newly added vehicles will sync.
-
-**Option C: Use API to Find Codes**
-Query the government API to find manufacturer and model codes, then update your database.
+**No manual code population needed** - just run the sync and it works!
 
 ---
 
@@ -195,9 +185,21 @@ Query the government API to find manufacturer and model codes, then update your 
 | `merkav` | `TrimLevel` | Body type (SUV, Sedan, etc.) |
 
 ### Matching Strategy
-1. Match by `tozeret_cd` (manufacturer code) = `GovernmentManufacturerCode`
-2. AND `degem_cd` (model code) = `GovernmentModelCode`
-3. AND year falls within `YearFrom` to `YearTo` (±1 year tolerance)
+
+**Precise Matching** using three-part key:
+1. `tozeret_cd` (manufacturer code) = `Manufacturer.ManufacturerCode`
+2. AND `degem_cd` (model code) = `VehicleType.ModelCode`
+3. AND `degem_nm` (model name) = `VehicleType.ModelName`
+4. AND `shnat_yitzur` (year) falls within `YearFrom` to `YearTo` (±1 year tolerance)
+5. Keys are case-insensitive using `.ToLowerInvariant()`
+
+**Lookup Key Format**: `"{ManufacturerCode}_{ModelCode}_{ModelName}"`
+
+Example: `"8_2341_corolla"` matches all Corolla variants from Toyota (code 8)
+
+**After Sync**:
+- Populates `GovernmentManufacturerCode` and `GovernmentModelCode` on matched vehicles
+- This enables even more precise matching strategies in the future
 
 ### Drive Type Parsing
 Converts Hebrew drive types to English:

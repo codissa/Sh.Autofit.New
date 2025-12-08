@@ -77,7 +77,9 @@ public class VehicleMatchingService : IVehicleMatchingService
                 CommercialName = v.CommercialName,
                 FuelTypeName = v.FuelTypeName,
                 EngineModel = v.EngineModel,
-                EngineVolume = v.EngineVolume
+                EngineVolume = v.EngineVolume,
+                Horsepower = v.Horsepower,
+                DriveType = v.DriveType
             })
             .ToListAsync();
 

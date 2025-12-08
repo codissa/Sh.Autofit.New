@@ -9,11 +9,7 @@ public partial class VehiclePartsMapping
 {
     public int MappingId { get; set; }
 
-    // Legacy mapping (to individual VehicleType) - Now nullable
     public int? VehicleTypeId { get; set; }
-
-    // New consolidated mapping (to ConsolidatedVehicleModel)
-    public int? ConsolidatedModelId { get; set; }
 
     public string PartItemKey { get; set; }
 
@@ -37,9 +33,6 @@ public partial class VehiclePartsMapping
 
     public bool IsCurrentVersion { get; set; }
 
-    // Mapping Level: 'Legacy' (VehicleTypeId-based) or 'Consolidated' (ConsolidatedModelId-based)
-    public string MappingLevel { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public string CreatedBy { get; set; }
@@ -56,10 +49,13 @@ public partial class VehiclePartsMapping
 
     public string DeactivationReason { get; set; }
 
-    // Navigation Properties
+    public int? ConsolidatedModelId { get; set; }
+
+    public string MappingLevel { get; set; }
+
+    public virtual ConsolidatedVehicleModel ConsolidatedModel { get; set; }
+
     public virtual ICollection<VehiclePartsMappingsHistory> VehiclePartsMappingsHistories { get; set; } = new List<VehiclePartsMappingsHistory>();
 
     public virtual VehicleType VehicleType { get; set; }
-
-    public virtual ConsolidatedVehicleModel ConsolidatedModel { get; set; }
 }

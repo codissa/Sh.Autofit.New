@@ -99,13 +99,35 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
 
         _filteredParts.Clear();
 
-        var filtered = string.IsNullOrWhiteSpace(searchText)
-            ? _allParts
-            : _allParts.Where(p =>
-                p.PartNumber?.ToLower().Contains(searchText) == true ||
-                p.PartName?.ToLower().Contains(searchText) == true ||
-                p.Category?.ToLower().Contains(searchText) == true ||
-                p.Manufacturer?.ToLower().Contains(searchText) == true);
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            foreach (var part in _allParts)
+            {
+                _filteredParts.Add(part);
+            }
+            return;
+        }
+
+        // Split search text into individual words for non-continuous matching
+        var searchWords = searchText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+        var filtered = _allParts.Where(p =>
+        {
+            // For non-continuous search, check if ALL search words appear anywhere in the searchable fields
+            return searchWords.All(word =>
+                (p.PartNumber?.ToLower().Contains(word) == true) ||
+                (p.PartName?.ToLower().Contains(word) == true) ||
+                (p.Category?.ToLower().Contains(word) == true) ||
+                (p.Manufacturer?.ToLower().Contains(word) == true) ||
+                (p.Model?.ToLower().Contains(word) == true) ||
+                // Search in OEM numbers
+                (p.OemNumber1?.ToLower().Contains(word) == true) ||
+                (p.OemNumber2?.ToLower().Contains(word) == true) ||
+                (p.OemNumber3?.ToLower().Contains(word) == true) ||
+                (p.OemNumber4?.ToLower().Contains(word) == true) ||
+                (p.OemNumber5?.ToLower().Contains(word) == true)
+            );
+        });
 
         foreach (var part in filtered)
         {
@@ -252,6 +274,14 @@ public class SelectablePartModel : INotifyPropertyChanged
     public string? PartName { get; set; }
     public string? Category { get; set; }
     public string? Manufacturer { get; set; }
+    public string? Model { get; set; }
+
+    // OEM Numbers for search
+    public string? OemNumber1 { get; set; }
+    public string? OemNumber2 { get; set; }
+    public string? OemNumber3 { get; set; }
+    public string? OemNumber4 { get; set; }
+    public string? OemNumber5 { get; set; }
 
     public bool IsSelected
     {
@@ -269,6 +299,12 @@ public class SelectablePartModel : INotifyPropertyChanged
         PartName = part.PartName;
         Category = part.Category;
         Manufacturer = part.Manufacturer;
+        Model = part.Model;
+        OemNumber1 = part.OemNumber1;
+        OemNumber2 = part.OemNumber2;
+        OemNumber3 = part.OemNumber3;
+        OemNumber4 = part.OemNumber4;
+        OemNumber5 = part.OemNumber5;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

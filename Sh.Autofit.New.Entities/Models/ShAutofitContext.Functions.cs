@@ -11,6 +11,18 @@ namespace Sh.Autofit.New.Entities.Models
     public partial class ShAutofitContext
     {
 
+        [DbFunction("fn_GetCoupledModels", "dbo")]
+        public IQueryable<fn_GetCoupledModelsResult> fn_GetCoupledModels(int? ConsolidatedModelId)
+        {
+            return FromExpression(() => fn_GetCoupledModels(ConsolidatedModelId));
+        }
+
+        [DbFunction("fn_GetCoupledParts", "dbo")]
+        public IQueryable<fn_GetCoupledPartsResult> fn_GetCoupledParts(string PartItemKey)
+        {
+            return FromExpression(() => fn_GetCoupledParts(PartItemKey));
+        }
+
         [DbFunction("fn_GetPrimaryOEM", "dbo")]
         public static string fn_GetPrimaryOEM(string ItemKey)
         {
@@ -19,6 +31,8 @@ namespace Sh.Autofit.New.Entities.Models
 
         protected void OnModelCreatingGeneratedFunctions(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<fn_GetCoupledModelsResult>().HasNoKey();
+            modelBuilder.Entity<fn_GetCoupledPartsResult>().HasNoKey();
         }
     }
 }

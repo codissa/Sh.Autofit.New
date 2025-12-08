@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Sh.Autofit.StockExport</AssemblyName>
+    <RootNamespace>Sh.Autofit.StockExport</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>Sh.Autofit</Authors>
+    <Company>Sh.Autofit</Company>
+    <Product>Stock Export - WizCount/H-ERP Excel Generator</Product>
+    <Description>WPF application for exporting stock moves from SH2013 database to WizCount/H-ERP formatted Excel files</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Database Access -->
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="NPOI" Version="2.7.5" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+
+    <!-- Excel Generation -->
+  </ItemGroup>
+
+</Project>

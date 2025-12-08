@@ -18,6 +18,25 @@ public class VehicleDataSyncService : IVehicleDataSyncService
         _govDataService = govDataService;
     }
 
+    /// <summary>
+    /// Normalizes model code by padding with leading zeroes to 4 digits
+    /// This handles cases where API returns numbers (234) but DB has "0234"
+    /// </summary>
+    private static string NormalizeModelCode(string? modelCode)
+    {
+        if (string.IsNullOrEmpty(modelCode))
+            return string.Empty;
+
+        // If it's numeric, pad to 4 digits
+        if (int.TryParse(modelCode, out var numericCode))
+        {
+            return numericCode.ToString("D4"); // Pad to 4 digits: "0234"
+        }
+
+        // If not numeric, return as-is
+        return modelCode;
+    }
+
     public async Task<VehicleDataSyncResult> SyncAllVehiclesAsync(
         Action<int, int, string>? progressCallback = null,
         CancellationToken cancellationToken = default)
@@ -31,7 +50,7 @@ public class VehicleDataSyncService : IVehicleDataSyncService
 
             // Fetch all data from government API
             var govRecords = await _govDataService.FetchAllVehicleDataAsync(
-                batchSize: 1000,
+                batchSize: 2000,
                 progressCallback: (current, total) =>
                 {
                     progressCallback?.Invoke(current, total, $"הורדת נתונים: {current:N0} מתוך {total:N0}");
@@ -42,16 +61,17 @@ public class VehicleDataSyncService : IVehicleDataSyncService
 
             progressCallback?.Invoke(0, govRecords.Count, "מתאים רכבים לרשומות במסד הנתונים...");
 
-            // Load all vehicles from database with government codes for matching
+            // Load all vehicles from database with manufacturer for matching
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
             var dbVehicles = await context.VehicleTypes
                 .Include(vt => vt.Manufacturer)
                 .ToListAsync(cancellationToken);
 
-            // Create lookup dictionary for faster matching
+            // Create lookup dictionary for faster matching using Manufacturer Code + Model Code + Model Name
+            // Normalize model codes to handle leading zeroes
             var vehicleLookup = dbVehicles
-                .Where(v => v.GovernmentManufacturerCode != null && !string.IsNullOrEmpty(v.GovernmentModelCode))
-                .GroupBy(v => $"{v.GovernmentManufacturerCode}_{v.GovernmentModelCode}")
+                .Where(v => v.Manufacturer != null && !string.IsNullOrEmpty(v.ModelName) && !string.IsNullOrEmpty(v.ModelCode))
+                .GroupBy(v => $"{v.Manufacturer.ManufacturerCode}_{NormalizeModelCode(v.ModelCode)}_{v.ModelName}".ToLowerInvariant())
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             int processed = 0;
@@ -72,8 +92,10 @@ public class VehicleDataSyncService : IVehicleDataSyncService
 
                 try
                 {
-                    // Try to match by manufacturer code + model code
-                    var key = $"{govRecord.ManufacturerCode}_{govRecord.ModelCode}";
+                    // Try to match by manufacturer code + model code + model name
+                    // Normalize model code to handle leading zeroes
+                    var normalizedModelCode = NormalizeModelCode(govRecord.ModelCode);
+                    var key = $"{govRecord.ManufacturerCode}_{normalizedModelCode}_{govRecord.ModelName}".ToLowerInvariant();
 
                     if (vehicleLookup.TryGetValue(key, out var matchedVehicles))
                     {
@@ -98,7 +120,14 @@ public class VehicleDataSyncService : IVehicleDataSyncService
                             result.VehiclesUpdated++;
                         }
 
-                        result.VehiclesMatched++;
+                        if (vehiclesToUpdate.Any())
+                        {
+                            result.VehiclesMatched++;
+                        }
+                        else
+                        {
+                            result.VehiclesNotMatched++;
+                        }
                     }
                     else
                     {

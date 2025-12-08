@@ -39,7 +39,9 @@ public class DataService : IDataService
                 EngineVolume = v.EngineVolume,
                 TransmissionType = v.TransmissionType,
                 FinishLevel = v.FinishLevel,
-                TrimLevel = v.TrimLevel
+                TrimLevel = v.TrimLevel,
+                Horsepower = v.Horsepower,
+                DriveType = v.DriveType
             })
             .ToListAsync();
 
@@ -166,7 +168,9 @@ public class DataService : IDataService
                 EngineVolume = v.EngineVolume,
                 TransmissionType = v.TransmissionType,
                 FinishLevel = v.FinishLevel,
-                TrimLevel = v.TrimLevel
+                TrimLevel = v.TrimLevel,
+                Horsepower = v.Horsepower,
+                DriveType = v.DriveType
             })
             .ToListAsync();
 
@@ -297,56 +301,73 @@ public class DataService : IDataService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Find all vehicle types with this manufacturer and model name
-        var vehicleTypeIds = await context.VehicleTypes
+        // Step 1: Find all vehicle types with this manufacturer and model name
+        var vehicleTypes = await context.VehicleTypes
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive &&
                        (v.Manufacturer.ManufacturerName == manufacturerName ||
                         v.Manufacturer.ManufacturerShortName == manufacturerName) &&
                        v.ModelName == modelName)
-            .Select(v => v.VehicleTypeId)
             .ToListAsync();
 
-        if (!vehicleTypeIds.Any())
-            return await context.VwParts
-                .AsNoTracking()
-                .Where(p => p.IsActive == 1)
-                .Select(p => new PartDisplayModel
-                {
-                    PartNumber = p.PartNumber ?? string.Empty,
-                    PartName = p.PartName ?? string.Empty,
-                    Category = p.Category,
-                    Manufacturer = p.Manufacturer,
-                    Model = p.Model,
-                    RetailPrice = p.RetailPrice,
-                    CostPrice = p.CostPrice,
-                    StockQuantity = p.StockQuantity,
-                    IsInStock = p.IsInStock == 1,
-                    IsActive = p.IsActive == 1,
-                    UniversalPart = p.UniversalPart,
-                    ImageUrl = p.ImageUrl,
-                    CompatibilityNotes = p.CompatibilityNotes,
-                    OemNumber1 = p.Oemnumber1,
-                    OemNumber2 = p.Oemnumber2,
-                    OemNumber3 = p.Oemnumber3,
-                    OemNumber4 = p.Oemnumber4,
-                    OemNumber5 = p.Oemnumber5
-                })
-                .ToListAsync();
+        if (!vehicleTypes.Any())
+            return new List<PartDisplayModel>();
 
-        // Get all part numbers mapped to ANY variant of this model
-        var mappedPartNumbers = await context.VehiclePartsMappings
+        // Step 2: Get ConsolidatedModelId (prefer from first vehicle type)
+        var consolidatedModelId = vehicleTypes.FirstOrDefault()?.ConsolidatedModelId;
+
+        // Step 3: Collect all VehicleTypeIds
+        var vehicleTypeIds = vehicleTypes.Select(v => v.VehicleTypeId).ToList();
+
+        // Step 4: Get parts mapped to these vehicles (direct mappings - both legacy and consolidated)
+        var directMappings = await context.VehiclePartsMappings
             .AsNoTracking()
-            .Where(m => m.VehicleTypeId.HasValue && vehicleTypeIds.Contains(m.VehicleTypeId.Value) && m.IsActive && m.IsCurrentVersion)
+            .Where(m => m.IsActive &&
+                   m.IsCurrentVersion &&
+                   ((m.VehicleTypeId.HasValue && vehicleTypeIds.Contains(m.VehicleTypeId.Value)) ||
+                    (consolidatedModelId.HasValue && m.ConsolidatedModelId == consolidatedModelId.Value)))
             .Select(m => m.PartItemKey)
             .Distinct()
             .ToListAsync();
 
-        // Load all active parts that are NOT in the mapped list
+        // Step 5: Get coupled models and their mapped parts (COUPLING-AWARE FIX)
+        var coupledModelPartNumbers = new List<string>();
+        if (consolidatedModelId.HasValue)
+        {
+            // Get all models coupled to this consolidated model
+            var coupledModelIds = await context.ModelCouplings
+                .AsNoTracking()
+                .Where(mc => mc.IsActive &&
+                       (mc.ConsolidatedModelIdA == consolidatedModelId.Value ||
+                        mc.ConsolidatedModelIdB == consolidatedModelId.Value))
+                .Select(mc => mc.ConsolidatedModelIdA == consolidatedModelId.Value
+                    ? mc.ConsolidatedModelIdB
+                    : mc.ConsolidatedModelIdA)
+                .ToListAsync();
+
+            // Get parts mapped to any of the coupled models
+            if (coupledModelIds.Any())
+            {
+                coupledModelPartNumbers = await context.VehiclePartsMappings
+                    .AsNoTracking()
+                    .Where(m => m.IsActive &&
+                           m.IsCurrentVersion &&
+                           m.ConsolidatedModelId.HasValue &&
+                           coupledModelIds.Contains(m.ConsolidatedModelId.Value))
+                    .Select(m => m.PartItemKey)
+                    .Distinct()
+                    .ToListAsync();
+            }
+        }
+
+        // Step 6: Combine all mapped part numbers (direct + coupled)
+        var allMappedPartNumbers = directMappings.Union(coupledModelPartNumbers).Distinct().ToList();
+
+        // Step 7: Load all active parts that are NOT in the mapped list
         var parts = await context.VwParts
             .AsNoTracking()
-            .Where(p => p.IsActive == 1 && !mappedPartNumbers.Contains(p.PartNumber))
+            .Where(p => p.IsActive == 1 && !allMappedPartNumbers.Contains(p.PartNumber))
             .Select(p => new PartDisplayModel
             {
                 PartNumber = p.PartNumber ?? string.Empty,
@@ -1548,11 +1569,11 @@ public class DataService : IDataService
             var coupledModels = await context.ModelCouplings
                 .AsNoTracking()
                 .Where(mc => mc.IsActive &&
-                            (mc.ConsolidatedModelId_A == consolidatedModelId.Value ||
-                             mc.ConsolidatedModelId_B == consolidatedModelId.Value))
-                .Select(mc => mc.ConsolidatedModelId_A == consolidatedModelId.Value
-                    ? mc.ConsolidatedModelId_B
-                    : mc.ConsolidatedModelId_A)
+                            (mc.ConsolidatedModelIdA == consolidatedModelId.Value ||
+                             mc.ConsolidatedModelIdB == consolidatedModelId.Value))
+                .Select(mc => mc.ConsolidatedModelIdA == consolidatedModelId.Value
+                    ? mc.ConsolidatedModelIdB
+                    : mc.ConsolidatedModelIdA)
                 .ToListAsync();
 
             if (coupledModels.Any())
@@ -1850,11 +1871,11 @@ public class DataService : IDataService
             var coupledModelIds = await context.ModelCouplings
                 .AsNoTracking()
                 .Where(mc => mc.IsActive &&
-                            (mc.ConsolidatedModelId_A == consolidatedModelId ||
-                             mc.ConsolidatedModelId_B == consolidatedModelId))
-                .Select(mc => mc.ConsolidatedModelId_A == consolidatedModelId
-                    ? mc.ConsolidatedModelId_B
-                    : mc.ConsolidatedModelId_A)
+                            (mc.ConsolidatedModelIdA == consolidatedModelId ||
+                             mc.ConsolidatedModelIdB == consolidatedModelId))
+                .Select(mc => mc.ConsolidatedModelIdA == consolidatedModelId
+                    ? mc.ConsolidatedModelIdB
+                    : mc.ConsolidatedModelIdA)
                 .ToListAsync();
 
             // Get parts from coupled models
@@ -1885,22 +1906,22 @@ public class DataService : IDataService
             var coupledPartKeys = await context.PartCouplings
                 .AsNoTracking()
                 .Where(pc => pc.IsActive &&
-                            (partKeysList.Contains(pc.PartItemKey_A) ||
-                             partKeysList.Contains(pc.PartItemKey_B)))
-                .Select(pc => new { pc.PartItemKey_A, pc.PartItemKey_B })
+                            (partKeysList.Contains(pc.PartItemKeyA) ||
+                             partKeysList.Contains(pc.PartItemKeyB)))
+                .Select(pc => new { pc.PartItemKeyA, pc.PartItemKeyB })
                 .ToListAsync();
 
             foreach (var coupling in coupledPartKeys)
             {
-                if (partKeysList.Contains(coupling.PartItemKey_A) && !allPartKeys.Contains(coupling.PartItemKey_B))
+                if (partKeysList.Contains(coupling.PartItemKeyA) && !allPartKeys.Contains(coupling.PartItemKeyB))
                 {
-                    allPartKeys.Add(coupling.PartItemKey_B);
-                    partMappingTypes[coupling.PartItemKey_B] = "CoupledPart";
+                    allPartKeys.Add(coupling.PartItemKeyB);
+                    partMappingTypes[coupling.PartItemKeyB] = "CoupledPart";
                 }
-                if (partKeysList.Contains(coupling.PartItemKey_B) && !allPartKeys.Contains(coupling.PartItemKey_A))
+                if (partKeysList.Contains(coupling.PartItemKeyB) && !allPartKeys.Contains(coupling.PartItemKeyA))
                 {
-                    allPartKeys.Add(coupling.PartItemKey_A);
-                    partMappingTypes[coupling.PartItemKey_A] = "CoupledPart";
+                    allPartKeys.Add(coupling.PartItemKeyA);
+                    partMappingTypes[coupling.PartItemKeyA] = "CoupledPart";
                 }
             }
         }
@@ -1959,8 +1980,8 @@ public class DataService : IDataService
             var coupledParts = await context.PartCouplings
                 .AsNoTracking()
                 .Where(pc => pc.IsActive &&
-                            (pc.PartItemKey_A == partItemKey || pc.PartItemKey_B == partItemKey))
-                .Select(pc => pc.PartItemKey_A == partItemKey ? pc.PartItemKey_B : pc.PartItemKey_A)
+                            (pc.PartItemKeyA == partItemKey || pc.PartItemKeyB == partItemKey))
+                .Select(pc => pc.PartItemKeyA == partItemKey ? pc.PartItemKeyB : pc.PartItemKeyA)
                 .ToListAsync();
 
             foreach (var coupledPart in coupledParts)
@@ -1989,15 +2010,15 @@ public class DataService : IDataService
             var coupledModelIds = await context.ModelCouplings
                 .AsNoTracking()
                 .Where(mc => mc.IsActive &&
-                            (directModelIds.Contains(mc.ConsolidatedModelId_A) ||
-                             directModelIds.Contains(mc.ConsolidatedModelId_B)))
-                .Select(mc => new { mc.ConsolidatedModelId_A, mc.ConsolidatedModelId_B })
+                            (directModelIds.Contains(mc.ConsolidatedModelIdA) ||
+                             directModelIds.Contains(mc.ConsolidatedModelIdB)))
+                .Select(mc => new { mc.ConsolidatedModelIdA, mc.ConsolidatedModelIdB })
                 .ToListAsync();
 
             foreach (var coupling in coupledModelIds)
             {
-                allModelIds.Add(coupling.ConsolidatedModelId_A);
-                allModelIds.Add(coupling.ConsolidatedModelId_B);
+                allModelIds.Add(coupling.ConsolidatedModelIdA);
+                allModelIds.Add(coupling.ConsolidatedModelIdB);
             }
         }
 
@@ -2126,13 +2147,13 @@ public class DataService : IDataService
 
         return await context.ModelCouplings
             .AsNoTracking()
-            .Include(mc => mc.ConsolidatedModelA)
+            .Include(mc => mc.ConsolidatedModelIdANavigation)
                 .ThenInclude(cm => cm.Manufacturer)
-            .Include(mc => mc.ConsolidatedModelB)
+            .Include(mc => mc.ConsolidatedModelIdBNavigation)
                 .ThenInclude(cm => cm.Manufacturer)
             .Where(mc => mc.IsActive &&
-                        (mc.ConsolidatedModelId_A == consolidatedModelId ||
-                         mc.ConsolidatedModelId_B == consolidatedModelId))
+                        (mc.ConsolidatedModelIdA == consolidatedModelId ||
+                         mc.ConsolidatedModelIdB == consolidatedModelId))
             .ToListAsync();
     }
 
@@ -2146,8 +2167,8 @@ public class DataService : IDataService
 
         // Check if coupling already exists
         var existingCoupling = await context.ModelCouplings
-            .FirstOrDefaultAsync(mc => mc.ConsolidatedModelId_A == orderedA &&
-                                       mc.ConsolidatedModelId_B == orderedB &&
+            .FirstOrDefaultAsync(mc => mc.ConsolidatedModelIdA == orderedA &&
+                                       mc.ConsolidatedModelIdB == orderedB &&
                                        mc.IsActive);
 
         if (existingCoupling != null)
@@ -2157,8 +2178,8 @@ public class DataService : IDataService
 
         var coupling = new ModelCoupling
         {
-            ConsolidatedModelId_A = orderedA,
-            ConsolidatedModelId_B = orderedB,
+            ConsolidatedModelIdA = orderedA,
+            ConsolidatedModelIdB = orderedB,
             CouplingType = couplingType,
             Notes = notes,
             CreatedBy = createdBy,
@@ -2201,7 +2222,7 @@ public class DataService : IDataService
         return await context.PartCouplings
             .AsNoTracking()
             .Where(pc => pc.IsActive &&
-                        (pc.PartItemKey_A == partItemKey || pc.PartItemKey_B == partItemKey))
+                        (pc.PartItemKeyA == partItemKey || pc.PartItemKeyB == partItemKey))
             .ToListAsync();
     }
 
@@ -2215,8 +2236,8 @@ public class DataService : IDataService
 
         // Check if coupling already exists
         var existingCoupling = await context.PartCouplings
-            .FirstOrDefaultAsync(pc => pc.PartItemKey_A == orderedA &&
-                                       pc.PartItemKey_B == orderedB &&
+            .FirstOrDefaultAsync(pc => pc.PartItemKeyA == orderedA &&
+                                       pc.PartItemKeyB == orderedB &&
                                        pc.IsActive);
 
         if (existingCoupling != null)
@@ -2226,8 +2247,8 @@ public class DataService : IDataService
 
         var coupling = new PartCoupling
         {
-            PartItemKey_A = orderedA,
-            PartItemKey_B = orderedB,
+            PartItemKeyA = orderedA,
+            PartItemKeyB = orderedB,
             CouplingType = couplingType,
             Notes = notes,
             CreatedBy = createdBy,

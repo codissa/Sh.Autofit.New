@@ -296,9 +296,9 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
 
         foreach (var coupling in activeCouplings)
         {
-            var otherModelId = coupling.ConsolidatedModelId_A == SelectedConsolidatedModel.ConsolidatedModelId
-                ? coupling.ConsolidatedModelId_B
-                : coupling.ConsolidatedModelId_A;
+            var otherModelId = coupling.ConsolidatedModelIdA == SelectedConsolidatedModel.ConsolidatedModelId
+                ? coupling.ConsolidatedModelIdB
+                : coupling.ConsolidatedModelIdA;
 
             allAffectedModels.Add(otherModelId);
 
@@ -647,9 +647,9 @@ public partial class ModelMappingsManagementViewModel : ObservableObject
             var coupledModelNames = new List<string>();
             foreach (var coupling in activeCouplings)
             {
-                var otherModelId = coupling.ConsolidatedModelId_A == model.ConsolidatedModelId
-                    ? coupling.ConsolidatedModelId_B
-                    : coupling.ConsolidatedModelId_A;
+                var otherModelId = coupling.ConsolidatedModelIdA == model.ConsolidatedModelId
+                    ? coupling.ConsolidatedModelIdB
+                    : coupling.ConsolidatedModelIdA;
 
                 var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
                 if (otherModel != null)

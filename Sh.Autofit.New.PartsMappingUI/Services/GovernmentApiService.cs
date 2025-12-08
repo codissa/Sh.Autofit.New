@@ -81,11 +81,12 @@ public class GovernmentApiService : IGovernmentApiService
             if (!response.IsSuccessStatusCode)
                 return null;
 
-            // Parse response
+            // Parse response with custom converter to handle field name variations
             var json = await response.Content.ReadAsStringAsync();
             var apiResponse = JsonSerializer.Deserialize<GovernmentApiResponse>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                Converters = { new GovernmentVehicleRecordConverter() }
             });
 
             // Return first record if available
@@ -124,11 +125,12 @@ public class GovernmentApiService : IGovernmentApiService
             if (!response.IsSuccessStatusCode)
                 return false;
 
-            // Parse response
+            // Parse response with custom converter to handle field name variations
             var json = await response.Content.ReadAsStringAsync();
             var apiResponse = JsonSerializer.Deserialize<GovernmentApiResponse>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                Converters = { new GovernmentVehicleRecordConverter() }
             });
 
             // If vehicle is found in off-road database, return true
@@ -162,17 +164,32 @@ public class GovernmentApiService : IGovernmentApiService
             if (!response.IsSuccessStatusCode)
                 return false;
 
-            // Parse response
+            // Parse response with custom converter to handle field name variations
             var json = await response.Content.ReadAsStringAsync();
             var apiResponse = JsonSerializer.Deserialize<GovernmentApiResponse>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                Converters = { new GovernmentVehicleRecordConverter() }
             });
 
             // If vehicle is found in personal import database, return true
-            return apiResponse?.Success == true &&
-                   apiResponse.Result?.Records != null &&
-                   apiResponse.Result.Records.Count > 0;
+            // Also check ImportType field if available (more precise check)
+            if (apiResponse?.Success == true &&
+                apiResponse.Result?.Records != null &&
+                apiResponse.Result.Records.Count > 0)
+            {
+                var record = apiResponse.Result.Records[0];
+                // Check if ImportType contains "יבוא אישי" (personal import)
+                // This is more precise than just checking if found in import database
+                if (!string.IsNullOrEmpty(record.ImportType))
+                {
+                    return record.ImportType.Contains("יבוא אישי");
+                }
+                // Fallback: if ImportType not available, just return true (found in import DB)
+                return true;
+            }
+
+            return false;
         }
         catch
         {

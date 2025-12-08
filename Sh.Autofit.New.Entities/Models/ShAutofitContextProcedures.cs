@@ -43,6 +43,38 @@ namespace Sh.Autofit.New.Entities.Models
             _context = context;
         }
 
+        public virtual async Task<int> sp_AutoExpandYearRangeAsync(int? consolidatedModelId, int? newYear, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        {
+            var parameterreturnValue = new SqlParameter
+            {
+                ParameterName = "returnValue",
+                Direction = System.Data.ParameterDirection.Output,
+                SqlDbType = System.Data.SqlDbType.Int,
+            };
+
+            var sqlParameters = new []
+            {
+                new SqlParameter
+                {
+                    ParameterName = "ConsolidatedModelId",
+                    Value = consolidatedModelId ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "NewYear",
+                    Value = newYear ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                parameterreturnValue,
+            };
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[sp_AutoExpandYearRange] @ConsolidatedModelId = @ConsolidatedModelId, @NewYear = @NewYear", sqlParameters, cancellationToken);
+
+            returnValue?.SetValue(parameterreturnValue.Value);
+
+            return _;
+        }
+
         public virtual async Task<List<sp_BulkInsertMappingsResult>> sp_BulkInsertMappingsAsync(string mappings, string username, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
@@ -77,6 +109,95 @@ namespace Sh.Autofit.New.Entities.Models
             return _;
         }
 
+        public virtual async Task<List<sp_GetConsolidatedModelsForLookupResult>> sp_GetConsolidatedModelsForLookupAsync(int? manufacturerCode, int? modelCode, int? year, bool? includeInactive, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        {
+            var parameterreturnValue = new SqlParameter
+            {
+                ParameterName = "returnValue",
+                Direction = System.Data.ParameterDirection.Output,
+                SqlDbType = System.Data.SqlDbType.Int,
+            };
+
+            var sqlParameters = new []
+            {
+                new SqlParameter
+                {
+                    ParameterName = "ManufacturerCode",
+                    Value = manufacturerCode ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "ModelCode",
+                    Value = modelCode ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "Year",
+                    Value = year ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "IncludeInactive",
+                    Value = includeInactive ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Bit,
+                },
+                parameterreturnValue,
+            };
+            var _ = await _context.SqlQueryAsync<sp_GetConsolidatedModelsForLookupResult>("EXEC @returnValue = [dbo].[sp_GetConsolidatedModelsForLookup] @ManufacturerCode = @ManufacturerCode, @ModelCode = @ModelCode, @Year = @Year, @IncludeInactive = @IncludeInactive", sqlParameters, cancellationToken);
+
+            returnValue?.SetValue(parameterreturnValue.Value);
+
+            return _;
+        }
+
+        public virtual async Task<List<sp_GetConsolidatedModelsForPartResult>> sp_GetConsolidatedModelsForPartAsync(string partItemKey, bool? includeInactive, bool? includeCoupledModels, bool? includeCoupledParts, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        {
+            var parameterreturnValue = new SqlParameter
+            {
+                ParameterName = "returnValue",
+                Direction = System.Data.ParameterDirection.Output,
+                SqlDbType = System.Data.SqlDbType.Int,
+            };
+
+            var sqlParameters = new []
+            {
+                new SqlParameter
+                {
+                    ParameterName = "PartItemKey",
+                    Size = 40,
+                    Value = partItemKey ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "IncludeInactive",
+                    Value = includeInactive ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Bit,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "IncludeCoupledModels",
+                    Value = includeCoupledModels ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Bit,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "IncludeCoupledParts",
+                    Value = includeCoupledParts ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Bit,
+                },
+                parameterreturnValue,
+            };
+            var _ = await _context.SqlQueryAsync<sp_GetConsolidatedModelsForPartResult>("EXEC @returnValue = [dbo].[sp_GetConsolidatedModelsForPart] @PartItemKey = @PartItemKey, @IncludeInactive = @IncludeInactive, @IncludeCoupledModels = @IncludeCoupledModels, @IncludeCoupledParts = @IncludeCoupledParts", sqlParameters, cancellationToken);
+
+            returnValue?.SetValue(parameterreturnValue.Value);
+
+            return _;
+        }
+
         public virtual async Task<List<sp_GetVehiclesForPartResult>> sp_GetVehiclesForPartAsync(string partItemKey, bool? includeInactive, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
@@ -104,6 +225,106 @@ namespace Sh.Autofit.New.Entities.Models
                 parameterreturnValue,
             };
             var _ = await _context.SqlQueryAsync<sp_GetVehiclesForPartResult>("EXEC @returnValue = [dbo].[sp_GetVehiclesForPart] @PartItemKey = @PartItemKey, @IncludeInactive = @IncludeInactive", sqlParameters, cancellationToken);
+
+            returnValue?.SetValue(parameterreturnValue.Value);
+
+            return _;
+        }
+
+        public virtual async Task<List<sp_UpsertConsolidatedMappingResult>> sp_UpsertConsolidatedMappingAsync(int? consolidatedModelId, string partItemKey, string mappingSource, decimal? confidenceScore, int? priority, int? fitsYearFrom, int? fitsYearTo, bool? requiresModification, string compatibilityNotes, string installationNotes, string username, string changeReason, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        {
+            var parameterreturnValue = new SqlParameter
+            {
+                ParameterName = "returnValue",
+                Direction = System.Data.ParameterDirection.Output,
+                SqlDbType = System.Data.SqlDbType.Int,
+            };
+
+            var sqlParameters = new []
+            {
+                new SqlParameter
+                {
+                    ParameterName = "ConsolidatedModelId",
+                    Value = consolidatedModelId ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "PartItemKey",
+                    Size = 40,
+                    Value = partItemKey ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "MappingSource",
+                    Size = 100,
+                    Value = mappingSource ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "ConfidenceScore",
+                    Precision = 5,
+                    Scale = 2,
+                    Value = confidenceScore ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Decimal,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "Priority",
+                    Value = priority ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "FitsYearFrom",
+                    Value = fitsYearFrom ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "FitsYearTo",
+                    Value = fitsYearTo ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "RequiresModification",
+                    Value = requiresModification ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.Bit,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "CompatibilityNotes",
+                    Size = 1000,
+                    Value = compatibilityNotes ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "InstallationNotes",
+                    Size = 2000,
+                    Value = installationNotes ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "Username",
+                    Size = 200,
+                    Value = username ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                new SqlParameter
+                {
+                    ParameterName = "ChangeReason",
+                    Size = 1000,
+                    Value = changeReason ?? Convert.DBNull,
+                    SqlDbType = System.Data.SqlDbType.NVarChar,
+                },
+                parameterreturnValue,
+            };
+            var _ = await _context.SqlQueryAsync<sp_UpsertConsolidatedMappingResult>("EXEC @returnValue = [dbo].[sp_UpsertConsolidatedMapping] @ConsolidatedModelId = @ConsolidatedModelId, @PartItemKey = @PartItemKey, @MappingSource = @MappingSource, @ConfidenceScore = @ConfidenceScore, @Priority = @Priority, @FitsYearFrom = @FitsYearFrom, @FitsYearTo = @FitsYearTo, @RequiresModification = @RequiresModification, @CompatibilityNotes = @CompatibilityNotes, @InstallationNotes = @InstallationNotes, @Username = @Username, @ChangeReason = @ChangeReason", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 

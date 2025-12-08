@@ -120,4 +120,26 @@ public class GovernmentVehicleRecord
 
     [JsonPropertyName("rank")]
     public double? Rank { get; set; }
+
+    // Import-specific fields (populated by GovernmentVehicleRecordConverter)
+    // These fields only exist in the Personal Import API resource
+    /// <summary>
+    /// Vehicle type name from import API (sug_rechev_nm) - e.g., "פרטי נוסעים"
+    /// </summary>
+    public string? VehicleTypeName { get; set; }
+
+    /// <summary>
+    /// Vehicle type code from import API (sug_rechev_cd) - e.g., 112
+    /// </summary>
+    public int? VehicleTypeCode { get; set; }
+
+    /// <summary>
+    /// Country of origin from import API (tozeret_eretz_nm) - e.g., "גרמניה"
+    /// </summary>
+    public string? CountryOfOrigin { get; set; }
+
+    /// <summary>
+    /// Import type from import API (sug_yevu) - e.g., "יבוא אישי-משומש", "יבוא אישי-חדש"
+    /// </summary>
+    public string? ImportType { get; set; }
 }

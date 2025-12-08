@@ -52,6 +52,13 @@ namespace Sh.Autofit.New.Entities.Models
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public DateTime? LastSyncedAt { get; set; }
+        public int? ConsolidatedModelId { get; set; }
+        [StringLength(50)]
+        public string DriveType { get; set; }
+        [StringLength(50)]
+        public string GovernmentModelCode { get; set; }
+        public int? GovernmentManufacturerCode { get; set; }
+        public DateTime? LastSyncedFromGov { get; set; }
         [StringLength(200)]
         public string ManufacturerName { get; set; }
         public int Priority { get; set; }
