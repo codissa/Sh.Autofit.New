@@ -175,6 +175,41 @@
                     Padding="15,10"
                     FontSize="13"
                     Margin="5"/>
+
+            <Button Content="🔶 צור חלק וירטואלי"
+                    x:Name="CreateVirtualPartButton"
+                    Click="CreateVirtualPartButton_Click"
+                    Padding="15,10"
+                    FontSize="13"
+                    Margin="5"
+                    Background="#F39C12"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    ToolTip="צור חלק זמני אם החלק שאתה מחפש לא נמצא במלאי">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E67E22"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
         </StackPanel>
     </Grid>
 </Window>

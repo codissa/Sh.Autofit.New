@@ -17,6 +17,7 @@ public partial class PlateLookupViewModel : ObservableObject
     private readonly IGovernmentApiService _governmentApiService;
     private readonly IVehicleMatchingService _vehicleMatchingService;
     private readonly IDataService _dataService;
+    private readonly IVirtualPartService _virtualPartService;
     private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
 
     [ObservableProperty]
@@ -143,11 +144,13 @@ public partial class PlateLookupViewModel : ObservableObject
         IGovernmentApiService governmentApiService,
         IVehicleMatchingService vehicleMatchingService,
         IDataService dataService,
+        IVirtualPartService virtualPartService,
         IDbContextFactory<ShAutofitContext> contextFactory)
     {
         _governmentApiService = governmentApiService;
         _vehicleMatchingService = vehicleMatchingService;
         _dataService = dataService;
+        _virtualPartService = virtualPartService;
         _contextFactory = contextFactory;
     }
 
@@ -459,7 +462,11 @@ public partial class PlateLookupViewModel : ObservableObject
         try
         {
             // Use QuickMapDialog with variant-aware mapping
-            var dialog = new Views.QuickMapDialog(_dataService, MatchedVehicle.VehicleTypeId, MatchedVehicle);
+            var dialog = new Views.QuickMapDialog(
+                _dataService,
+                _virtualPartService,
+                MatchedVehicle.VehicleTypeId,
+                MatchedVehicle);
             var result = dialog.ShowDialog();
 
             if (result == true)

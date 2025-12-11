@@ -31,6 +31,8 @@ public partial class ShAutofitContext : DbContext
 
     public virtual DbSet<PartsMetadatum> PartsMetadata { get; set; }
 
+    public virtual DbSet<PendingVehicleReview> PendingVehicleReviews { get; set; }
+
     public virtual DbSet<PopularSearch> PopularSearches { get; set; }
 
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
@@ -46,6 +48,10 @@ public partial class ShAutofitContext : DbContext
     public virtual DbSet<VehicleRegistration> VehicleRegistrations { get; set; }
 
     public virtual DbSet<VehicleType> VehicleTypes { get; set; }
+
+    public virtual DbSet<VirtualPart> VirtualParts { get; set; }
+
+    public virtual DbSet<VirtualPartMigrationLog> VirtualPartMigrationLogs { get; set; }
 
     public virtual DbSet<VwPart> VwParts { get; set; }
 
@@ -683,6 +689,120 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.PartNumber)
                 .HasMaxLength(20)
                 .IsUnicode(false);
+        });
+
+        modelBuilder.Entity<PendingVehicleReview>(entity =>
+        {
+            entity.HasKey(e => e.PendingVehicleId).HasName("PK__PendingV__8B3E9C2E8A5C3B1F");
+
+            entity.HasIndex(e => new { e.ReviewStatus, e.IsActive }, "IX_PendingVehicles_ReviewStatus");
+
+            entity.HasIndex(e => e.BatchId, "IX_PendingVehicles_Batch");
+
+            entity.HasIndex(e => new { e.ManufacturerCode, e.ModelCode, e.ModelName, e.ManufacturingYear }, "IX_PendingVehicles_ManufacturerModel");
+
+            entity.Property(e => e.ManufacturerName)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.ModelName)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.CommercialName).HasMaxLength(100);
+            entity.Property(e => e.FuelType).HasMaxLength(50);
+            entity.Property(e => e.TransmissionType).HasMaxLength(50);
+            entity.Property(e => e.TrimLevel).HasMaxLength(100);
+            entity.Property(e => e.FinishLevel).HasMaxLength(100);
+            entity.Property(e => e.DriveType).HasMaxLength(50);
+            entity.Property(e => e.SafetyRating).HasColumnType("decimal(3, 1)");
+            entity.Property(e => e.ReviewStatus)
+                .IsRequired()
+                .HasMaxLength(20)
+                .HasDefaultValue("Pending");
+            entity.Property(e => e.ReviewedBy).HasMaxLength(100);
+            entity.Property(e => e.ReviewNotes).HasMaxLength(500);
+            entity.Property(e => e.DiscoveredAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.DiscoverySource)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+        });
+
+        modelBuilder.Entity<VirtualPart>(entity =>
+        {
+            entity.HasKey(e => e.VirtualPartId).HasName("PK__VirtualP__9A2B4E7F7D3F8A2C");
+
+            entity.HasIndex(e => e.PartNumber, "IX_VirtualParts_PartNumber")
+                .IsUnique()
+                .HasFilter("[IsActive] = 1");
+
+            entity.HasIndex(e => e.OemNumber1, "IX_VirtualParts_OEM1")
+                .HasFilter("[IsActive] = 1");
+
+            entity.HasIndex(e => e.IsActive, "IX_VirtualParts_Active");
+
+            entity.Property(e => e.PartNumber)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.PartName)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.OemNumber1)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.OemNumber2).HasMaxLength(50);
+            entity.Property(e => e.OemNumber3).HasMaxLength(50);
+            entity.Property(e => e.OemNumber4).HasMaxLength(50);
+            entity.Property(e => e.OemNumber5).HasMaxLength(500);
+            entity.Property(e => e.Category).HasMaxLength(100);
+            entity.Property(e => e.Notes)
+                .IsRequired()
+                .HasMaxLength(1000);
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+
+            entity.HasOne(d => d.CreatedForVehicleType).WithMany()
+                .HasForeignKey(d => d.CreatedForVehicleTypeId)
+                .HasConstraintName("FK_VirtualParts_VehicleTypes");
+
+            entity.HasOne(d => d.CreatedForConsolidatedModel).WithMany()
+                .HasForeignKey(d => d.CreatedForConsolidatedModelId)
+                .HasConstraintName("FK_VirtualParts_ConsolidatedModels");
+        });
+
+        modelBuilder.Entity<VirtualPartMigrationLog>(entity =>
+        {
+            entity.HasKey(e => e.MigrationId).HasName("PK__VirtualP__9F2B1A4E3E6F9D7A");
+
+            entity.HasIndex(e => e.VirtualPartNumber, "IX_VirtualPartMigrationLog_VirtualPart");
+
+            entity.HasIndex(e => e.RealPartNumber, "IX_VirtualPartMigrationLog_RealPart");
+
+            entity.Property(e => e.VirtualPartNumber)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.RealPartNumber)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.MatchedOemNumbers).HasMaxLength(500);
+            entity.Property(e => e.MigratedBy)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.MigratedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
         });
 
         OnModelCreatingGeneratedFunctions(modelBuilder);

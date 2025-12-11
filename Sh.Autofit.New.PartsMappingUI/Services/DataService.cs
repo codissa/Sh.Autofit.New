@@ -182,6 +182,7 @@ public class DataService : IDataService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
+        // Load real parts
         var parts = await context.VwParts
             .AsNoTracking()
             .Where(p => p.IsActive == 1)
@@ -204,9 +205,41 @@ public class DataService : IDataService
                 OemNumber2 = p.Oemnumber2,
                 OemNumber3 = p.Oemnumber3,
                 OemNumber4 = p.Oemnumber4,
-                OemNumber5 = p.Oemnumber5
+                OemNumber5 = p.Oemnumber5,
+                IsVirtual = false
             })
             .ToListAsync();
+
+        // Load virtual parts
+        var virtualParts = await context.VirtualParts
+            .AsNoTracking()
+            .Where(vp => vp.IsActive)
+            .Select(vp => new PartDisplayModel
+            {
+                PartNumber = vp.PartNumber,
+                PartName = vp.PartName,
+                Category = vp.Category,
+                Manufacturer = null,
+                Model = null,
+                RetailPrice = null,
+                CostPrice = null,
+                StockQuantity = 0,
+                IsInStock = false,
+                IsActive = true,
+                UniversalPart = false,
+                ImageUrl = null,
+                CompatibilityNotes = vp.Notes,
+                OemNumber1 = vp.OemNumber1,
+                OemNumber2 = vp.OemNumber2,
+                OemNumber3 = vp.OemNumber3,
+                OemNumber4 = vp.OemNumber4,
+                OemNumber5 = vp.OemNumber5,
+                IsVirtual = true
+            })
+            .ToListAsync();
+
+        // Merge real and virtual parts
+        parts.AddRange(virtualParts);
 
         return parts;
     }
@@ -388,9 +421,33 @@ public class DataService : IDataService
                 OemNumber2 = p.Oemnumber2,
                 OemNumber3 = p.Oemnumber3,
                 OemNumber4 = p.Oemnumber4,
-                OemNumber5 = p.Oemnumber5
+                OemNumber5 = p.Oemnumber5,
+                IsVirtual = false
             })
             .ToListAsync();
+
+        // Step 8: Load virtual parts that are NOT in the mapped list
+        var virtualParts = await context.VirtualParts
+            .AsNoTracking()
+            .Where(vp => vp.IsActive && !allMappedPartNumbers.Contains(vp.PartNumber))
+            .Select(vp => new PartDisplayModel
+            {
+                PartNumber = vp.PartNumber,
+                PartName = vp.PartName,
+                Category = vp.Category,
+                OemNumber1 = vp.OemNumber1,
+                OemNumber2 = vp.OemNumber2,
+                OemNumber3 = vp.OemNumber3,
+                OemNumber4 = vp.OemNumber4,
+                OemNumber5 = vp.OemNumber5,
+                IsVirtual = true,
+                IsInStock = false,
+                IsActive = true
+            })
+            .ToListAsync();
+
+        // Combine real and virtual parts
+        parts.AddRange(virtualParts);
 
         return parts;
     }
@@ -1192,52 +1249,163 @@ public class DataService : IDataService
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Efficient query: get only vehicles mapped to this part
-        var vehicles = await context.VehiclePartsMappings
+        var vehicles = new List<VehicleDisplayModel>();
+
+        // 1. Load vehicle-level mappings (legacy)
+        var vehicleLevelMappings = await context.VehiclePartsMappings
             .AsNoTracking()
+            .Where(m => m.PartItemKey == partNumber && m.IsActive && m.VehicleTypeId != null)
             .Include(m => m.VehicleType)
-                .ThenInclude(v => v.Manufacturer)
-            .Where(m => m.PartItemKey == partNumber && m.IsActive)
+                .ThenInclude(vt => vt.ConsolidatedModel)
+                    .ThenInclude(cm => cm.Manufacturer)
+            .Include(m => m.VehicleType)
+                .ThenInclude(vt => vt.Manufacturer)
             .Select(m => m.VehicleType)
             .Distinct()
-            .Select(v => new VehicleDisplayModel
-            {
-                VehicleTypeId = v.VehicleTypeId,
-                ConsolidatedModelId = v.ConsolidatedModelId,
-                ManufacturerId = v.ManufacturerId,
-                ManufacturerName = v.Manufacturer.ManufacturerName,
-                ManufacturerShortName = v.Manufacturer.ManufacturerShortName ?? v.Manufacturer.ManufacturerName,
-                ModelCode = v.ModelCode ?? string.Empty,
-                ModelName = v.ModelName,
-                YearFrom = v.YearFrom,
-                YearTo = v.YearTo,
-                VehicleCategory = v.VehicleCategory,
-                CommercialName = v.CommercialName,
-                FuelTypeName = v.FuelTypeName,
-                EngineModel = v.EngineModel,
-                EngineVolume = v.EngineVolume,
-                TransmissionType = v.TransmissionType,
-                FinishLevel = v.FinishLevel,
-                TrimLevel = v.TrimLevel
-            })
             .ToListAsync();
 
-        return vehicles;
+        foreach (var vt in vehicleLevelMappings)
+        {
+            vehicles.Add(new VehicleDisplayModel
+            {
+                VehicleTypeId = vt.VehicleTypeId,
+                ConsolidatedModelId = vt.ConsolidatedModelId,
+                ManufacturerId = vt.ManufacturerId,
+                ManufacturerName = vt.Manufacturer?.ManufacturerName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerName ?? "",
+                ManufacturerShortName = vt.Manufacturer?.ManufacturerShortName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerShortName ?? vt.Manufacturer?.ManufacturerName ?? "",
+                ModelCode = vt.ModelCode ?? string.Empty,
+                ModelName = vt.ModelName ?? vt.ConsolidatedModel?.ModelName ?? "",
+                YearFrom = vt.YearFrom,
+                YearTo = vt.YearTo,
+                VehicleCategory = vt.VehicleCategory,
+                CommercialName = vt.CommercialName,
+                FuelTypeName = vt.FuelTypeName,
+                EngineModel = vt.EngineModel,
+                EngineVolume = vt.EngineVolume,
+                TransmissionType = vt.TransmissionType,
+                FinishLevel = vt.FinishLevel,
+                TrimLevel = vt.TrimLevel,
+                Horsepower = vt.Horsepower,
+                DriveType = vt.DriveType,
+                MappingLevel = "Vehicle"
+            });
+        }
+
+        // 2. Load consolidated-level mappings (current)
+        var consolidatedMappings = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => m.PartItemKey == partNumber && m.IsActive && m.ConsolidatedModelId != null)
+            .Select(m => m.ConsolidatedModelId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        foreach (var consModelId in consolidatedMappings)
+        {
+            // Get all vehicles from this consolidated model
+            var consolidatedVehicles = await context.VehicleTypes
+                .AsNoTracking()
+                .Where(vt => vt.ConsolidatedModelId == consModelId && vt.IsActive)
+                .Include(vt => vt.ConsolidatedModel)
+                    .ThenInclude(cm => cm.Manufacturer)
+                .Include(vt => vt.Manufacturer)
+                .ToListAsync();
+
+            foreach (var vt in consolidatedVehicles)
+            {
+                vehicles.Add(new VehicleDisplayModel
+                {
+                    VehicleTypeId = vt.VehicleTypeId,
+                    ConsolidatedModelId = consModelId,
+                    ManufacturerId = vt.ManufacturerId,
+                    ManufacturerName = vt.Manufacturer?.ManufacturerName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerName ?? "",
+                    ManufacturerShortName = vt.Manufacturer?.ManufacturerShortName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerShortName ?? vt.Manufacturer?.ManufacturerName ?? "",
+                    ModelCode = vt.ModelCode ?? string.Empty,
+                    ModelName = vt.ModelName ?? vt.ConsolidatedModel?.ModelName ?? "",
+                    YearFrom = vt.YearFrom,
+                    YearTo = vt.YearTo,
+                    VehicleCategory = vt.VehicleCategory,
+                    CommercialName = vt.CommercialName,
+                    FuelTypeName = vt.FuelTypeName,
+                    EngineModel = vt.EngineModel,
+                    EngineVolume = vt.EngineVolume,
+                    TransmissionType = vt.TransmissionType,
+                    FinishLevel = vt.FinishLevel,
+                    TrimLevel = vt.TrimLevel,
+                    Horsepower = vt.Horsepower,
+                    DriveType = vt.DriveType,
+                    MappingLevel = "Consolidated"
+                });
+            }
+        }
+
+        return vehicles
+            .OrderBy(v => v.ManufacturerName)
+            .ThenBy(v => v.ModelName)
+            .ThenBy(v => v.YearFrom)
+            .ToList();
     }
 
     public async Task<List<VehicleDisplayModel>> GetSuggestedVehiclesForPartAsync(string partNumber)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Step 1: Get vehicles already mapped to this part
-        var mappedVehicleIds = await context.VehiclePartsMappings
+        // Step 1: Get ALL mapped vehicle IDs (from both vehicle-level AND consolidated-level mappings)
+
+        // Get vehicle-level mappings
+        var vehicleLevelMappings = await context.VehiclePartsMappings
             .AsNoTracking()
-            .Where(m => m.PartItemKey == partNumber && m.IsActive)
-            .Select(m => m.VehicleTypeId)
+            .Where(m => m.PartItemKey == partNumber && m.IsActive && m.VehicleTypeId != null)
+            .Select(m => m.VehicleTypeId!.Value)
+            .ToListAsync();
+
+        // Get consolidated-level mappings and expand to vehicle IDs
+        var consolidatedMappings = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => m.PartItemKey == partNumber && m.IsActive && m.ConsolidatedModelId != null)
+            .Select(m => m.ConsolidatedModelId!.Value)
             .Distinct()
             .ToListAsync();
 
-        if (mappedVehicleIds.Count == 0)
+        // Get all vehicle IDs from consolidated models (including coupled models)
+        var consolidatedVehicleIds = new HashSet<int>();
+        foreach (var consModelId in consolidatedMappings)
+        {
+            // Get vehicles from this consolidated model
+            var vehicles = await context.VehicleTypes
+                .AsNoTracking()
+                .Where(vt => vt.ConsolidatedModelId == consModelId && vt.IsActive)
+                .Select(vt => vt.VehicleTypeId)
+                .ToListAsync();
+            consolidatedVehicleIds.UnionWith(vehicles);
+
+            // Get coupled models
+            var couplings = await context.ModelCouplings
+                .AsNoTracking()
+                .Where(mc => mc.IsActive &&
+                    (mc.ConsolidatedModelIdA == consModelId || mc.ConsolidatedModelIdB == consModelId))
+                .ToListAsync();
+
+            // Get vehicles from coupled models
+            foreach (var coupling in couplings)
+            {
+                var otherModelId = coupling.ConsolidatedModelIdA == consModelId
+                    ? coupling.ConsolidatedModelIdB
+                    : coupling.ConsolidatedModelIdA;
+
+                var coupledVehicles = await context.VehicleTypes
+                    .AsNoTracking()
+                    .Where(vt => vt.ConsolidatedModelId == otherModelId && vt.IsActive)
+                    .Select(vt => vt.VehicleTypeId)
+                    .ToListAsync();
+                consolidatedVehicleIds.UnionWith(coupledVehicles);
+            }
+        }
+
+        // Combine all mapped vehicle IDs
+        var allMappedVehicleIds = new HashSet<int>(vehicleLevelMappings);
+        allMappedVehicleIds.UnionWith(consolidatedVehicleIds);
+
+        if (allMappedVehicleIds.Count == 0)
         {
             return new List<VehicleDisplayModel>(); // No suggestions if part has no mappings yet
         }
@@ -1245,7 +1413,7 @@ public class DataService : IDataService
         // Step 2: Get characteristics of mapped vehicles
         var mappedVehicles = await context.VehicleTypes
             .AsNoTracking()
-            .Where(v => mappedVehicleIds.Contains(v.VehicleTypeId))
+            .Where(v => allMappedVehicleIds.Contains(v.VehicleTypeId))
             .ToListAsync();
 
         // Step 3: Find similar vehicles that are NOT already mapped
@@ -1258,7 +1426,7 @@ public class DataService : IDataService
             .AsNoTracking()
             .Include(v => v.Manufacturer)
             .Where(v => v.IsActive &&
-                       !mappedVehicleIds.Contains(v.VehicleTypeId) && // Not already mapped
+                       !allMappedVehicleIds.Contains(v.VehicleTypeId) && // Not already mapped
                        (commercialNames.Contains(v.CommercialName) || // Same commercial name
                         engineVolumes.Contains(v.EngineVolume) ||    // Same engine volume
                         fuelTypes.Contains(v.FuelTypeName)))          // Same fuel type
@@ -1927,7 +2095,7 @@ public class DataService : IDataService
         if (!allPartKeys.Any())
             return new List<PartDisplayModel>();
 
-        // Load part details
+        // Load real part details
         var parts = await context.VwParts
             .AsNoTracking()
             .Where(p => allPartKeys.Contains(p.PartNumber) && p.IsActive == 1)
@@ -1950,9 +2118,33 @@ public class DataService : IDataService
                 OemNumber2 = p.Oemnumber2,
                 OemNumber3 = p.Oemnumber3,
                 OemNumber4 = p.Oemnumber4,
-                OemNumber5 = p.Oemnumber5
+                OemNumber5 = p.Oemnumber5,
+                IsVirtual = false
             })
             .ToListAsync();
+
+        // Load virtual part details
+        var virtualParts = await context.VirtualParts
+            .AsNoTracking()
+            .Where(vp => allPartKeys.Contains(vp.PartNumber) && vp.IsActive)
+            .Select(vp => new PartDisplayModel
+            {
+                PartNumber = vp.PartNumber,
+                PartName = vp.PartName,
+                Category = vp.Category,
+                OemNumber1 = vp.OemNumber1,
+                OemNumber2 = vp.OemNumber2,
+                OemNumber3 = vp.OemNumber3,
+                OemNumber4 = vp.OemNumber4,
+                OemNumber5 = vp.OemNumber5,
+                IsVirtual = true,
+                IsInStock = false,
+                IsActive = true
+            })
+            .ToListAsync();
+
+        // Combine real and virtual parts
+        parts.AddRange(virtualParts);
 
         // Set mapping type for each part
         foreach (var part in parts)
@@ -2133,6 +2325,17 @@ public class DataService : IDataService
             .AsNoTracking()
             .Include(cm => cm.Manufacturer)
             .FirstOrDefaultAsync(cm => cm.ConsolidatedModelId == vehicleType);
+    }
+
+    public async Task<List<VehicleType>> LoadVehicleTypesByConsolidatedModelAsync(int consolidatedModelId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        return await context.VehicleTypes
+            .AsNoTracking()
+            .Where(vt => vt.ConsolidatedModelId == consolidatedModelId && vt.IsActive)
+            .OrderBy(vt => vt.YearFrom)
+            .ToListAsync();
     }
 
     // =============================================

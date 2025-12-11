@@ -13,6 +13,7 @@ namespace Sh.Autofit.New.PartsMappingUI.Views;
 public partial class QuickMapDialog : Window, INotifyPropertyChanged
 {
     private readonly IDataService _dataService;
+    private readonly IVirtualPartService _virtualPartService;
     private readonly int _vehicleTypeId;
     private readonly VehicleDisplayModel _vehicle;
     private ConsolidatedVehicleModel? _consolidatedModel;
@@ -30,12 +31,17 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         }
     }
 
-    public QuickMapDialog(IDataService dataService, int vehicleTypeId, VehicleDisplayModel vehicle)
+    public QuickMapDialog(
+        IDataService dataService,
+        IVirtualPartService virtualPartService,
+        int vehicleTypeId,
+        VehicleDisplayModel vehicle)
     {
         InitializeComponent();
         DataContext = this;
 
         _dataService = dataService;
+        _virtualPartService = virtualPartService;
         _vehicleTypeId = vehicleTypeId;
         _vehicle = vehicle;
 
@@ -120,12 +126,12 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
                 (p.Category?.ToLower().Contains(word) == true) ||
                 (p.Manufacturer?.ToLower().Contains(word) == true) ||
                 (p.Model?.ToLower().Contains(word) == true) ||
-                // Search in OEM numbers
-                (p.OemNumber1?.ToLower().Contains(word) == true) ||
-                (p.OemNumber2?.ToLower().Contains(word) == true) ||
-                (p.OemNumber3?.ToLower().Contains(word) == true) ||
-                (p.OemNumber4?.ToLower().Contains(word) == true) ||
-                (p.OemNumber5?.ToLower().Contains(word) == true)
+                // Search in OEM numbers with normalization (ignores ., -, /, spaces)
+                Helpers.OemSearchHelper.OemContains(p.OemNumber1 ?? "", word) ||
+                Helpers.OemSearchHelper.OemContains(p.OemNumber2 ?? "", word) ||
+                Helpers.OemSearchHelper.OemContains(p.OemNumber3 ?? "", word) ||
+                Helpers.OemSearchHelper.OemContains(p.OemNumber4 ?? "", word) ||
+                Helpers.OemSearchHelper.OemContains(p.OemNumber5 ?? "", word)
             );
         });
 
@@ -256,6 +262,90 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
     {
         DialogResult = false;
         Close();
+    }
+
+    private async void CreateVirtualPartButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Get available categories for dropdown
+        var categories = _allParts
+            .Where(p => !string.IsNullOrWhiteSpace(p.Category))
+            .Select(p => p.Category!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+        var dialog = new CreateVirtualPartDialog(
+            _virtualPartService,
+            _consolidatedModel?.ConsolidatedModelId,
+            _vehicleTypeId,
+            categories);
+
+        if (dialog.ShowDialog() == true && dialog.CreatedVirtualPart != null)
+        {
+            // Reload parts to include new virtual part
+            await LoadPartsAsync();
+
+            // Auto-select the new virtual part
+            var newVirtualPart = _allParts.FirstOrDefault(p =>
+                p.PartNumber == dialog.CreatedVirtualPart.PartNumber);
+
+            if (newVirtualPart != null)
+            {
+                newVirtualPart.IsSelected = true;
+                UpdateSelectionInfo();
+
+                // Auto-map the virtual part to the vehicle/consolidated model
+                try
+                {
+                    IsLoading = true;
+
+                    if (_consolidatedModel != null)
+                    {
+                        // Map to consolidated model
+                        await _dataService.MapPartsToConsolidatedModelAsync(
+                            _consolidatedModel.ConsolidatedModelId,
+                            new List<string> { newVirtualPart.PartNumber },
+                            "QuickMap-VirtualPart");
+
+                        MessageBox.Show(
+                            $"החלק הוירטואלי '{newVirtualPart.PartName}' נוצר ומופה בהצלחה לדגם מאוחד!",
+                            "✓ הצלחה",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        // Fallback: Map to individual vehicle type
+                        await _dataService.MapPartsToVehiclesAsync(
+                            new List<int> { _vehicleTypeId },
+                            new List<string> { newVirtualPart.PartNumber },
+                            "QuickMap-VirtualPart");
+
+                        MessageBox.Show(
+                            $"החלק הוירטואלי '{newVirtualPart.PartName}' נוצר ומופה בהצלחה לרכב!",
+                            "✓ הצלחה",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+
+                    // Close the dialog after successful mapping
+                    DialogResult = true;
+                    Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"החלק נוצר אך נכשל במיפוי: {ex.Message}",
+                        "שגיאה חלקית",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+                finally
+                {
+                    IsLoading = false;
+                }
+            }
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

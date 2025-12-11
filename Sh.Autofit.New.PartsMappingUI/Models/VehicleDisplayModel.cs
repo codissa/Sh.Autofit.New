@@ -9,6 +9,18 @@ public partial class VehicleDisplayModel : ObservableObject
     // Consolidated model ID (for new way mapping)
     public int? ConsolidatedModelId { get; set; }
 
+    // Mapping level: "Vehicle" for vehicle-level mapping, "Consolidated" for consolidated-level mapping
+    [ObservableProperty]
+    private string _mappingLevel = "";
+
+    public string MappingLevelDisplay => MappingLevel == "Consolidated" ? "דגם מאוחד" : "רכב בודד";
+
+    // Year property (for consolidated model display)
+    public int? Year { get; set; }
+
+    // Number of doors (for consolidated model display)
+    public int? NumberOfDoors { get; set; }
+
     [ObservableProperty]
     private bool _isSelected;
 

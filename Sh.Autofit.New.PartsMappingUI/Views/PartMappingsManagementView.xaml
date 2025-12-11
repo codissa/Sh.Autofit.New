@@ -46,19 +46,38 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Title -->
-                <TextBlock Grid.Row="0"
-                          Text="ניהול מיפויי חלקים"
-                          FontSize="20"
-                          FontWeight="Bold"
-                          Margin="0,0,0,15"/>
+                <!-- Title and Refresh Button -->
+                <Grid Grid.Row="0" Margin="0,0,0,15">
+                    <TextBlock Text="ניהול מיפויי חלקים"
+                              FontSize="20"
+                              FontWeight="Bold"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Right"/>
+                    <Button Content="🔄 רענן"
+                           Command="{Binding LoadPartsCommand}"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center"
+                           Padding="10,5"
+                           Background="#4CAF50"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           ToolTip="רענן רשימת חלקים"/>
+                </Grid>
 
-                <!-- Category Filter -->
-                <ComboBox Grid.Row="1"
-                         ItemsSource="{Binding AvailableCategories}"
-                         SelectedItem="{Binding SelectedCategory}"
-                         Margin="0,0,0,10"
-                         Padding="8"/>
+                <!-- Filters Row -->
+                <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                    <!-- Category Filter -->
+                    <ComboBox ItemsSource="{Binding AvailableCategories}"
+                             SelectedItem="{Binding SelectedCategory}"
+                             Margin="0,0,0,5"
+                             Padding="8"/>
+
+                    <!-- Virtual Parts Filter -->
+                    <CheckBox Content="🔶 הצג רק חלקים וירטואליים"
+                             IsChecked="{Binding ShowOnlyVirtual}"
+                             Margin="5,5,0,0"
+                             FontWeight="SemiBold"/>
+                </StackPanel>
 
                 <!-- Search Box -->
                 <TextBox Grid.Row="2"
@@ -96,12 +115,13 @@
                         <DataTemplate>
                             <Border Padding="10"
                                     Margin="0,2"
-                                    Background="#FAFAFA"
+                                    Background="{Binding BackgroundColor}"
                                     CornerRadius="4"
                                     BorderBrush="#E0E0E0"
                                     BorderThickness="1">
                                 <StackPanel>
-                                    <TextBlock FontWeight="SemiBold" FontSize="13">
+                                    <TextBlock FontWeight="SemiBold" FontSize="13" Foreground="{Binding ForegroundColor}">
+                                        <Run Text="{Binding VirtualIndicator, Mode=OneWay}"/>
                                         <Run Text="{Binding PartNumber}"/>
                                     </TextBlock>
                                     <TextBlock Text="{Binding PartName}"
@@ -109,12 +129,15 @@
                                               FontSize="11"
                                               Margin="0,3,0,0"
                                               TextWrapping="Wrap"
-                                              MaxHeight="40"/>
+                                              MaxHeight="40"
+                                              FontStyle="{Binding FontStyle}"/>
                                     <TextBlock Foreground="Gray" FontSize="10" Margin="0,3,0,0">
                                         <Run Text="קטגוריה: "/>
                                         <Run Text="{Binding Category}"/>
                                         <Run Text=" | רכבים: "/>
                                         <Run Text="{Binding MappedVehicleCount, Mode=OneWay}"/>
+                                        <Run Text=" | "/>
+                                        <Run Text="{Binding PartTypeDisplay, Mode=OneWay}" FontWeight="SemiBold"/>
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -127,12 +150,13 @@
         <!-- Right Panel - Mapped Vehicles -->
         <Grid Grid.Column="1" Margin="10,0,0,0">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="2*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="1*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>   <!-- Part Details Header -->
+                <RowDefinition Height="Auto"/>   <!-- Action Buttons -->
+                <RowDefinition Height="Auto"/>   <!-- Consolidated Models Section -->
+                <RowDefinition Height="*"/>      <!-- Individual Vehicles Expander -->
+                <RowDefinition Height="Auto"/>   <!-- Suggestions Section Header -->
+                <RowDefinition Height="1*"/>     <!-- Suggested Vehicles DataGrid -->
+                <RowDefinition Height="Auto"/>   <!-- Loading Indicator -->
             </Grid.RowDefinitions>
 
             <!-- Part Details Header -->
@@ -163,28 +187,121 @@
 
                     <!-- Main Info -->
                     <StackPanel Grid.Row="0" Grid.Column="0">
-                        <TextBlock FontSize="18" FontWeight="Bold">
+                        <TextBlock FontSize="18" FontWeight="Bold" Foreground="{Binding SelectedPart.ForegroundColor}">
+                            <Run Text="{Binding SelectedPart.VirtualIndicator, Mode=OneWay}"/>
                             <Run Text="{Binding SelectedPart.PartNumber}"/>
                             <Run Text=" - "/>
                             <Run Text="{Binding SelectedPart.PartName}"/>
                         </TextBlock>
-                        <TextBlock Text="{Binding SelectedPart.Category}"
-                                  Foreground="#666"
-                                  FontSize="13"
-                                  Margin="0,5,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="{Binding SelectedPart.Category}"
+                                      Foreground="#666"
+                                      FontSize="13"/>
+                            <TextBlock Text="{Binding SelectedPart.PartTypeDisplay, Mode=OneWay}"
+                                      FontSize="12"
+                                      FontWeight="Bold"
+                                      Foreground="{Binding SelectedPart.ForegroundColor}"
+                                      Margin="10,0,0,0"
+                                      VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
 
-                    <!-- Price & Stock Info -->
+                    <!-- Price & Stock Info OR Edit/Delete Virtual Part Buttons -->
                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
-                        <TextBlock FontSize="12" Foreground="#666" Margin="0,0,15,0">
-                            <Run Text="מחיר: "/>
-                            <Run Text="{Binding SelectedPart.RetailPrice, StringFormat='{}{0:N2}'}"/>
-                            <Run Text=" ₪"/>
-                        </TextBlock>
-                        <TextBlock FontSize="12" Foreground="#666">
-                            <Run Text="מלאי: "/>
-                            <Run Text="{Binding SelectedPart.StockQuantity, StringFormat='{}{0:N0}'}"/>
-                        </TextBlock>
+                        <!-- Edit Virtual Part Button (only for virtual parts) -->
+                        <Button Content="✏️ ערוך חלק וירטואלי"
+                               Command="{Binding EditVirtualPartCommand}"
+                               Background="#3498DB"
+                               Foreground="White"
+                               Padding="12,6"
+                               Margin="0,0,10,0"
+                               FontSize="12"
+                               Cursor="Hand"
+                               ToolTip="ערוך פרטי חלק וירטואלי זה">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                       CornerRadius="4"
+                                                       Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPart.IsVirtual}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#2980B9"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- Delete Virtual Part Button (only for virtual parts) -->
+                        <Button Content="🗑️ מחק חלק וירטואלי"
+                               Command="{Binding DeleteVirtualPartCommand}"
+                               Background="#E74C3C"
+                               Foreground="White"
+                               Padding="12,6"
+                               Margin="0,0,10,0"
+                               FontSize="12"
+                               Cursor="Hand"
+                               ToolTip="מחק חלק וירטואלי זה לצמיתות">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                       CornerRadius="4"
+                                                       Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPart.IsVirtual}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#C0392B"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- Price & Stock Info (only for real parts) -->
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPart.IsVirtual}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock FontSize="12" Foreground="#666" Margin="0,0,15,0">
+                                <Run Text="מחיר: "/>
+                                <Run Text="{Binding SelectedPart.RetailPrice, StringFormat='{}{0:N2}'}"/>
+                                <Run Text=" ₪"/>
+                            </TextBlock>
+                            <TextBlock FontSize="12" Foreground="#666">
+                                <Run Text="מלאי: "/>
+                                <Run Text="{Binding SelectedPart.StockQuantity, StringFormat='{}{0:N0}'}"/>
+                            </TextBlock>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- OEM Numbers -->
@@ -251,18 +368,81 @@
                           Margin="10,0,0,0"/>
             </StackPanel>
 
-            <!-- Mapped Vehicles DataGrid -->
-            <DataGrid Grid.Row="2"
-                     ItemsSource="{Binding MappedVehiclesView}"
-                     AutoGenerateColumns="False"
-                     IsReadOnly="True"
-                     CanUserAddRows="False"
-                     SelectionMode="Single"
-                     GridLinesVisibility="Horizontal"
-                     HeadersVisibility="Column"
-                     AlternatingRowBackground="#F9F9F9">
-                <DataGrid.Style>
-                    <Style TargetType="DataGrid">
+            <!-- Consolidated Models Section (NEW) -->
+            <Border Grid.Row="2"
+                   Background="#E3F2FD"
+                   BorderBrush="#2196F3"
+                   BorderThickness="0,0,0,1"
+                   Padding="10"
+                   Margin="0,0,0,10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ConsolidatedModels.Count}">
+                                <DataTrigger.Value>
+                                    <sys:Int32 xmlns:sys="clr-namespace:System;assembly=mscorlib">0</sys:Int32>
+                                </DataTrigger.Value>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <TextBlock Text="📦 דגמים מאוחדים ממופים"
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              Margin="0,0,0,5"/>
+                    <TextBlock Text="דגמים אלו מייצגים קבוצות שנים וווריאנטים. הסרת חלק מדגם מאוחד תסיר אותו מכל השנים."
+                              FontSize="10"
+                              Foreground="#666"
+                              TextWrapping="Wrap"
+                              Margin="0,0,0,10"/>
+
+                    <!-- Consolidated Models DataGrid -->
+                    <DataGrid ItemsSource="{Binding ConsolidatedModels}"
+                             AutoGenerateColumns="False"
+                             IsReadOnly="True"
+                             CanUserAddRows="False"
+                             SelectionMode="Single"
+                             GridLinesVisibility="Horizontal"
+                             HeadersVisibility="Column"
+                             Background="White"
+                             MaxHeight="200">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="יצרן" Width="80">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="Manufacturer.ManufacturerShortName"/>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="120"/>
+                            <DataGridTextColumn Header="שנים" Width="90">
+                                <DataGridTextColumn.Binding>
+                                    <MultiBinding StringFormat="{}{0}-{1}">
+                                        <Binding Path="YearFrom"/>
+                                        <Binding Path="YearTo"/>
+                                    </MultiBinding>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="נפח" Binding="{Binding EngineVolume}" Width="60"/>
+                            <DataGridTextColumn Header="תיבה" Binding="{Binding TransmissionType}" Width="70"/>
+                            <DataGridTextColumn Header="דלק" Binding="{Binding FuelTypeName}" Width="60"/>
+                            <DataGridTextColumn Header="גימור" Binding="{Binding TrimLevel}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Individual Vehicles Section (Collapsible) -->
+            <Expander Grid.Row="3"
+                     Header="ווריאנטים בודדים (לצפייה בלבד)"
+                     IsExpanded="False"
+                     Margin="0,10,0,0"
+                     Background="#F9F9F9"
+                     BorderBrush="#E0E0E0"
+                     BorderThickness="1">
+                <Expander.Style>
+                    <Style TargetType="Expander">
                         <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding SelectedPart}" Value="{x:Null}">
@@ -270,7 +450,16 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </DataGrid.Style>
+                </Expander.Style>
+                <DataGrid ItemsSource="{Binding MappedVehiclesView}"
+                         AutoGenerateColumns="False"
+                         IsReadOnly="True"
+                         CanUserAddRows="False"
+                         SelectionMode="Single"
+                         GridLinesVisibility="Horizontal"
+                         HeadersVisibility="Column"
+                         AlternatingRowBackground="#F9F9F9"
+                         MaxHeight="250">
                 <DataGrid.GroupStyle>
                     <GroupStyle>
                         <GroupStyle.HeaderTemplate>
@@ -350,9 +539,10 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
+            </Expander>
 
             <!-- Empty State -->
-            <Border Grid.Row="2"
+            <Border Grid.Row="3"
                    Background="White"
                    BorderBrush="#E0E0E0"
                    BorderThickness="2"
@@ -379,7 +569,7 @@
             </Border>
 
             <!-- Suggestions Section Header -->
-            <Border Grid.Row="3"
+            <Border Grid.Row="4"
                    Background="#FFFEF3"
                    BorderBrush="#FFC107"
                    BorderThickness="0,1,0,0"
@@ -417,7 +607,7 @@
             </Border>
 
             <!-- Suggested Vehicles DataGrid -->
-            <DataGrid Grid.Row="4"
+            <DataGrid Grid.Row="5"
                      ItemsSource="{Binding SuggestedVehicles}"
                      AutoGenerateColumns="False"
                      IsReadOnly="True"
@@ -496,7 +686,7 @@
             </DataGrid>
 
             <!-- Loading Indicator -->
-            <ProgressBar Grid.Row="5"
+            <ProgressBar Grid.Row="6"
                         IsIndeterminate="True"
                         Height="4"
                         Margin="0,10,0,0"

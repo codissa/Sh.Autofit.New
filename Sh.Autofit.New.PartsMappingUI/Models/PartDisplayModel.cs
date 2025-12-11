@@ -68,6 +68,16 @@ public partial class PartDisplayModel : ObservableObject
     [ObservableProperty]
     private bool _hasSuggestion;
 
+    // Virtual Part properties
+    [ObservableProperty]
+    private bool _isVirtual = false;
+
+    [ObservableProperty]
+    private bool _hasMigrationAvailable = false;
+
+    [ObservableProperty]
+    private string? _migrationCandidateRealPartNumber;
+
     public string DisplayName => $"{PartNumber} - {PartName}";
 
     public string StatusIcon => MappingStatus switch
@@ -132,4 +142,23 @@ public partial class PartDisplayModel : ObservableObject
     };
 
     public string RelevanceScoreDisplay => HasSuggestion ? $"{RelevanceScore:F0}%" : "";
+
+    // Virtual Part visual indicators
+    public string VirtualIndicator => IsVirtual ? "🔶" : "";
+
+    public string PartTypeDisplay => IsVirtual ? "Virtual Part" : "Real Part";
+
+    public string BackgroundColorHex => IsVirtual ? "#FFF9E6" : "#FFFFFF"; // Light yellow for virtual parts
+
+    public System.Windows.Media.Brush BackgroundColor => IsVirtual
+        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 248, 220))
+        : System.Windows.Media.Brushes.White;
+
+    public System.Windows.Media.Brush ForegroundColor => IsVirtual
+        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 140, 0)) // Dark orange
+        : System.Windows.Media.Brushes.Black;
+
+    public System.Windows.FontStyle FontStyle => IsVirtual
+        ? System.Windows.FontStyles.Italic
+        : System.Windows.FontStyles.Normal;
 }

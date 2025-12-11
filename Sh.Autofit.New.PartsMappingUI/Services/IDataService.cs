@@ -83,6 +83,9 @@ public interface IDataService
     // Get consolidated model from VehicleTypeId (for backward compatibility during transition)
     Task<ConsolidatedVehicleModel?> GetConsolidatedModelForVehicleTypeAsync(int vehicleTypeId);
 
+    // Load vehicle types for a consolidated model (for expandable grid display)
+    Task<List<VehicleType>> LoadVehicleTypesByConsolidatedModelAsync(int consolidatedModelId);
+
     // =============================================
     // MODEL COUPLING METHODS
     // =============================================

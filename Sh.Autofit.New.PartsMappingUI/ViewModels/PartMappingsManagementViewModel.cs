@@ -4,6 +4,7 @@ using Sh.Autofit.New.Entities.Models;
 using Sh.Autofit.New.PartsMappingUI.Helpers;
 using Sh.Autofit.New.PartsMappingUI.Models;
 using Sh.Autofit.New.PartsMappingUI.Services;
+using Sh.Autofit.New.PartsMappingUI.Views;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
@@ -15,6 +16,7 @@ namespace Sh.Autofit.New.PartsMappingUI.ViewModels;
 public partial class PartMappingsManagementViewModel : ObservableObject
 {
     private readonly IDataService _dataService;
+    private readonly IVirtualPartService _virtualPartService;
 
     [ObservableProperty]
     private ObservableCollection<PartDisplayModel> _allParts = new();
@@ -48,14 +50,18 @@ public partial class PartMappingsManagementViewModel : ObservableObject
     private ObservableCollection<string> _availableCategories = new();
 
     [ObservableProperty]
+    private bool _showOnlyVirtual = false;
+
+    [ObservableProperty]
     private bool _isLoading;
 
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    public PartMappingsManagementViewModel(IDataService dataService)
+    public PartMappingsManagementViewModel(IDataService dataService, IVirtualPartService virtualPartService)
     {
         _dataService = dataService;
+        _virtualPartService = virtualPartService;
     }
 
     public async Task InitializeAsync()
@@ -116,6 +122,11 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         ApplyFilters();
     }
 
+    partial void OnShowOnlyVirtualChanged(bool value)
+    {
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         var filtered = AllParts.AsEnumerable();
@@ -129,13 +140,21 @@ public partial class PartMappingsManagementViewModel : ObservableObject
                 p.PartName.ToLower().Contains(searchLower) ||
                 (p.Category?.ToLower().Contains(searchLower) ?? false) ||
                 (p.Manufacturer?.ToLower().Contains(searchLower) ?? false) ||
-                (p.OemNumbers != null && p.OemNumbers.Any(oem => oem.ToLower().Contains(searchLower))));
+                // OEM search with normalization (ignores special characters like ., -, /, spaces)
+                (p.OemNumbers != null && p.OemNumbers.Any(oem =>
+                    Helpers.OemSearchHelper.OemContains(oem, PartSearchText))));
         }
 
         // Apply category filter
         if (!string.IsNullOrEmpty(SelectedCategory) && SelectedCategory != "הכל")
         {
             filtered = filtered.Where(p => p.Category == SelectedCategory);
+        }
+
+        // Apply virtual parts filter
+        if (ShowOnlyVirtual)
+        {
+            filtered = filtered.Where(p => p.IsVirtual);
         }
 
         FilteredParts = new ObservableCollection<PartDisplayModel>(filtered);
@@ -145,15 +164,39 @@ public partial class PartMappingsManagementViewModel : ObservableObject
     {
         if (value != null)
         {
-            _ = LoadMappedVehiclesAsync(value.PartNumber);
-            _ = LoadSuggestedVehiclesAsync(value.PartNumber);
-            _ = LoadConsolidatedModelsAsync(value.PartNumber);
+            // Load data sequentially to prevent UI hang
+            _ = LoadDataSequentiallyAsync(value.PartNumber);
         }
         else
         {
             MappedVehicles.Clear();
             SuggestedVehicles.Clear();
             ConsolidatedModels.Clear();
+        }
+    }
+
+    private async Task LoadDataSequentiallyAsync(string partNumber)
+    {
+        try
+        {
+            IsLoading = true;
+
+            // Load critical data first (mapped vehicles)
+            await LoadMappedVehiclesAsync(partNumber);
+
+            // Load less critical data in parallel (consolidated models and suggestions)
+            var consolidatedTask = LoadConsolidatedModelsAsync(partNumber);
+            var suggestionsTask = LoadSuggestedVehiclesAsync(partNumber);
+
+            await Task.WhenAll(consolidatedTask, suggestionsTask);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה בטעינת נתונים: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -178,7 +221,6 @@ public partial class PartMappingsManagementViewModel : ObservableObject
     {
         try
         {
-            IsLoading = true;
             StatusMessage = "טוען רכבים ממופים...";
 
             // Use efficient method to load only mapped vehicles
@@ -210,10 +252,6 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusMessage = $"שגיאה: {ex.Message}";
-        }
-        finally
-        {
-            IsLoading = false;
         }
     }
 
@@ -500,6 +538,120 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         {
             StatusMessage = $"שגיאה: {ex.Message}";
             MessageBox.Show($"שגיאה באישור הצעה: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task EditVirtualPartAsync()
+    {
+        if (SelectedPart == null || !SelectedPart.IsVirtual)
+            return;
+
+        // Get available categories
+        var categories = AllParts
+            .Where(p => !string.IsNullOrWhiteSpace(p.Category))
+            .Select(p => p.Category!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+        var virtualPart = await _virtualPartService.GetVirtualPartByPartNumberAsync(
+            SelectedPart.PartNumber);
+
+        if (virtualPart == null)
+        {
+            MessageBox.Show("החלק הוירטואלי לא נמצא", "שגיאה",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        var dialog = new EditVirtualPartDialog(
+            _virtualPartService,
+            virtualPart,
+            categories);
+
+        if (dialog.ShowDialog() == true && dialog.WasUpdated)
+        {
+            // Reload parts
+            await LoadPartsAsync();
+
+            // Reselect the part
+            SelectedPart = FilteredParts.FirstOrDefault(p =>
+                p.PartNumber == virtualPart.PartNumber);
+
+            StatusMessage = "✓ החלק הוירטואלי עודכן בהצלחה";
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteVirtualPartAsync()
+    {
+        if (SelectedPart == null || !SelectedPart.IsVirtual)
+            return;
+
+        var result = MessageBox.Show(
+            $"האם אתה בטוח שברצונך למחוק את החלק הוירטואלי '{SelectedPart.PartNumber}'?\n\n" +
+            $"שם: {SelectedPart.PartName}\n\n" +
+            "⚠️ פעולה זו תמחק את החלק הוירטואלי וכל המיפויים שלו לצמיתות!\n\n" +
+            "פעולה זו בלתי הפיכה.",
+            "אישור מחיקת חלק וירטואלי",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning
+        );
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = "מוחק חלק וירטואלי...";
+
+            // Get virtual part ID from part number
+            var virtualPart = await _virtualPartService.GetVirtualPartByPartNumberAsync(SelectedPart.PartNumber);
+
+            if (virtualPart != null)
+            {
+                await _virtualPartService.DeleteVirtualPartAsync(virtualPart.VirtualPartId);
+
+                StatusMessage = $"✓ החלק הוירטואלי '{SelectedPart.PartNumber}' נמחק בהצלחה";
+
+                MessageBox.Show(
+                    $"החלק הוירטואלי '{SelectedPart.PartNumber}' נמחק בהצלחה.",
+                    "הצלחה",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information
+                );
+
+                // Reload parts list
+                await LoadPartsAsync();
+
+                // Clear selection
+                SelectedPart = null;
+            }
+            else
+            {
+                MessageBox.Show(
+                    "החלק הוירטואלי לא נמצא במערכת.",
+                    "שגיאה",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה: {ex.Message}";
+            MessageBox.Show(
+                $"שגיאה במחיקת החלק הוירטואלי:\n\n{ex.Message}",
+                "שגיאה",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
         }
         finally
         {

@@ -57,6 +57,13 @@ public partial class App : Application
         services.AddHttpClient<IGovernmentVehicleDataService, GovernmentVehicleDataService>();
         services.AddTransient<IVehicleDataSyncService, VehicleDataSyncService>();
 
+        // Register new services for auto-discovery and virtual parts
+        services.AddSingleton<IVehicleDiscoveryService, VehicleDiscoveryService>();
+        services.AddSingleton<IPendingVehicleReviewService, PendingVehicleReviewService>();
+        services.AddSingleton<IModelCouplingService, ModelCouplingService>();
+        services.AddSingleton<IVirtualPartService, VirtualPartService>();
+        services.AddSingleton<IVirtualPartAutoMappingService, VirtualPartAutoMappingService>();
+
         // Register ViewModels
         services.AddSingleton<MappingViewModel>();
         services.AddSingleton<MainViewModel>();
@@ -68,6 +75,7 @@ public partial class App : Application
         services.AddSingleton<SmartSuggestionsViewModel>();
         services.AddSingleton<CouplingManagementViewModel>();
         services.AddTransient<VehicleDataSyncViewModel>();
+        services.AddTransient<VehicleDiscoveryViewModel>();
 
         // Register Views
         services.AddSingleton<MainWindow>();
