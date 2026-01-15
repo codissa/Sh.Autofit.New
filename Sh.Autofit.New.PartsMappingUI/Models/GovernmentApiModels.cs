@@ -142,4 +142,21 @@ public class GovernmentVehicleRecord
     /// Import type from import API (sug_yevu) - e.g., "יבוא אישי-משומש", "יבוא אישי-חדש"
     /// </summary>
     public string? ImportType { get; set; }
+
+    // Special vehicle flags (set by LookupVehicleByPlateAsync based on which resource found the vehicle)
+    /// <summary>
+    /// Indicates if this vehicle is an off-road vehicle (found in OFF_ROAD_VEHICLES_RESOURCE_ID)
+    /// </summary>
+    public bool IsOffRoad { get; set; }
+
+    /// <summary>
+    /// Indicates if this vehicle is a personal import (found in PERSONAL_IMPORT_RESOURCE_ID)
+    /// </summary>
+    public bool IsPersonalImport { get; set; }
+
+    /// <summary>
+    /// Which government API resource ID found this vehicle (for debugging and tracking)
+    /// Examples: "Primary", "Fallback", "Fallback2", "PersonalImport", "OffRoad"
+    /// </summary>
+    public string? SourceResourceId { get; set; }
 }

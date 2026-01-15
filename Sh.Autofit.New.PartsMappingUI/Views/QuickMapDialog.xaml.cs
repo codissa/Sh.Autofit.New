@@ -61,15 +61,32 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         {
             IsLoading = true;
 
-            // Try to get consolidated model first (NEW WAY)
-            _consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(_vehicleTypeId);
 
-            // Load all unmapped parts for this model (not just this vehicle type)
-            // This ensures we don't show parts already mapped to other variants of the same model
-            var parts = await _dataService.LoadUnmappedPartsByModelAsync(
-                _vehicle.ManufacturerName,
-                _vehicle.ModelName);
+            // Try to get consolidated model first (like mapped parts flow)
+            _consolidatedModel = await _dataService
+                .GetConsolidatedModelForVehicleTypeAsync(_vehicleTypeId);
 
+            List<PartDisplayModel> parts;
+
+            if (_consolidatedModel != null)
+            {
+
+
+                parts = await _dataService.LoadUnmappedPartsForConsolidatedModelAsync(
+                    _consolidatedModel.ConsolidatedModelId,
+                    includeCouplings: true);
+            }
+            else
+            {
+                // Legacy fallback by model name
+
+
+                parts = await _dataService.LoadUnmappedPartsByModelAsync(
+                    _vehicle.ManufacturerName,
+                    _vehicle.ModelName);
+            }
+
+            // Build SelectablePartModel list
             _allParts = parts.Select(p => new SelectablePartModel(p)).ToList();
             _filteredParts.Clear();
 
@@ -88,8 +105,10 @@ public partial class QuickMapDialog : Window, INotifyPropertyChanged
         finally
         {
             IsLoading = false;
+
         }
     }
+
 
     private void Part_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

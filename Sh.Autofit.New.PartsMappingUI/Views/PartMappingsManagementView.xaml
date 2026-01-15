@@ -3,11 +3,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:Sh.Autofit.New.PartsMappingUI.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="1400"
-             FlowDirection="RightToLeft">
+             FlowDirection="RightToLeft"
+             x:Name="Root">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <!-- BindingProxy to make ViewModel accessible in DataGrid column headers -->
+        <helpers:BindingProxy x:Key="Proxy" Data="{Binding}" />
     </UserControl.Resources>
 
     <Grid Margin="10">
@@ -330,6 +335,39 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
+                <Button Content="📦 מפה לדגמים מאוחדים"
+                        Command="{Binding AddConsolidatedModelMappingsCommand}"
+                        Padding="12,6"
+                        Margin="0,0,10,0"
+                        Background="#2196F3"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"
+                        ToolTip="מפה ישירות לדגמים מאוחדים (מומלץ)">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#1976D2"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
                 <Button Content="➕ הוסף רכבים"
                         Command="{Binding AddVehicleMappingsCommand}"
                         Padding="12,6"
@@ -338,7 +376,8 @@
                         Foreground="White"
                         BorderThickness="0"
                         FontSize="12"
-                        Cursor="Hand">
+                        Cursor="Hand"
+                        ToolTip="מפה דרך בחירת רכבים בודדים (legacy)">
                     <Button.Style>
                         <Style TargetType="Button">
                             <Setter Property="Template">
@@ -377,12 +416,12 @@
                    Margin="0,0,0,10">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding ConsolidatedModels.Count}">
-                                <DataTrigger.Value>
-                                    <sys:Int32 xmlns:sys="clr-namespace:System;assembly=mscorlib">0</sys:Int32>
-                                </DataTrigger.Value>
+                            <DataTrigger Binding="{Binding ConsolidatedModels.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SelectedPart}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -399,10 +438,45 @@
                               TextWrapping="Wrap"
                               Margin="0,0,0,10"/>
 
+                    <!-- Bulk Unmap Button -->
+                    <Button Content="🗑️ הסר דגמים מסומנים"
+                           Command="{Binding UnmapSelectedConsolidatedModelsCommand}"
+                           Background="#F44336"
+                           Foreground="White"
+                           Padding="10,6"
+                           Margin="0,0,0,10"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           BorderThickness="0"
+                           Cursor="Hand"
+                           ToolTip="הסר את החלק מכל הדגמים המסומנים (כולל דגמים מצומדים)">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                   CornerRadius="4"
+                                                   Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#D32F2F"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                     <!-- Consolidated Models DataGrid -->
-                    <DataGrid ItemsSource="{Binding ConsolidatedModels}"
+                    <DataGrid x:Name="ConsolidatedModelsGrid"
+                             ItemsSource="{Binding ConsolidatedModels}"
                              AutoGenerateColumns="False"
-                             IsReadOnly="True"
+                             IsReadOnly="False"
                              CanUserAddRows="False"
                              SelectionMode="Single"
                              GridLinesVisibility="Horizontal"
@@ -410,6 +484,56 @@
                              Background="White"
                              MaxHeight="200">
                         <DataGrid.Columns>
+                            <!-- Checkbox Column with Select All in header -->
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}">
+                                <DataGridCheckBoxColumn.Header>
+                                    <CheckBox IsChecked="{Binding Data.SelectAllConsolidatedModels, Source={StaticResource Proxy}}"
+                                             ToolTip="בחר הכל / בטל בחירה"/>
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
+
+                            <!-- Action Column -->
+                            <DataGridTemplateColumn Header="פעולות" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="🗑️ הסר"
+                                               Command="{Binding DataContext.RemoveConsolidatedModelMappingCommand,
+                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               CommandParameter="{Binding}"
+                                               Background="#FFEBEE"
+                                               Foreground="#C62828"
+                                               Margin="2"
+                                               Padding="5,2"
+                                               FontSize="11"
+                                               BorderThickness="0"
+                                               Cursor="Hand"
+                                               ToolTip="הסר חלק מדגם מאוחד זה (כולל דגמים מצומדים)">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Background="{TemplateBinding Background}"
+                                                                       CornerRadius="3"
+                                                                       Padding="{TemplateBinding Padding}">
+                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#EF5350"/>
+                                                            <Setter Property="Foreground" Value="White"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                             <DataGridTextColumn Header="יצרן" Width="80">
                                 <DataGridTextColumn.Binding>
                                     <Binding Path="Manufacturer.ManufacturerShortName"/>

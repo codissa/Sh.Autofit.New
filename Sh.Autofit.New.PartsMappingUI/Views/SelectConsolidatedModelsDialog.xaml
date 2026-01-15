@@ -1,0 +1,168 @@
+<Window x:Class="Sh.Autofit.New.PartsMappingUI.Views.SelectConsolidatedModelsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="בחר דגמים מאוחדים"
+        Height="500" Width="800"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="RightToLeft"
+        ResizeMode="CanResize">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="בחר דגמים מאוחדים למיפוי"
+                   FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+
+        <!-- Info Text -->
+        <TextBlock Grid.Row="1"
+                   Text="דגמים מאוחדים מייצגים קבוצות של שנים וווריאנטים. מיפוי לדגם מאוחד מכסה את כל השנים והווריאנטים בקבוצה."
+                   FontSize="11"
+                   Foreground="#666"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,15"/>
+
+        <!-- Search Box -->
+        <TextBox x:Name="SearchBox"
+                 Grid.Row="2"
+                 Padding="8"
+                 Margin="0,0,0,10"
+                 TextChanged="SearchBox_TextChanged">
+            <TextBox.Style>
+                <Style TargetType="TextBox">
+                    <Style.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <VisualBrush Stretch="None" AlignmentX="Right">
+                                        <VisualBrush.Visual>
+                                            <TextBlock Text="🔍 חפש דגמים מאוחדים..."
+                                                      Foreground="Gray"
+                                                      Margin="0,0,5,0"
+                                                      FlowDirection="RightToLeft"/>
+                                        </VisualBrush.Visual>
+                                    </VisualBrush>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBox.Style>
+        </TextBox>
+
+        <!-- Consolidated Models DataGrid -->
+        <DataGrid x:Name="ModelsGrid"
+                  Grid.Row="3"
+                  Margin="0,0,0,15"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  SelectionMode="Extended"
+                  IsReadOnly="True"
+                  GridLinesVisibility="Horizontal"
+                  AlternatingRowBackground="#F9F9F9">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Width="40" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}">
+                    <DataGridCheckBoxColumn.Header>
+                        <CheckBox IsChecked="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.SelectAll}"
+                                  ToolTip="בחר הכל"/>
+                    </DataGridCheckBoxColumn.Header>
+                </DataGridCheckBoxColumn>
+                <DataGridTextColumn Header="יצרן" Width="100">
+                    <DataGridTextColumn.Binding>
+                        <Binding Path="Manufacturer.ManufacturerShortName"/>
+                    </DataGridTextColumn.Binding>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="דגם" Binding="{Binding ModelName}" Width="150"/>
+                <DataGridTextColumn Header="שנים" Width="100">
+                    <DataGridTextColumn.Binding>
+                        <MultiBinding StringFormat="{}{0}-{1}">
+                            <Binding Path="YearFrom"/>
+                            <Binding Path="YearTo"/>
+                        </MultiBinding>
+                    </DataGridTextColumn.Binding>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="נפח מנוע" Binding="{Binding EngineVolume}" Width="100"/>
+                <DataGridTextColumn Header="תיבת הילוכים" Binding="{Binding TransmissionType}" Width="120"/>
+                <DataGridTextColumn Header="סוג דלק" Binding="{Binding FuelTypeName}" Width="100"/>
+                <DataGridTextColumn Header="רמת גימור" Binding="{Binding TrimLevel}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Left">
+            <TextBlock x:Name="SelectionCountText"
+                       Text="לא נבחרו דגמים"
+                       VerticalAlignment="Center"
+                       Margin="0,0,15,0"
+                       FontWeight="SemiBold"
+                       Foreground="#666"/>
+            <Button Content="מפה דגמים מסומנים"
+                    Click="SelectButton_Click"
+                    Padding="15,8"
+                    Margin="0,0,10,0"
+                    Background="#4CAF50"
+                    Foreground="White"
+                    BorderThickness="0"
+                    FontWeight="SemiBold"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#45A049"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="ביטול"
+                    Click="CancelButton_Click"
+                    Padding="15,8"
+                    Background="#E0E0E0"
+                    Foreground="Black"
+                    BorderThickness="0"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="4"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#D0D0D0"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

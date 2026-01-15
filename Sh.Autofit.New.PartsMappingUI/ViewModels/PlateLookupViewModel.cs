@@ -60,6 +60,9 @@ public partial class PlateLookupViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPersonalImport;
 
+    [ObservableProperty]
+    private string _searchDuration = string.Empty;
+
     public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinNumber ?? GovernmentVehicle?.VinChassis);
 
     // Display engine volume - use government API if available, otherwise use matched vehicle
@@ -155,292 +158,74 @@ public partial class PlateLookupViewModel : ObservableObject
     }
 
     [RelayCommand]
+    //========================================
+    // MAIN ORCHESTRATOR (clean and readable)
+    //========================================
     private async Task SearchPlateAsync()
     {
+        // Start performance timer
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         if (string.IsNullOrWhiteSpace(PlateNumber))
         {
             StatusMessage = "נא להזין מספר רישוי";
+            SearchDuration = string.Empty;
             return;
         }
 
+        IsLoading = true;
+        HasResults = false;
+        SearchDuration = string.Empty; // Clear previous duration
+        GovernmentVehicle = null;
+        MatchedVehicle = null;
+        ConsolidatedModel = null;
+        MappedParts.Clear();
+        IsOffRoad = false;
+        IsPersonalImport = false;
+
         try
         {
-            IsLoading = true;
-            HasResults = false;
-            GovernmentVehicle = null;
-            MatchedVehicle = null;
-            ConsolidatedModel = null;
-            MappedParts.Clear();
-            IsOffRoad = false;
-            IsPersonalImport = false;
-
-            // Step 0: Check cache first! (Task 5 Performance Enhancement)
-            StatusMessage = "בודק מטמון...";
-            var cachedRegistration = await _dataService.GetCachedRegistrationAsync(PlateNumber);
-
-            if (cachedRegistration != null)
+            // STEP 1: Try cache first (instant display)
+            var cachedResult = await TryGetFromCacheAsync(PlateNumber);
+            if (cachedResult != null)
             {
-                StatusMessage = $"✓ נמצא במטמון! (חיפוש #{cachedRegistration.LookupCount + 1})";
-
-                // Use cached data - much faster than Gov API!
-                if (cachedRegistration.VehicleTypeId.HasValue)
-                {
-                    // Load the matched vehicle from our database
-                    var vehicles = await _dataService.LoadVehiclesByModelAsync(
-                        cachedRegistration.VehicleType?.Manufacturer?.ManufacturerCode ?? 0,
-                        cachedRegistration.VehicleType?.CommercialName ?? "",
-                        cachedRegistration.VehicleType?.ModelName ?? "");
-
-                    MatchedVehicle = vehicles.FirstOrDefault(v => v.VehicleTypeId == cachedRegistration.VehicleTypeId.Value);
-
-                    if (MatchedVehicle != null)
-                    {
-                        // Get consolidated model for this vehicle
-                        ConsolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(cachedRegistration.VehicleTypeId.Value);
-
-                        // Reconstruct GovernmentVehicle from cached data for display
-                        GovernmentVehicle = new GovernmentVehicleRecord
-                        {
-                            ManufacturerName = cachedRegistration.GovManufacturerName,
-                            ModelName = cachedRegistration.GovModelName,
-                            EngineVolume = cachedRegistration.GovEngineVolume,
-                            FuelType = cachedRegistration.GovFuelType,
-                            ManufacturingYear = cachedRegistration.GovYear,
-                            ColorName = cachedRegistration.Color,
-                            OwnershipType = cachedRegistration.CurrentOwner,
-                            VinNumber = cachedRegistration.Vin
-                        };
-                        OnPropertyChanged(nameof(CleanVinNumber));
-                        OnPropertyChanged(nameof(DisplayEngineVolume));
-                        OnPropertyChanged(nameof(DisplayYearRange));
-
-                        // Load mapped parts using consolidated model approach
-                        StatusMessage = "טוען חלקים ממופים...";
-                        List<PartDisplayModel> cachedParts;
-
-                        if (ConsolidatedModel != null)
-                        {
-                            // Load from consolidated model (includes couplings)
-                            cachedParts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
-                                ConsolidatedModel.ConsolidatedModelId,
-                                includeCouplings: true);
-                        }
-                        else
-                        {
-                            // Fallback to legacy approach by model name
-                            cachedParts = await _dataService.LoadMappedPartsByModelNameAsync(
-                                cachedRegistration.GovManufacturerName ?? "",
-                                cachedRegistration.GovModelName ?? "");
-                        }
-
-                        MappedParts.Clear();
-                        foreach (var part in cachedParts)
-                        {
-                            MappedParts.Add(part);
-                        }
-
-                        // Load suggestions
-                        if (cachedRegistration.VehicleTypeId.HasValue)
-                        {
-                            try
-                            {
-                                var suggestions = await _dataService.GetSuggestedPartsForVehicleAsync(cachedRegistration.VehicleTypeId.Value);
-                                SuggestedParts.Clear();
-                                foreach (var suggestion in suggestions)
-                                {
-                                    SuggestedParts.Add(suggestion);
-                                }
-                            }
-                            catch
-                            {
-                                SuggestedParts.Clear();
-                            }
-                        }
-
-                        // Update cache stats (increment lookup count)
-                        await _dataService.UpsertVehicleRegistrationAsync(
-                            PlateNumber,
-                            GovernmentVehicle,
-                            cachedRegistration.VehicleTypeId,
-                            cachedRegistration.ManufacturerId,
-                            cachedRegistration.MatchStatus ?? "Matched",
-                            cachedRegistration.MatchReason ?? "Loaded from cache",
-                            cachedRegistration.ApiResourceUsed ?? "Cache");
-
-                        StatusMessage = $"✓ נמצאו {MappedParts.Count} חלקים (מהמטמון)";
-                        HasResults = true;
-                        return; // Skip Gov API call entirely!
-                    }
-                }
-                else if (cachedRegistration.MatchStatus == "NotFoundInGovAPI")
-                {
-                    // This plate was previously not found, but let's try again
-                    // Government API might have been updated since last search
-                    StatusMessage = $"רכב לא נמצא בעבר (חיפוש #{cachedRegistration.LookupCount + 1}) - מנסה שוב...";
-
-                    // Don't return - continue to Gov API search below
-                }
+           //     await DisplayCachedResultAsync(cachedResult);
+              //  return;
             }
 
-            // Cache miss or outdated - proceed with Gov API call
-            string matchStatus = "Pending";
-            string matchReason = "";
-            string apiResource = "Unknown";
-
+            // STEP 2: Lookup via government API
             StatusMessage = "מחפש ברשומות משרד התחבורה...";
-
-            // Step 1: Lookup vehicle from government API (tries all fallback sources automatically)
             var govVehicle = await _governmentApiService.LookupVehicleByPlateAsync(PlateNumber);
 
             if (govVehicle == null)
             {
-                StatusMessage = "רכב לא נמצא במאגר משרד התחבורה";
-                matchStatus = "NotFoundInGovAPI";
-                matchReason = "Vehicle not found in any government API resource";
-
-                // Cache the failed lookup (Task 5)
-                await _dataService.UpsertVehicleRegistrationAsync(
-                    PlateNumber,
-                    null,
-                    null,
-                    null,
-                    matchStatus,
-                    matchReason,
-                    apiResource);
-
+                await HandleVehicleNotFoundAsync(PlateNumber);
                 return;
             }
 
+            // STEP 3: Set special flags (already populated by LookupVehicleByPlateAsync)
             GovernmentVehicle = govVehicle;
+            IsOffRoad = govVehicle.IsOffRoad;
+            IsPersonalImport = govVehicle.IsPersonalImport;
             OnPropertyChanged(nameof(CleanVinNumber));
             OnPropertyChanged(nameof(DisplayEngineVolume));
             OnPropertyChanged(nameof(DisplayYearRange));
 
-            // Check special vehicle statuses (in parallel)
-            var offRoadTask = _governmentApiService.IsVehicleOffRoadAsync(PlateNumber);
-            var personalImportTask = _governmentApiService.IsPersonalImportAsync(PlateNumber);
+            // STEP 4: Get consolidated model (tries direct lookup first)
+            var consolidatedModel = await GetConsolidatedModelAsync(govVehicle);
+            ConsolidatedModel = consolidatedModel;
 
-            await Task.WhenAll(offRoadTask, personalImportTask);
+            // STEP 5: Load parts with couplings
+            var parts = await LoadPartsAsync(consolidatedModel, govVehicle);
 
-            IsOffRoad = offRoadTask.Result;
-            IsPersonalImport = personalImportTask.Result;
+            // STEP 6: Load suggested parts
+            await LoadSuggestedPartsAsync(MatchedVehicle?.VehicleTypeId);
 
-            StatusMessage = "רכב נמצא, מחפש התאמה מדויקת במערכת...";
-            apiResource = "Primary"; // You can enhance GovernmentApiService to return which resource was used
+            // STEP 7: Cache the result
+            await CacheSuccessResultAsync(PlateNumber, govVehicle, consolidatedModel);
 
-            // Step 2: Find matching vehicle in our database - use EXACT matching
-            // First, load all potential matches by manufacturer code and model name
-            var potentialMatches = await _dataService.LoadVehiclesByModelAsync(
-                govVehicle.ManufacturerCode ?? 0,
-                govVehicle.CommercialName ?? "",
-                govVehicle.ModelName ?? "",
-                govVehicle.EngineVolume,
-                govVehicle.ModelCode);
-
-            // Then filter to exact matches based on engine volume, fuel type, trim level, etc.
-            var exactMatches = VehicleMatchingHelper.GetExactMatches(potentialMatches, govVehicle);
-
-            VehicleDisplayModel? matchedVehicle = null;
-            if (exactMatches.Any())
-            {
-                // Prefer exact match
-                matchedVehicle = exactMatches.First();
-                StatusMessage = "נמצאה התאמה מדויקת!";
-            }
-            else
-            {
-                // Fallback to service matching (more lenient)
-                matchedVehicle = await _vehicleMatchingService.FindMatchingVehicleTypeAsync(govVehicle);
-            }
-
-            int? matchedVehicleTypeId = matchedVehicle?.VehicleTypeId;
-            int? matchedManufacturerId = matchedVehicle?.ManufacturerId;
-
-            // Step 2.5: If not found, auto-create a new vehicle type
-            if (matchedVehicle == null)
-            {
-                StatusMessage = "לא נמצאה התאמה במערכת, יוצר רכב חדש...";
-                matchedVehicle = await _dataService.CreateVehicleTypeFromGovernmentRecordAsync(govVehicle);
-                matchedVehicleTypeId = matchedVehicle?.VehicleTypeId;
-                matchedManufacturerId = matchedVehicle?.ManufacturerId;
-                matchStatus = "AutoCreated";
-                matchReason = "Vehicle auto-created from government record";
-                StatusMessage = "רכב חדש נוצר במערכת!";
-            }
-            else
-            {
-                matchStatus = "Matched";
-                matchReason = $"Matched to existing vehicle: {matchedVehicle.ManufacturerName} {matchedVehicle.ModelName}";
-                StatusMessage = "נמצאה התאמה במערכת!";
-            }
-
-            MatchedVehicle = matchedVehicle;
-            OnPropertyChanged(nameof(DisplayEngineVolume));
-            OnPropertyChanged(nameof(DisplayYearRange));
-
-            // Step 2.8: Get consolidated model for this vehicle (NEW WAY)
-            if (matchedVehicleTypeId.HasValue)
-            {
-                ConsolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(matchedVehicleTypeId.Value);
-                OnPropertyChanged(nameof(DisplayEngineVolume));
-                OnPropertyChanged(nameof(DisplayYearRange));
-            }
-
-            // Step 2.9: Cache the lookup result (Task 5)
-            await _dataService.UpsertVehicleRegistrationAsync(
-                PlateNumber,
-                govVehicle,
-                matchedVehicleTypeId,
-                matchedManufacturerId,
-                matchStatus,
-                matchReason,
-                apiResource);
-
-            // Step 3: Load mapped parts - prioritize consolidated model if available
-            StatusMessage = "טוען חלקים ממופים לדגם...";
-            List<PartDisplayModel> parts;
-
-            if (ConsolidatedModel != null)
-            {
-                // NEW WAY: Load from consolidated model (includes couplings)
-                parts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(ConsolidatedModel.ConsolidatedModelId, includeCouplings: true);
-            }
-            else
-            {
-                // FALLBACK: Legacy approach by model name
-                parts = await _dataService.LoadMappedPartsByModelNameAsync(
-                    govVehicle.ManufacturerName ?? "",
-                    govVehicle.ModelName ?? "");
-            }
-
-            MappedParts.Clear();
-            foreach (var part in parts)
-            {
-                MappedParts.Add(part);
-            }
-
-            // Step 4: Load suggested parts
-            if (matchedVehicleTypeId.HasValue)
-            {
-                try
-                {
-                    var suggestions = await _dataService.GetSuggestedPartsForVehicleAsync(matchedVehicleTypeId.Value);
-                    SuggestedParts.Clear();
-                    foreach (var suggestion in suggestions)
-                    {
-                        SuggestedParts.Add(suggestion);
-                    }
-                }
-                catch
-                {
-                    // Silently fail for suggestions
-                    SuggestedParts.Clear();
-                }
-            }
-
-            StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים" +
-                          (SuggestedParts.Count > 0 ? $" + {SuggestedParts.Count} הצעות" : "");
-            HasResults = true;
+            // STEP 8: Display results
+            DisplaySearchResults(parts);
         }
         catch (Exception ex)
         {
@@ -450,7 +235,326 @@ public partial class PlateLookupViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+
+            // Stop timer and display duration
+            stopwatch.Stop();
+            var seconds = stopwatch.Elapsed.TotalSeconds;
+            SearchDuration = $"⏱️ {seconds:F2} שניות";
         }
+    }
+
+    //========================================
+    // HELPER METHODS (single responsibility)
+    //========================================
+
+    /// <summary>
+    /// Try to get cached vehicle registration
+    /// </summary>
+    private async Task<VehicleRegistration?> TryGetFromCacheAsync(string plateNumber)
+    {
+        StatusMessage = "בודק מטמון...";
+        var cached = await _dataService.GetCachedRegistrationAsync(plateNumber);
+
+        if (cached != null && cached.VehicleTypeId.HasValue)
+        {
+            StatusMessage = $"✓ נמצא במטמון! (חיפוש #{cached.LookupCount + 1})";
+            return cached;
+        }
+
+        if (cached?.MatchStatus == "NotFoundInGovAPI")
+        {
+            StatusMessage = $"רכב לא נמצא בעבר (חיפוש #{cached.LookupCount + 1}) - מנסה שוב...";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Display cached results immediately (fast UX)
+    /// </summary>
+    private async Task DisplayCachedResultAsync(VehicleRegistration cached)
+    {
+        // Load special flags from cache (NO API CALLS!)
+        IsOffRoad = cached.IsOffRoad ?? false;
+        IsPersonalImport = cached.IsPersonalImport ?? false;
+
+        // Load the matched vehicle directly by ID (CRITICAL BUG FIX - navigation properties not loaded in cache)
+        if (cached.VehicleTypeId.HasValue)
+        {
+            MatchedVehicle = await _dataService.LoadVehicleByIdAsync(cached.VehicleTypeId.Value);
+        }
+
+        if (MatchedVehicle == null)
+            return;
+
+        // Load consolidated model from cached ID or lookup
+        if (cached.ConsolidatedModelId.HasValue)
+        {
+            ConsolidatedModel = await _dataService.GetConsolidatedModelByIdAsync(cached.ConsolidatedModelId.Value);
+        }
+        else if (cached.VehicleTypeId.HasValue)
+        {
+            ConsolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(cached.VehicleTypeId.Value);
+        }
+
+        // Reconstruct GovernmentVehicle from cached data for display
+        GovernmentVehicle = new GovernmentVehicleRecord
+        {
+            ManufacturerName = cached.GovManufacturerName,
+            ModelName = cached.GovModelName,
+            EngineVolume = cached.GovEngineVolume,
+            FuelType = cached.GovFuelType,
+            ManufacturingYear = cached.GovYear,
+            ColorName = cached.Color,
+            OwnershipType = cached.CurrentOwner,
+            VinNumber = cached.Vin,
+            IsOffRoad = cached.IsOffRoad ?? false,
+            IsPersonalImport = cached.IsPersonalImport ?? false,
+            SourceResourceId = cached.SourceResourceId
+        };
+        OnPropertyChanged(nameof(CleanVinNumber));
+        OnPropertyChanged(nameof(DisplayEngineVolume));
+        OnPropertyChanged(nameof(DisplayYearRange));
+
+        // Load parts using consolidated model approach
+        StatusMessage = "טוען חלקים ממופים...";
+        var parts = await LoadPartsAsync(ConsolidatedModel, GovernmentVehicle);
+
+        MappedParts.Clear();
+        foreach (var part in parts)
+        {
+            MappedParts.Add(part);
+        }
+
+        // Load suggestions
+        await LoadSuggestedPartsAsync(cached.VehicleTypeId);
+
+        // Update cache stats (increment lookup count)
+        await _dataService.UpsertVehicleRegistrationAsync(
+            PlateNumber,
+            GovernmentVehicle,
+            cached.VehicleTypeId,
+            cached.ManufacturerId,
+            cached.MatchStatus ?? "Matched",
+            cached.MatchReason ?? "Loaded from cache",
+            cached.ApiResourceUsed ?? "Cache",
+            cached.ConsolidatedModelId);
+
+        StatusMessage = $"✓ נמצאו {MappedParts.Count} חלקים (מהמטמון)";
+        HasResults = true;
+    }
+
+    /// <summary>
+    /// Handle vehicle not found in government API
+    /// </summary>
+    private async Task HandleVehicleNotFoundAsync(string plateNumber)
+    {
+        StatusMessage = "רכב לא נמצא במאגר משרד התחבורה";
+
+        // Cache the failed lookup
+        await _dataService.UpsertVehicleRegistrationAsync(
+            plateNumber,
+            null,
+            null,
+            null,
+            "NotFoundInGovAPI",
+            "Vehicle not found in any government API resource",
+            "Unknown");
+    }
+
+    /// <summary>
+    /// Get consolidated model (tries direct lookup first, fallback to VehicleType)
+    /// Phase 3 Optimization: Priority to consolidated model using ManufacturerCode + ModelCode
+    /// </summary>
+    private async Task<ConsolidatedVehicleModel?> GetConsolidatedModelAsync(GovernmentVehicleRecord govVehicle)
+    {
+        // PRIORITY 1: Try DIRECT consolidated model lookup using gov API natural keys
+        if (govVehicle.ManufacturerCode.HasValue && govVehicle.ModelCode.HasValue)
+        {
+            StatusMessage = "מחפש דגם מאוחד (מערכת חדשה)...";
+            var consolidatedModels = await _dataService.GetConsolidatedModelsForLookupAsync(
+                govVehicle.ManufacturerCode.Value,
+                govVehicle.ModelCode.Value,
+                govVehicle.ManufacturingYear,
+                govVehicle.ModelName
+            );
+
+            if (consolidatedModels.Any())
+            {
+                // Found via direct lookup! Use first match (ordered by specs)
+                StatusMessage = "✓ נמצא דגם מאוחד (מערכת חדשה)";
+                var consolidatedModel = consolidatedModels.First();
+
+                // We still need to set MatchedVehicle for UI purposes
+                // Load a vehicle type for this consolidated model
+                var vehicleTypes = await _dataService.LoadVehicleTypesByConsolidatedModelAsync(consolidatedModel.ConsolidatedModelId);
+                if (vehicleTypes.Any())
+                {
+                    var vehicleType = vehicleTypes.First();
+                    MatchedVehicle = new VehicleDisplayModel
+                    {
+                        VehicleTypeId = vehicleType.VehicleTypeId,
+                        ManufacturerId = vehicleType.ManufacturerId,
+                        ManufacturerName = vehicleType.Manufacturer?.ManufacturerName ?? "",
+                        ModelName = vehicleType.ModelName ?? "",
+                        CommercialName = vehicleType.CommercialName ?? "",
+                        YearFrom = govVehicle.ManufacturingYear,
+                        YearTo = govVehicle.ManufacturingYear,
+                        EngineVolume = vehicleType.EngineVolume
+                    };
+                }
+
+                OnPropertyChanged(nameof(DisplayEngineVolume));
+                OnPropertyChanged(nameof(DisplayYearRange));
+                return consolidatedModel;
+            }
+        }
+
+        // FALLBACK 1: Try to find/create VehicleType, then link to consolidated model
+        StatusMessage = "מחפש התאמה במערכת הישנה...";
+
+        var potentialMatches = await _dataService.LoadVehiclesByModelAsync(
+            govVehicle.ManufacturerCode ?? 0,
+            govVehicle.CommercialName ?? "",
+            govVehicle.ModelName ?? "",
+            govVehicle.EngineVolume,
+            govVehicle.ModelCode);
+
+        var exactMatches = VehicleMatchingHelper.GetExactMatches(potentialMatches, govVehicle);
+        VehicleDisplayModel? matchedVehicle = null;
+
+        if (exactMatches.Any())
+        {
+            matchedVehicle = exactMatches.First();
+            StatusMessage = "נמצאה התאמה מדויקת!";
+        }
+        else
+        {
+            matchedVehicle = await _vehicleMatchingService.FindMatchingVehicleTypeAsync(govVehicle);
+        }
+
+        // FALLBACK 2: Auto-create new VehicleType if still not found
+        if (matchedVehicle == null)
+        {
+            StatusMessage = "יוצר רכב חדש במערכת...";
+            matchedVehicle = await _dataService.CreateVehicleTypeFromGovernmentRecordAsync(govVehicle);
+            StatusMessage = "רכב חדש נוצר במערכת!";
+        }
+
+        MatchedVehicle = matchedVehicle;
+        OnPropertyChanged(nameof(DisplayEngineVolume));
+        OnPropertyChanged(nameof(DisplayYearRange));
+
+        // Try to get consolidated model for the matched vehicle
+        if (matchedVehicle?.VehicleTypeId != null && matchedVehicle.VehicleTypeId > 0)
+        {
+            var consolidatedModel = await _dataService.GetConsolidatedModelForVehicleTypeAsync(matchedVehicle.VehicleTypeId);
+            if (consolidatedModel != null)
+            {
+                StatusMessage = "✓ נמצא דגם מאוחד דרך התאמת רכב";
+                return consolidatedModel;
+            }
+        }
+
+        return null; // No consolidated model found
+    }
+
+    /// <summary>
+    /// Load parts for consolidated model or vehicle
+    /// Phase 3 Optimization: Always include couplings when loading from consolidated model
+    /// </summary>
+    private async Task<List<PartDisplayModel>> LoadPartsAsync(
+        ConsolidatedVehicleModel? consolidatedModel,
+        GovernmentVehicleRecord govVehicle)
+    {
+        StatusMessage = "טוען חלקים ממופים...";
+        List<PartDisplayModel> parts;
+
+        if (consolidatedModel != null)
+        {
+            // PRIMARY PATH: Load from consolidated model with couplings
+            StatusMessage = "טוען חלקים ממודל מאוחד (כולל צימודים)...";
+            parts = await _dataService.LoadMappedPartsForConsolidatedModelAsync(
+                consolidatedModel.ConsolidatedModelId,
+                includeCouplings: true  // Include coupled models and parts
+            );
+        }
+        else
+        {
+            // FALLBACK PATH: Legacy model name lookup
+            StatusMessage = "טוען חלקים לפי שם דגם (מערכת ישנה)...";
+            parts = await _dataService.LoadMappedPartsByModelNameAsync(
+                govVehicle.ManufacturerName ?? "",
+                govVehicle.ModelName ?? ""
+            );
+        }
+
+        return parts;
+    }
+
+    /// <summary>
+    /// Load suggested parts for vehicle
+    /// </summary>
+    private async Task LoadSuggestedPartsAsync(int? vehicleTypeId)
+    {
+        SuggestedParts.Clear();
+
+        if (vehicleTypeId.HasValue)
+        {
+            try
+            {
+                var suggestions = await _dataService.GetSuggestedPartsForVehicleAsync(vehicleTypeId.Value);
+                foreach (var suggestion in suggestions)
+                {
+                    SuggestedParts.Add(suggestion);
+                }
+            }
+            catch
+            {
+                // Silently fail for suggestions
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cache successful lookup result
+    /// Phase 2 Optimization: Save all flags and ConsolidatedModelId
+    /// </summary>
+    private async Task CacheSuccessResultAsync(
+        string plateNumber,
+        GovernmentVehicleRecord govVehicle,
+        ConsolidatedVehicleModel? consolidatedModel)
+    {
+        string matchStatus = MatchedVehicle == null ? "AutoCreated" : "Matched";
+        string matchReason = MatchedVehicle == null
+            ? "Vehicle auto-created from government record"
+            : $"Matched to existing vehicle: {MatchedVehicle.ManufacturerName} {MatchedVehicle.ModelName}";
+
+        await _dataService.UpsertVehicleRegistrationAsync(
+            plateNumber,
+            govVehicle,
+            MatchedVehicle?.VehicleTypeId,
+            MatchedVehicle?.ManufacturerId,
+            matchStatus,
+            matchReason,
+            govVehicle.SourceResourceId ?? "Primary",
+            consolidatedModel?.ConsolidatedModelId);
+    }
+
+    /// <summary>
+    /// Display final search results to user
+    /// </summary>
+    private void DisplaySearchResults(List<PartDisplayModel> parts)
+    {
+        MappedParts.Clear();
+        foreach (var part in parts)
+        {
+            MappedParts.Add(part);
+        }
+
+        StatusMessage = $"נמצאו {MappedParts.Count} חלקים ממופים" +
+                      (SuggestedParts.Count > 0 ? $" + {SuggestedParts.Count} הצעות" : "");
+        HasResults = true;
     }
 
     [RelayCommand(CanExecute = nameof(CanQuickMap))]

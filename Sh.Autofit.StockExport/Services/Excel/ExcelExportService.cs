@@ -25,6 +25,21 @@ public class ExcelExportService : IExcelExportService
     /// <exception cref="InvalidOperationException">Thrown when export fails</exception>
     public async Task<bool> ExportToExcelAsync(List<StockMoveItem> items, ExportSettings settings)
     {
+        // Default behavior: negate quantities (for backward compatibility)
+        return await ExportToExcelAsync(items, settings, negateQuantities: true);
+    }
+
+    /// <summary>
+    /// Exports stock move items to an Excel .xls file formatted for WizCount/H-ERP import
+    /// </summary>
+    /// <param name="items">The stock move items to export</param>
+    /// <param name="settings">Export settings including file path and column values</param>
+    /// <param name="negateQuantities">Whether to negate quantities (except for ItemKey "*")</param>
+    /// <returns>True if export was successful</returns>
+    /// <exception cref="ArgumentNullException">Thrown when items or settings are null</exception>
+    /// <exception cref="InvalidOperationException">Thrown when export fails</exception>
+    public async Task<bool> ExportToExcelAsync(List<StockMoveItem> items, ExportSettings settings, bool negateQuantities)
+    {
         if (items == null)
             throw new ArgumentNullException(nameof(items));
 
@@ -50,7 +65,7 @@ public class ExcelExportService : IExcelExportService
                 CreateHeaderRow(sheet, headerStyle);
 
                 // Create data rows
-                CreateDataRows(sheet, items, settings, textCellStyle);
+                CreateDataRows(sheet, items, settings, textCellStyle, negateQuantities);
 
                 // Create named range for the entire table
                 CreateNamedRange(workbook, items.Count);
@@ -138,7 +153,7 @@ public class ExcelExportService : IExcelExportService
     /// Creates data rows for each stock move item
     /// ALL COLUMNS MUST BE TEXT FORMAT for H-ERP import
     /// </summary>
-    private void CreateDataRows(ISheet sheet, List<StockMoveItem> items, ExportSettings settings, ICellStyle textCellStyle)
+    private void CreateDataRows(ISheet sheet, List<StockMoveItem> items, ExportSettings settings, ICellStyle textCellStyle, bool negateQuantities)
     {
         int currentRow = 1; // Start after header
 
@@ -159,8 +174,16 @@ public class ExcelExportService : IExcelExportService
             CreateCell(row, 3, item.ItemKey, textCellStyle);
 
             // Column E: Quantity - TEXT format
-            // If ItemKey is "*", keep quantity as-is; otherwise make it negative
-            var quantity = item.ItemKey == "*" ? item.TotalQuantity : item.TotalQuantity * -1;
+            // Quantity handling based on document type and special ItemKey "*"
+            double quantity;
+            if (negateQuantities && item.ItemKey != "*")
+            {
+                quantity = -item.TotalQuantity;
+            }
+            else
+            {
+                quantity = item.TotalQuantity;
+            }
             CreateCell(row, 4, quantity.ToString(), textCellStyle);
 
             currentRow++;

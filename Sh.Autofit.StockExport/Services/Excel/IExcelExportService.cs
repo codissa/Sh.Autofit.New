@@ -14,4 +14,13 @@ public interface IExcelExportService
     /// <param name="settings">Export settings including file path and column values</param>
     /// <returns>True if export was successful</returns>
     Task<bool> ExportToExcelAsync(List<StockMoveItem> items, ExportSettings settings);
+
+    /// <summary>
+    /// Exports stock move items to an Excel file formatted for WizCount/H-ERP import
+    /// </summary>
+    /// <param name="items">The stock move items to export</param>
+    /// <param name="settings">Export settings including file path and column values</param>
+    /// <param name="negateQuantities">Whether to negate quantities (except for ItemKey "*")</param>
+    /// <returns>True if export was successful</returns>
+    Task<bool> ExportToExcelAsync(List<StockMoveItem> items, ExportSettings settings, bool negateQuantities);
 }

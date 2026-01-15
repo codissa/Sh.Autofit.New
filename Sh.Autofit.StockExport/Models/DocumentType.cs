@@ -16,6 +16,13 @@ public class DocumentType
     public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Controls whether quantities should be negated in export
+    /// True = negate quantities (except for ItemKey "*")
+    /// False = keep quantities positive
+    /// </summary>
+    public bool ShouldNegateQuantities { get; set; } = true;
+
+    /// <summary>
     /// Returns the display name for UI binding
     /// </summary>
     public override string ToString() => DisplayName;

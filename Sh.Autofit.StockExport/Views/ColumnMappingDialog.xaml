@@ -1,0 +1,191 @@
+<Window x:Class="Sh.Autofit.StockExport.Views.ColumnMappingDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Sh.Autofit.StockExport.Views"
+        mc:Ignorable="d"
+        Title="מיפוי עמודות Excel"
+        Height="600"
+        Width="800"
+        WindowStartupLocation="CenterOwner"
+        FlowDirection="RightToLeft"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <local:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="תצוגה מקדימה של הקובץ:"
+                   FontSize="14"
+                   FontWeight="Bold"
+                   Margin="0,0,0,10"/>
+
+        <!-- Preview DataGrid -->
+        <Border Grid.Row="1"
+                BorderBrush="Gray"
+                BorderThickness="1"
+                Margin="0,0,0,20">
+            <DataGrid x:Name="PreviewDataGrid"
+                      ItemsSource="{Binding PreviewData}"
+                      AutoGenerateColumns="True"
+                      IsReadOnly="True"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      CanUserSortColumns="False"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      GridLinesVisibility="All"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"/>
+        </Border>
+
+        <!-- Column Mapping Settings -->
+        <GroupBox Grid.Row="2"
+                  Header="הגדרות מיפוי"
+                  Padding="15"
+                  Margin="0,0,0,15">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Worksheet Selection -->
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="גיליון עבודה:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                <ComboBox Grid.Row="0" Grid.Column="1"
+                          ItemsSource="{Binding WorksheetNames}"
+                          SelectedItem="{Binding SelectedWorksheet}"
+                          Margin="0,0,0,10"/>
+
+                <!-- SH Code Column -->
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="עמודת קוד מקורי (SH):"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                <ComboBox Grid.Row="1" Grid.Column="1"
+                          ItemsSource="{Binding AvailableColumns}"
+                          SelectedItem="{Binding SelectedShCodeColumn}"
+                          Margin="0,0,0,10"/>
+
+                <!-- OEM Code Column -->
+                <TextBlock Grid.Row="2" Grid.Column="0"
+                           Text="עמודת קוד OEM:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                <ComboBox Grid.Row="2" Grid.Column="1"
+                          ItemsSource="{Binding AvailableColumns}"
+                          SelectedItem="{Binding SelectedOemCodeColumn}"
+                          Margin="0,0,0,10"/>
+
+                <!-- Quantity Column -->
+                <TextBlock Grid.Row="3" Grid.Column="0"
+                           Text="עמודת כמות: *"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           FontWeight="Bold"/>
+                <ComboBox Grid.Row="3" Grid.Column="1"
+                          ItemsSource="{Binding AvailableColumns}"
+                          SelectedItem="{Binding SelectedQuantityColumn}"
+                          Margin="0,0,0,10"/>
+
+                <!-- Start Row -->
+                <TextBlock Grid.Row="4" Grid.Column="0"
+                           Text="שורת התחלה:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"/>
+                <StackPanel Grid.Row="4" Grid.Column="1"
+                            Orientation="Horizontal"
+                            Margin="0,0,0,10">
+                    <TextBox Text="{Binding StartRow, UpdateSourceTrigger=PropertyChanged}"
+                             Width="80"
+                             Padding="5"/>
+                    <TextBlock Text="(שורה 1 = כותרות, ברירת מחדל: 2)"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               Foreground="Gray"
+                               FontSize="11"/>
+                </StackPanel>
+
+                <!-- Help Text -->
+                <TextBlock Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,0"
+                           Foreground="DarkGreen"
+                           FontSize="11">
+                    <Run Text="* שדה חובה"/>
+                    <LineBreak/>
+                    <Run Text="לפחות אחד מקוד מקורי או קוד OEM נדרש"/>
+                </TextBlock>
+            </Grid>
+        </GroupBox>
+
+        <!-- Status Message -->
+        <TextBlock Grid.Row="3"
+                   Text="{Binding StatusMessage}"
+                   Foreground="Red"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center">
+            <Button Content="אישור"
+                    Command="{Binding ConfirmCommand}"
+                    IsDefault="True"
+                    Width="100"
+                    Height="35"
+                    Margin="0,0,10,0"
+                    Click="ConfirmButton_Click"/>
+            <Button Content="ביטול"
+                    Command="{Binding CancelCommand}"
+                    IsCancel="True"
+                    Width="100"
+                    Height="35"
+                    Click="CancelButton_Click"/>
+        </StackPanel>
+
+        <!-- Loading Overlay -->
+        <Grid Grid.RowSpan="5"
+              Background="#80000000"
+              Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                <ProgressBar IsIndeterminate="True"
+                             Width="200"
+                             Height="20"
+                             Margin="0,0,0,10"/>
+                <TextBlock Text="טוען..."
+                           Foreground="White"
+                           FontSize="14"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

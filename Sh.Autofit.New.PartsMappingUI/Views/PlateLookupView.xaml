@@ -61,6 +61,25 @@
                     </TextBlock.Style>
                 </TextBlock>
 
+                <!-- Search Duration Timer -->
+                <TextBlock Text="{Binding SearchDuration}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#4CAF50"
+                           Margin="0,3,0,0"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SearchDuration, Converter={StaticResource NullToVisibilityConverter}}" Value="Visible">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
                 <!-- Loading Indicator -->
                 <ProgressBar IsIndeterminate="True"
                              Height="4"

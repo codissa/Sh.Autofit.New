@@ -52,4 +52,6 @@ public partial class VwPart
     public bool UseCustomDescription { get; set; }
 
     public DateTime? MetadataUpdatedAt { get; set; }
+
+    public string ArabicDescription { get; set; }
 }

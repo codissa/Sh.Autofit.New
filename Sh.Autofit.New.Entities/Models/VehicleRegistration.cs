@@ -49,6 +49,14 @@ public partial class VehicleRegistration
 
     public string ApiResponseJson { get; set; }
 
+    public bool? IsOffRoad { get; set; }
+
+    public bool? IsPersonalImport { get; set; }
+
+    public string SourceResourceId { get; set; }
+
+    public int? ConsolidatedModelId { get; set; }
+
     public virtual Manufacturer Manufacturer { get; set; }
 
     public virtual VehicleType VehicleType { get; set; }

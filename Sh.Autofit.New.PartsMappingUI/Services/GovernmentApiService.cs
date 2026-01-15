@@ -36,27 +36,44 @@ public class GovernmentApiService : IGovernmentApiService
             // Try primary resource first - return immediately if found
             var record = await TryLookupAsync(cleanPlate, PRIMARY_RESOURCE_ID);
             if (record != null)
+            {
+                record.SourceResourceId = "Primary";
                 return record;
+            }
 
             // If not found, try first fallback resource - return immediately if found
             record = await TryLookupAsync(cleanPlate, FALLBACK_RESOURCE_ID);
             if (record != null)
+            {
+                record.SourceResourceId = "Fallback";
                 return record;
+            }
 
             // If still not found, try second fallback resource - return immediately if found
             record = await TryLookupAsync(cleanPlate, FALLBACK_RESOURCE_ID_2);
             if (record != null)
+            {
+                record.SourceResourceId = "Fallback2";
                 return record;
+            }
 
             // If still not found, try personal import database - return immediately if found
             record = await TryLookupAsync(cleanPlate, PERSONAL_IMPORT_RESOURCE_ID);
             if (record != null)
+            {
+                record.IsPersonalImport = true;
+                record.SourceResourceId = "PersonalImport";
                 return record;
+            }
 
             // If still not found, try off-road vehicles database (last resort)
             record = await TryLookupAsync(cleanPlate, OFF_ROAD_VEHICLES_RESOURCE_ID);
             if (record != null)
+            {
+                record.IsOffRoad = true;
+                record.SourceResourceId = "OffRoad";
                 return record;
+            }
 
             // Not found in any resource
             return null;

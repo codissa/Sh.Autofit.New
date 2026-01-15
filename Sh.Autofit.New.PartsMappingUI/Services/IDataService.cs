@@ -9,6 +9,7 @@ public interface IDataService
     Task<List<(string ManufacturerShortName, string ManufacturerName, int ManufacturerCode, string CommercialName, int Count)>> LoadVehicleGroupSummaryAsync();
     Task<List<(string ModelName, int Count, int? YearFrom, int? YearTo, int? EngineVolume, string? FuelType, string? TransmissionType, string? TrimLevel)>> LoadModelGroupSummaryAsync(string manufacturerShortName, string commercialName);
     Task<List<VehicleDisplayModel>> LoadVehiclesByModelAsync(int manufacturerCode, string commercialName, string modelName, int? engineVolume = null, int? modelCode = null);
+    Task<VehicleDisplayModel?> LoadVehicleByIdAsync(int vehicleTypeId);
     Task<List<PartDisplayModel>> LoadPartsAsync();
     Task<List<PartDisplayModel>> LoadMappedPartsAsync(int vehicleTypeId);
     Task<List<PartDisplayModel>> LoadUnmappedPartsAsync(int vehicleTypeId);
@@ -35,7 +36,8 @@ public interface IDataService
         int? matchedManufacturerId,
         string matchStatus,
         string matchReason,
-        string apiResourceUsed);
+        string apiResourceUsed,
+        int? consolidatedModelId = null);
 
     // Analytics (Task 5)
     Task<int> GetTotalRegistrationLookupsAsync();
@@ -62,8 +64,12 @@ public interface IDataService
     // Load consolidated models (for browsing/selection)
     Task<List<ConsolidatedVehicleModel>> LoadConsolidatedModelsAsync();
 
-    // Get consolidated models by lookup (ManufacturerCode + ModelCode + optional Year)
-    Task<List<ConsolidatedVehicleModel>> GetConsolidatedModelsForLookupAsync(int manufacturerCode, int modelCode, int? year = null);
+    // Get consolidated models by lookup (ManufacturerCode + ModelCode + optional Year + optional ModelName)
+    Task<List<ConsolidatedVehicleModel>> GetConsolidatedModelsForLookupAsync(
+        int manufacturerCode,
+        int modelCode,
+        int? year = null,
+        string? modelName = null);
 
     // Get consolidated model by ID
     Task<ConsolidatedVehicleModel?> GetConsolidatedModelByIdAsync(int consolidatedModelId);
@@ -73,6 +79,9 @@ public interface IDataService
 
     // Get consolidated models for a part (includes coupled parts)
     Task<List<ConsolidatedVehicleModel>> LoadConsolidatedModelsForPartAsync(string partItemKey, bool includeCouplings = true);
+
+    // Get unmapped consolidated models for a part (for adding new mappings)
+    Task<List<ConsolidatedVehicleModel>> LoadUnmappedConsolidatedModelsForPartAsync(string partItemKey);
 
     // Map parts to consolidated models (NEW WAY)
     Task MapPartsToConsolidatedModelAsync(int consolidatedModelId, List<string> partNumbers, string createdBy);
@@ -85,6 +94,9 @@ public interface IDataService
 
     // Load vehicle types for a consolidated model (for expandable grid display)
     Task<List<VehicleType>> LoadVehicleTypesByConsolidatedModelAsync(int consolidatedModelId);
+
+    // Load Unamapped parts (used in quick map dialog)
+    Task<List<PartDisplayModel>> LoadUnmappedPartsForConsolidatedModelAsync(int consolidatedModelId, bool includeCouplings = true);
 
     // =============================================
     // MODEL COUPLING METHODS

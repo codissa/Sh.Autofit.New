@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Sh.Autofit.StockExport.Views"
         mc:Ignorable="d"
         Title="ייצוא מלאי - מחולל אקסל WizCount/H-ERP"
-        Height="500" Width="650"
+        Height="700" Width="650"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize"
         Background="#F5F5F5">
@@ -129,8 +129,28 @@
                    Foreground="#333333"
                    HorizontalAlignment="Center"/>
 
-        <!-- Stock ID -->
-        <Grid Grid.Row="2" Margin="0,0,0,15">
+        <!-- Data Source Selection (Row 1 is spacer) -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,10,0,0">
+            <RadioButton Content="טען ממאגר נתונים"
+                        IsChecked="{Binding IsDbMode, Mode=OneWay}"
+                        GroupName="DataSource"
+                        FontSize="13"
+                        VerticalAlignment="Center"
+                        Margin="0,0,30,0"/>
+            <RadioButton Content="ייבא מקובץ Excel"
+                        IsChecked="{Binding IsExcelMode, Mode=TwoWay}"
+                        GroupName="DataSource"
+                        FontSize="13"
+                        VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Stock ID (DB Mode Only) -->
+        <Grid Grid.Row="2"
+              Margin="0,0,0,15"
+              Visibility="{Binding IsDbMode,Mode=OneWay, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="180"/>
                 <ColumnDefinition Width="*"/>
@@ -141,6 +161,69 @@
                      Text="{Binding StockId, UpdateSourceTrigger=PropertyChanged}"
                      FlowDirection="LeftToRight"
                      ToolTip="הזן את מספר המזהה לשאילתה ממסד הנתונים"/>
+        </Grid>
+
+        <!-- Excel Import Section (Excel Mode Only) -->
+        <Grid Grid.Row="2"
+              Margin="0,0,0,15"
+              Visibility="{Binding IsExcelMode, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Excel File Selection -->
+            <Label Grid.Row="0" Grid.Column="0" Content="קובץ Excel:"/>
+            <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                <Button Content="בחר קובץ..."
+                        Command="{Binding BrowseExcelCommand}"
+                        DockPanel.Dock="Left"
+                        Padding="15,6"
+                        Margin="0,0,10,0"/>
+                <TextBox Text="{Binding ExcelFilePath}"
+                         IsReadOnly="True"
+                         Background="#F9F9F9"
+                         FlowDirection="LeftToRight"
+                         VerticalContentAlignment="Center"/>
+            </DockPanel>
+
+            <!-- Column Mapping Button -->
+            <Label Grid.Row="1" Grid.Column="0" Content=""/>
+            <Button Grid.Row="1"
+                    Grid.Column="1"
+                    Content="הגדר עמודות"
+                    Command="{Binding ConfigureColumnsCommand}"
+                    HorizontalAlignment="Left"
+                    Padding="20,6"
+                    Margin="0,0,0,10"
+                    IsEnabled="{Binding HasExcelFile}"
+                    ToolTip="הגדר אילו עמודות מכילות קוד SH, קוד OEM וכמות"/>
+
+            <!-- Mapping Summary -->
+            <Label Grid.Row="2" Grid.Column="0" Content=""/>
+            <TextBlock Grid.Row="2"
+                       Grid.Column="1"
+                       Text="{Binding ColumnMappingSummary}"
+                       Foreground="DarkGreen"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ColumnMappingSummary}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </Grid>
 
         <!-- Document Type -->

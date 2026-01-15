@@ -10,6 +10,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Data;
 using static Sh.Autofit.New.PartsMappingUI.Helpers.VehicleMatchingHelper;
+using SelectableConsolidatedModel = Sh.Autofit.New.PartsMappingUI.Views.SelectableConsolidatedModel;
 
 namespace Sh.Autofit.New.PartsMappingUI.ViewModels;
 
@@ -36,9 +37,12 @@ public partial class PartMappingsManagementViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<VehicleDisplayModel> _suggestedVehicles = new();
 
-    // Consolidated models for the selected part (NEW WAY)
+    // Consolidated models for the selected part (NEW WAY) - wrapped in SelectableConsolidatedModel for checkbox support
     [ObservableProperty]
-    private ObservableCollection<ConsolidatedVehicleModel> _consolidatedModels = new();
+    private ObservableCollection<SelectableConsolidatedModel> _consolidatedModels = new();
+
+    [ObservableProperty]
+    private bool _selectAllConsolidatedModels;
 
     [ObservableProperty]
     private string _partSearchText = string.Empty;
@@ -127,6 +131,14 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         ApplyFilters();
     }
 
+    partial void OnSelectAllConsolidatedModelsChanged(bool value)
+    {
+        foreach (var model in ConsolidatedModels)
+        {
+            model.IsSelected = value;
+        }
+    }
+
     private void ApplyFilters()
     {
         var filtered = AllParts.AsEnumerable();
@@ -206,9 +218,11 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         {
             var models = await _dataService.LoadConsolidatedModelsForPartAsync(partNumber, includeCouplings: true);
             ConsolidatedModels.Clear();
+            SelectAllConsolidatedModels = false; // Reset select all
+
             foreach (var model in models)
             {
-                ConsolidatedModels.Add(model);
+                ConsolidatedModels.Add(new SelectableConsolidatedModel(model));
             }
         }
         catch
@@ -338,6 +352,77 @@ public partial class PartMappingsManagementViewModel : ObservableObject
             {
                 IsLoading = false;
             }
+        }
+    }
+
+    [RelayCommand]
+    private async Task AddConsolidatedModelMappingsAsync()
+    {
+        if (SelectedPart == null)
+        {
+            MessageBox.Show("אנא בחר חלק", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = "טוען דגמים מאוחדים זמינים...";
+
+            // Load unmapped consolidated models
+            var unmappedModels = await _dataService.LoadUnmappedConsolidatedModelsForPartAsync(SelectedPart.PartNumber);
+
+            if (!unmappedModels.Any())
+            {
+                MessageBox.Show("כל הדגמים המאוחדים כבר ממופים לחלק זה", "מידע", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            IsLoading = false;
+
+            // Show dialog to select consolidated models
+            var dialog = new Views.SelectConsolidatedModelsDialog(unmappedModels);
+            if (dialog.ShowDialog() == true && dialog.SelectedModels.Any())
+            {
+                try
+                {
+                    IsLoading = true;
+                    StatusMessage = "ממפה חלק למודלים מאוחדים...";
+
+                    var partNumbers = new List<string> { SelectedPart.PartNumber };
+
+                    foreach (var model in dialog.SelectedModels)
+                    {
+                        await _dataService.MapPartsToConsolidatedModelAsync(
+                            model.ConsolidatedModelId,
+                            partNumbers,
+                            "current_user");
+                    }
+
+                    StatusMessage = $"✓ מופה ל-{dialog.SelectedModels.Count} דגמים מאוחדים";
+
+                    await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+                    await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"שגיאה: {ex.Message}";
+                    MessageBox.Show($"שגיאה במיפוי: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    IsLoading = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה: {ex.Message}";
+            MessageBox.Show($"שגיאה בטעינת דגמים: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -478,6 +563,200 @@ public partial class PartMappingsManagementViewModel : ObservableObject
         {
             StatusMessage = $"שגיאה: {ex.Message}";
             MessageBox.Show($"שגיאה בהסרת מיפוי: {ex.Message}", "שגיאה", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveConsolidatedModelMappingAsync(SelectableConsolidatedModel? selectableModel)
+    {
+        if (selectableModel == null || SelectedPart == null)
+            return;
+
+        var model = selectableModel.Model;
+
+        try
+        {
+            IsLoading = true;
+
+            // Check for active couplings
+            var couplings = await _dataService.GetModelCouplingsAsync(model.ConsolidatedModelId);
+            var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+            // Build confirmation message
+            string message;
+            if (activeCouplings.Any())
+            {
+                // Get coupled model names
+                var coupledModelNames = new List<string>();
+                foreach (var coupling in activeCouplings)
+                {
+                    var otherModelId = coupling.ConsolidatedModelIdA == model.ConsolidatedModelId
+                        ? coupling.ConsolidatedModelIdB
+                        : coupling.ConsolidatedModelIdA;
+
+                    var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                    if (otherModel != null)
+                    {
+                        coupledModelNames.Add($"{otherModel.Manufacturer?.ManufacturerShortName} {otherModel.ModelName}");
+                    }
+                }
+
+                var coupledModelsText = string.Join(", ", coupledModelNames);
+                message = $"הדגם '{model.ModelName}' מצומד עם: {coupledModelsText}\n\n" +
+                         $"האם להסיר '{SelectedPart.PartName}' מדגם זה ומכל הדגמים המצומדים?\n\n" +
+                         "לחץ 'כן' להסרה מכולם, 'לא' לביטול.\n\n" +
+                         "💡 טיפ: השתמש בכפתור 'נתק צימוד' בניהול צימודים לניתוק דגמים.";
+            }
+            else
+            {
+                var yearRange = model.YearTo.HasValue
+                    ? $"{model.YearFrom}-{model.YearTo}"
+                    : $"{model.YearFrom}+";
+                message = $"האם להסיר '{SelectedPart.PartName}' מהדגם המאוחד '{model.ModelName}'?\n\n" +
+                         $"שנים: {yearRange}\n\n" +
+                         "פעולה זו מסירה את החלק מכל השנים בדגם המאוחד.";
+            }
+
+            var result = MessageBox.Show(message, "אישור הסרה",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            StatusMessage = "מסיר מיפוי מדגם מאוחד...";
+            var partNumbers = new List<string> { SelectedPart.PartNumber };
+
+            if (activeCouplings.Any())
+            {
+                // Unmap from all coupled models
+                var allModelIds = new HashSet<int> { model.ConsolidatedModelId };
+                foreach (var coupling in activeCouplings)
+                {
+                    allModelIds.Add(coupling.ConsolidatedModelIdA);
+                    allModelIds.Add(coupling.ConsolidatedModelIdB);
+                }
+
+                foreach (var modelId in allModelIds)
+                {
+                    await _dataService.UnmapPartsFromConsolidatedModelAsync(modelId, partNumbers, "current_user");
+                }
+
+                StatusMessage = $"✓ הוסר מ-{allModelIds.Count} דגמים מצומדים";
+            }
+            else
+            {
+                // Unmap from single model
+                await _dataService.UnmapPartsFromConsolidatedModelAsync(
+                    model.ConsolidatedModelId, partNumbers, "current_user");
+
+                StatusMessage = $"✓ הוסר מהדגם המאוחד {model.ModelName}";
+            }
+
+            await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+            await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה: {ex.Message}";
+            MessageBox.Show($"שגיאה בהסרת מיפוי: {ex.Message}", "שגיאה",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task UnmapSelectedConsolidatedModelsAsync()
+    {
+        if (SelectedPart == null)
+            return;
+
+        var selectedModels = ConsolidatedModels.Where(m => m.IsSelected).ToList();
+
+        if (!selectedModels.Any())
+        {
+            MessageBox.Show("אנא בחר לפחות דגם אחד להסרה", "שגיאה",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Build confirmation message with truncation for large selections
+        string modelsList;
+        const int maxDisplayModels = 10;
+
+        if (selectedModels.Count <= maxDisplayModels)
+        {
+            var modelNames = selectedModels.Select(m =>
+                $"{m.Manufacturer?.ManufacturerShortName} {m.ModelName}").ToList();
+            modelsList = string.Join("\n• ", modelNames);
+        }
+        else
+        {
+            var firstModels = selectedModels.Take(maxDisplayModels).Select(m =>
+                $"{m.Manufacturer?.ManufacturerShortName} {m.ModelName}").ToList();
+            modelsList = string.Join("\n• ", firstModels) + $"\n• ... ועוד {selectedModels.Count - maxDisplayModels} דגמים נוספים";
+        }
+
+        var message = $"האם להסיר את '{SelectedPart.PartName}' מהדגמים המאוחדים הבאים?\n\n• {modelsList}\n\n" +
+                     $"סה\"כ {selectedModels.Count} דגמים ייהסרו.\n\n" +
+                     "פעולה זו תסיר את החלק מכל השנים והדגמים המצומדים.";
+
+        var result = MessageBox.Show(message, "אישור הסרה המונית",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = $"מסיר מיפוי מ-{selectedModels.Count} דגמים מאוחדים...";
+
+            var partNumbers = new List<string> { SelectedPart.PartNumber };
+            var allModelsToUnmapFrom = new HashSet<int>();
+
+            // For each selected model, check for couplings and add all coupled models
+            foreach (var selectableModel in selectedModels)
+            {
+                var model = selectableModel.Model;
+                allModelsToUnmapFrom.Add(model.ConsolidatedModelId);
+
+                // Check for couplings
+                var couplings = await _dataService.GetModelCouplingsAsync(model.ConsolidatedModelId);
+                var activeCouplings = couplings.Where(c => c.IsActive).ToList();
+
+                foreach (var coupling in activeCouplings)
+                {
+                    allModelsToUnmapFrom.Add(coupling.ConsolidatedModelIdA);
+                    allModelsToUnmapFrom.Add(coupling.ConsolidatedModelIdB);
+                }
+            }
+
+            // Unmap from all models (including coupled ones)
+            foreach (var modelId in allModelsToUnmapFrom)
+            {
+                await _dataService.UnmapPartsFromConsolidatedModelAsync(modelId, partNumbers, "current_user");
+            }
+
+            StatusMessage = $"✓ הוסר מ-{allModelsToUnmapFrom.Count} דגמים (כולל דגמים מצומדים)";
+
+            MessageBox.Show($"החלק הוסר בהצלחה מ-{allModelsToUnmapFrom.Count} דגמים מאוחדים",
+                "הצלחה", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            await LoadMappedVehiclesAsync(SelectedPart.PartNumber);
+            await LoadConsolidatedModelsAsync(SelectedPart.PartNumber);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"שגיאה: {ex.Message}";
+            MessageBox.Show($"שגיאה בהסרת מיפוי המוני: {ex.Message}", "שגיאה",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {

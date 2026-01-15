@@ -178,6 +178,41 @@ public class DataService : IDataService
         return vehicles;
     }
 
+    public async Task<VehicleDisplayModel?> LoadVehicleByIdAsync(int vehicleTypeId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var vehicle = await context.VehicleTypes
+            .AsNoTracking()
+            .Include(v => v.Manufacturer)
+            .FirstOrDefaultAsync(v => v.VehicleTypeId == vehicleTypeId);
+
+        if (vehicle == null)
+            return null;
+
+        return new VehicleDisplayModel
+        {
+            VehicleTypeId = vehicle.VehicleTypeId,
+            ManufacturerId = vehicle.ManufacturerId,
+            ManufacturerName = vehicle.Manufacturer?.ManufacturerName ?? "",
+            ManufacturerShortName = vehicle.Manufacturer?.ManufacturerShortName ?? vehicle.Manufacturer?.ManufacturerName ?? "",
+            ModelCode = vehicle.ModelCode ?? string.Empty,
+            ModelName = vehicle.ModelName ?? "",
+            CommercialName = vehicle.CommercialName ?? "",
+            YearFrom = vehicle.YearFrom,
+            YearTo = vehicle.YearTo,
+            VehicleCategory = vehicle.VehicleCategory,
+            FuelTypeName = vehicle.FuelTypeName,
+            EngineModel = vehicle.EngineModel,
+            EngineVolume = vehicle.EngineVolume,
+            TransmissionType = vehicle.TransmissionType,
+            FinishLevel = vehicle.FinishLevel,
+            TrimLevel = vehicle.TrimLevel,
+            Horsepower = vehicle.Horsepower,
+            DriveType = vehicle.DriveType
+        };
+    }
+
     public async Task<List<PartDisplayModel>> LoadPartsAsync()
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -1089,7 +1124,8 @@ public class DataService : IDataService
         int? matchedManufacturerId,
         string matchStatus,
         string matchReason,
-        string apiResourceUsed)
+        string apiResourceUsed,
+        int? consolidatedModelId = null)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
@@ -1106,6 +1142,7 @@ public class DataService : IDataService
             existing.MatchStatus = matchStatus;
             existing.MatchReason = matchReason;
             existing.ApiResourceUsed = apiResourceUsed;
+            existing.ConsolidatedModelId = consolidatedModelId; // Phase 2 optimization
 
             if (govRecord != null)
             {
@@ -1119,6 +1156,11 @@ public class DataService : IDataService
                 existing.CurrentOwner = govRecord.OwnershipType;
                 existing.Vin = govRecord.VinNumber ?? govRecord.VinChassis;
                 existing.ApiResponseJson = System.Text.Json.JsonSerializer.Serialize(govRecord);
+
+                // Save special flags (Phase 2 optimization)
+                existing.IsOffRoad = govRecord.IsOffRoad;
+                existing.IsPersonalImport = govRecord.IsPersonalImport;
+                existing.SourceResourceId = govRecord.SourceResourceId;
             }
 
             await context.SaveChangesAsync();
@@ -1135,6 +1177,7 @@ public class DataService : IDataService
                 MatchStatus = matchStatus,
                 MatchReason = matchReason,
                 ApiResourceUsed = apiResourceUsed,
+                ConsolidatedModelId = consolidatedModelId, // Phase 2 optimization
                 FirstLookupDate = DateTime.Now,
                 LastLookupDate = DateTime.Now,
                 LookupCount = 1,
@@ -1153,6 +1196,11 @@ public class DataService : IDataService
                 newRegistration.CurrentOwner = govRecord.OwnershipType;
                 newRegistration.Vin = govRecord.VinNumber ?? govRecord.VinChassis;
                 newRegistration.ApiResponseJson = System.Text.Json.JsonSerializer.Serialize(govRecord);
+
+                // Save special flags (Phase 2 optimization)
+                newRegistration.IsOffRoad = govRecord.IsOffRoad;
+                newRegistration.IsPersonalImport = govRecord.IsPersonalImport;
+                newRegistration.SourceResourceId = govRecord.SourceResourceId;
             }
 
             context.VehicleRegistrations.Add(newRegistration);
@@ -1299,12 +1347,14 @@ public class DataService : IDataService
             .Distinct()
             .ToListAsync();
 
-        foreach (var consModelId in consolidatedMappings)
+        // Load all vehicles from all consolidated models in ONE query (fixes N+1 problem)
+        if (consolidatedMappings.Any())
         {
-            // Get all vehicles from this consolidated model
             var consolidatedVehicles = await context.VehicleTypes
                 .AsNoTracking()
-                .Where(vt => vt.ConsolidatedModelId == consModelId && vt.IsActive)
+                .Where(vt => vt.ConsolidatedModelId != null &&
+                             consolidatedMappings.Contains(vt.ConsolidatedModelId.Value) &&
+                             vt.IsActive)
                 .Include(vt => vt.ConsolidatedModel)
                     .ThenInclude(cm => cm.Manufacturer)
                 .Include(vt => vt.Manufacturer)
@@ -1315,7 +1365,7 @@ public class DataService : IDataService
                 vehicles.Add(new VehicleDisplayModel
                 {
                     VehicleTypeId = vt.VehicleTypeId,
-                    ConsolidatedModelId = consModelId,
+                    ConsolidatedModelId = vt.ConsolidatedModelId,
                     ManufacturerId = vt.ManufacturerId,
                     ManufacturerName = vt.Manufacturer?.ManufacturerName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerName ?? "",
                     ManufacturerShortName = vt.Manufacturer?.ManufacturerShortName ?? vt.ConsolidatedModel?.Manufacturer?.ManufacturerShortName ?? vt.Manufacturer?.ManufacturerName ?? "",
@@ -1979,10 +2029,15 @@ public class DataService : IDataService
             .ToListAsync();
     }
 
-    public async Task<List<ConsolidatedVehicleModel>> GetConsolidatedModelsForLookupAsync(int manufacturerCode, int modelCode, int? year = null)
+    public async Task<List<ConsolidatedVehicleModel>> GetConsolidatedModelsForLookupAsync(
+        int manufacturerCode,
+        int modelCode,
+        int? year = null,
+        string? modelName = null)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
 
+        // Build query with exact code matching
         var query = context.ConsolidatedVehicleModels
             .AsNoTracking()
             .Include(cm => cm.Manufacturer)
@@ -1991,17 +2046,164 @@ public class DataService : IDataService
                         cm.ModelCode == modelCode);
 
         // Filter by year if provided (year must be within the range)
-        if (year.HasValue)
-        {
-            query = query.Where(cm => cm.YearFrom <= year.Value &&
-                                     (cm.YearTo == null || cm.YearTo >= year.Value));
-        }
+        //if (year.HasValue)
+        //{
+        //    query = query.Where(cm => cm.YearFrom <= year.Value &&
+        //                             (cm.YearTo == null || cm.YearTo >= year.Value));
+        //}
 
-        return await query
+        // Execute query and get all matches based on codes
+        var allResults = await query
             .OrderBy(cm => cm.EngineVolume)
             .ThenBy(cm => cm.TransmissionType)
             .ThenBy(cm => cm.TrimLevel)
             .ToListAsync();
+
+        // If ModelName is provided and we have results, apply in-memory filtering
+        if (!string.IsNullOrWhiteSpace(modelName) && allResults.Any())
+        {
+            // Try to find models with matching ModelName (case and whitespace insensitive)
+            var modelNameMatches = allResults
+                .Where(cm => !string.IsNullOrWhiteSpace(cm.ModelName) &&
+                            cm.ModelName.EqualsIgnoringWhitespace(modelName))
+                .ToList();
+
+            // If we found matches with ModelName, use those; otherwise fall back to all results
+            // This implements the "filter approach" - prefer ModelName matches but don't require
+            if (modelNameMatches.Any())
+            {
+                return modelNameMatches;
+            }
+        }
+
+        // Return all results (either no ModelName filter, or no ModelName matches found)
+        return allResults;
+    }
+    public async Task<List<PartDisplayModel>> LoadUnmappedPartsForConsolidatedModelAsync(
+    int consolidatedModelId,
+    bool includeCouplings = true)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // 1. Directly mapped parts for this consolidated model
+        var directMappedPartKeys = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => m.ConsolidatedModelId == consolidatedModelId &&
+                        m.IsActive &&
+                        m.IsCurrentVersion &&
+                        m.MappingLevel == "Consolidated")
+            .Select(m => m.PartItemKey)
+            .Distinct()
+            .ToListAsync();
+
+        var allMappedPartKeys = new HashSet<string>(directMappedPartKeys);
+
+        if (includeCouplings)
+        {
+            // 2. Model couplings → extra consolidated models → extra mapped parts
+            var coupledModelIds = await context.ModelCouplings
+                .AsNoTracking()
+                .Where(mc => mc.IsActive &&
+                             (mc.ConsolidatedModelIdA == consolidatedModelId ||
+                              mc.ConsolidatedModelIdB == consolidatedModelId))
+                .Select(mc => mc.ConsolidatedModelIdA == consolidatedModelId
+                    ? mc.ConsolidatedModelIdB
+                    : mc.ConsolidatedModelIdA)
+                .ToListAsync();
+
+            if (coupledModelIds.Any())
+            {
+                var coupledModelPartKeys = await context.VehiclePartsMappings
+                    .AsNoTracking()
+                    .Where(m => coupledModelIds.Contains(m.ConsolidatedModelId ?? 0) &&
+                                m.IsActive &&
+                                m.IsCurrentVersion &&
+                                m.MappingLevel == "Consolidated")
+                    .Select(m => m.PartItemKey)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var partKey in coupledModelPartKeys)
+                    allMappedPartKeys.Add(partKey);
+            }
+
+            // 3. Part couplings → treat coupled parts as mapped as well
+            var partKeysList = allMappedPartKeys.ToList();
+
+            if (partKeysList.Any())
+            {
+                var coupledPartPairs = await context.PartCouplings
+                    .AsNoTracking()
+                    .Where(pc => pc.IsActive &&
+                                 (partKeysList.Contains(pc.PartItemKeyA) ||
+                                  partKeysList.Contains(pc.PartItemKeyB)))
+                    .Select(pc => new { pc.PartItemKeyA, pc.PartItemKeyB })
+                    .ToListAsync();
+
+                foreach (var c in coupledPartPairs)
+                {
+                    if (partKeysList.Contains(c.PartItemKeyA))
+                        allMappedPartKeys.Add(c.PartItemKeyB);
+
+                    if (partKeysList.Contains(c.PartItemKeyB))
+                        allMappedPartKeys.Add(c.PartItemKeyA);
+                }
+            }
+        }
+
+        // 4. Now load ALL parts that are NOT in the mapped set
+
+        var unmappedRealParts = await context.VwParts
+            .AsNoTracking()
+            .Where(p => p.IsActive == 1 &&
+                        !allMappedPartKeys.Contains(p.PartNumber))
+            .Select(p => new PartDisplayModel
+            {
+                PartNumber = p.PartNumber ?? string.Empty,
+                PartName = p.PartName ?? string.Empty,
+                Category = p.Category,
+                Manufacturer = p.Manufacturer,
+                Model = p.Model,
+                RetailPrice = p.RetailPrice,
+                CostPrice = p.CostPrice,
+                StockQuantity = p.StockQuantity,
+                IsInStock = p.IsInStock == 1,
+                IsActive = p.IsActive == 1,
+                UniversalPart = p.UniversalPart,
+                ImageUrl = p.ImageUrl,
+                CompatibilityNotes = p.CompatibilityNotes,
+                OemNumber1 = p.Oemnumber1,
+                OemNumber2 = p.Oemnumber2,
+                OemNumber3 = p.Oemnumber3,
+                OemNumber4 = p.Oemnumber4,
+                OemNumber5 = p.Oemnumber5,
+                IsVirtual = false
+            })
+            .ToListAsync();
+
+        var unmappedVirtualParts = await context.VirtualParts
+            .AsNoTracking()
+            .Where(vp => vp.IsActive &&
+                         !allMappedPartKeys.Contains(vp.PartNumber))
+            .Select(vp => new PartDisplayModel
+            {
+                PartNumber = vp.PartNumber,
+                PartName = vp.PartName,
+                Category = vp.Category,
+                OemNumber1 = vp.OemNumber1,
+                OemNumber2 = vp.OemNumber2,
+                OemNumber3 = vp.OemNumber3,
+                OemNumber4 = vp.OemNumber4,
+                OemNumber5 = vp.OemNumber5,
+                IsVirtual = true,
+                IsInStock = false,
+                IsActive = true
+            })
+            .ToListAsync();
+
+        unmappedRealParts.AddRange(unmappedVirtualParts);
+
+        return unmappedRealParts;
     }
 
     public async Task<ConsolidatedVehicleModel?> GetConsolidatedModelByIdAsync(int consolidatedModelId)
@@ -2225,6 +2427,33 @@ public class DataService : IDataService
             .ToListAsync();
     }
 
+    public async Task<List<ConsolidatedVehicleModel>> LoadUnmappedConsolidatedModelsForPartAsync(string partItemKey)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Get IDs of consolidated models already mapped to this part
+        var mappedModelIds = await context.VehiclePartsMappings
+            .AsNoTracking()
+            .Where(m => m.PartItemKey == partItemKey &&
+                       m.IsActive &&
+                       m.IsCurrentVersion &&
+                       m.ConsolidatedModelId != null &&
+                       m.MappingLevel == "Consolidated")
+            .Select(m => m.ConsolidatedModelId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        // Get all active consolidated models NOT in the mapped list
+        return await context.ConsolidatedVehicleModels
+            .AsNoTracking()
+            .Include(cm => cm.Manufacturer)
+            .Where(cm => cm.IsActive && !mappedModelIds.Contains(cm.ConsolidatedModelId))
+            .OrderBy(cm => cm.Manufacturer.ManufacturerName)
+            .ThenBy(cm => cm.ModelName)
+            .ThenBy(cm => cm.YearFrom)
+            .ToListAsync();
+    }
+
     public async Task MapPartsToConsolidatedModelAsync(int consolidatedModelId, List<string> partNumbers, string createdBy)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -2307,26 +2536,7 @@ public class DataService : IDataService
         }
     }
 
-    public async Task<ConsolidatedVehicleModel?> GetConsolidatedModelForVehicleTypeAsync(int vehicleTypeId)
-    {
-        await using var context = await _contextFactory.CreateDbContextAsync();
-
-        // Get the ConsolidatedModelId from VehicleType
-        var vehicleType = await context.VehicleTypes
-            .AsNoTracking()
-            .Where(v => v.VehicleTypeId == vehicleTypeId)
-            .Select(v => v.ConsolidatedModelId)
-            .FirstOrDefaultAsync();
-
-        if (vehicleType == null)
-            return null;
-
-        return await context.ConsolidatedVehicleModels
-            .AsNoTracking()
-            .Include(cm => cm.Manufacturer)
-            .FirstOrDefaultAsync(cm => cm.ConsolidatedModelId == vehicleType);
-    }
-
+   
     public async Task<List<VehicleType>> LoadVehicleTypesByConsolidatedModelAsync(int consolidatedModelId)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -2623,5 +2833,19 @@ public class DataService : IDataService
         }
 
         return newConsolidatedModel;
+    }
+
+    public async Task<ConsolidatedVehicleModel?> GetConsolidatedModelForVehicleTypeAsync(int vehicleTypeId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Load the VehicleType including its consolidated model
+        var vehicle = await context.VehicleTypes
+            .AsNoTracking()
+            .Include(v => v.ConsolidatedModel)
+                .ThenInclude(cm => cm.Manufacturer)
+            .FirstOrDefaultAsync(v => v.VehicleTypeId == vehicleTypeId);
+
+        return vehicle?.ConsolidatedModel;
     }
 }

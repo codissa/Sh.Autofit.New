@@ -9,7 +9,12 @@
       "Bash(find:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet restore:*)",
-      "Bash(dotnet remove:*)"
+      "Bash(dotnet remove:*)",
+      "Bash(sqlcmd:*)",
+      "Bash(where:*)",
+      "Bash(\"C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\SQLCMD.EXE\" -S \"server-pc\\wizsoft2\" -d \"Sh.Autofit\" -U \"issa\" -P \"5060977Ih\" -Q \"SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ''VehicleRegistrations'' AND COLUMN_NAME IN (''IsOffRoad'', ''IsPersonalImport'', ''SourceResourceId'', ''ConsolidatedModelId'')\")",
+      "Bash(\"C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\SQLCMD.EXE\" -S \"server-pc\\wizsoft2\" -d \"Sh.Autofit\" -U \"issa\" -P \"5060977Ih\" -Q \"SET QUOTED_IDENTIFIER ON; IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = ''IX_VehicleRegistrations_ConsolidatedModelId'' AND object_id = OBJECT_ID(''VehicleRegistrations'')) CREATE NONCLUSTERED INDEX IX_VehicleRegistrations_ConsolidatedModelId ON VehicleRegistrations(ConsolidatedModelId) WHERE ConsolidatedModelId IS NOT NULL;\")",
+      "Bash(del \"c:\\Users\\ASUS\\source\\repos\\Sh.Autofit.New\\Sh.Autofit.New.PartsMappingUI\\Models\\SelectableConsolidatedModel.cs\")"
     ],
     "deny": [],
     "ask": []

@@ -31,6 +31,8 @@ public partial class ShAutofitContext : DbContext
 
     public virtual DbSet<PartsMetadatum> PartsMetadata { get; set; }
 
+    public virtual DbSet<ArabicPartDescription> ArabicPartDescriptions { get; set; }
+
     public virtual DbSet<PendingVehicleReview> PendingVehicleReviews { get; set; }
 
     public virtual DbSet<PopularSearch> PopularSearches { get; set; }
@@ -333,6 +335,41 @@ public partial class ShAutofitContext : DbContext
                 .HasPrecision(3)
                 .HasDefaultValueSql("(getdate())");
             entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<ArabicPartDescription>(entity =>
+        {
+            entity.HasKey(e => e.ArabicDescriptionId).HasName("PK_ArabicPartDescriptions");
+
+            entity.HasIndex(e => e.ItemKey, "IX_ArabicPartDescriptions_ItemKey")
+                .HasFilter("([IsActive] = 1)");
+
+            entity.HasIndex(e => e.ItemKey, "UQ_ArabicPartDescriptions_ItemKey").IsUnique();
+
+            entity.Property(e => e.ItemKey)
+                .IsRequired()
+                .HasMaxLength(20);
+
+            entity.Property(e => e.ArabicDescription)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(3)
+                .HasDefaultValueSql("(getdate())");
+
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100);
         });
 
         modelBuilder.Entity<PopularSearch>(entity =>
