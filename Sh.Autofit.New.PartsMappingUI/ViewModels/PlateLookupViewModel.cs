@@ -400,7 +400,8 @@ public partial class PlateLookupViewModel : ObservableObject
                         CommercialName = vehicleType.CommercialName ?? "",
                         YearFrom = govVehicle.ManufacturingYear,
                         YearTo = govVehicle.ManufacturingYear,
-                        EngineVolume = vehicleType.EngineVolume
+                        EngineVolume = vehicleType.EngineVolume,
+                        TransmissionType= vehicleType.TransmissionType
                     };
                 }
 

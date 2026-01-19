@@ -1,0 +1,137 @@
+<Window x:Class="Sh.Autofit.StickerPrinting.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="TSC Label Sticker Printing - S.H. Car Rubber"
+        Height="600" Width="900"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Printer Selection Section -->
+        <GroupBox Grid.Row="0" Header="Printer Settings" Margin="5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="200"/>
+                </Grid.ColumnDefinitions>
+
+                <Label Grid.Column="0" Content="Printer:"/>
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding AvailablePrinters}"
+                          SelectedItem="{Binding SelectedPrinter}"
+                          MinWidth="200"/>
+
+                <Button Grid.Column="2" Content="Refresh" Command="{Binding RefreshPrintersCommand}"/>
+                <Button Grid.Column="3" Content="Check Status" Command="{Binding CheckPrinterStatusCommand}"/>
+
+                <TextBlock Grid.Column="4"
+                           Text="{Binding PrinterStatus.StatusMessage}"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           FontWeight="Bold">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PrinterStatus.Status}" Value="Ready">
+                                    <Setter Property="Foreground" Value="Green"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding PrinterStatus.Status}" Value="Error">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding PrinterStatus.Status}" Value="Offline">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </GroupBox>
+
+        <!-- Main Content Tabs -->
+        <TabControl Grid.Row="1" Margin="5" SelectedIndex="{Binding SelectedTabIndex}">
+            <!-- Print on Demand Tab -->
+            <TabItem Header="Print on Demand">
+                <Grid Margin="10" DataContext="{Binding PrintOnDemandVM}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Item Key Input -->
+                    <GroupBox Grid.Row="0" Header="Part Selection" Margin="0,0,0,10">
+                        <StackPanel>
+                            <Label Content="Item Key:"/>
+                            <TextBox Text="{Binding ItemKey, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="200" HorizontalAlignment="Left"/>
+                            <Button Content="Load Part" Command="{Binding LoadItemCommand}"
+                                    HorizontalAlignment="Left" Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Language Selection -->
+                    <GroupBox Grid.Row="1" Header="Language" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Content="Hebrew"
+                                         IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"
+                                         GroupName="Language" Margin="5"/>
+                            <RadioButton Content="Arabic"
+                                         IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"
+                                         GroupName="Language" Margin="5"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Label Preview -->
+                    <GroupBox Grid.Row="2" Header="Label Preview" Margin="0,0,0,10">
+                        <StackPanel DataContext="{Binding CurrentLabel}">
+                            <Label Content="Intro Line:"/>
+                            <TextBox Text="{Binding IntroLine}" IsEnabled="{Binding DataContext.CurrentLabel, RelativeSource={RelativeSource AncestorType=GroupBox}, Converter={StaticResource NullToBoolConverter}}"/>
+
+                            <Label Content="Item Key:"/>
+                            <TextBox Text="{Binding ItemKey}" IsReadOnly="True" Background="LightGray"/>
+
+                            <Label Content="Description:"/>
+                            <TextBox Text="{Binding Description}"
+                                     IsReadOnly="{Binding ShouldShowDescription, Converter={StaticResource InverseBoolConverter}}"
+                                     TextWrapping="Wrap" MinHeight="60"/>
+
+                            <Label Content="Quantity:"/>
+                            <TextBox Text="{Binding Quantity}" Width="100" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Status Bar -->
+                    <TextBlock Grid.Row="3" Text="{Binding StatusMessage}"
+                               VerticalAlignment="Bottom"
+                               Foreground="Blue" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                    <!-- Print Button -->
+                    <Button Grid.Row="4" Content="Print Label"
+                            Command="{Binding PrintCommand}"
+                            HorizontalAlignment="Left" Padding="20,10" FontSize="14" FontWeight="Bold"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Stock Move Tab -->
+            <TabItem Header="Print by Stock Move">
+                <Grid Margin="10">
+                    <TextBlock Text="Stock Move functionality - Coming Soon"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                               FontSize="16" Foreground="Gray"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

@@ -244,6 +244,7 @@
                         <Run Text="טסט אחרון: " FontWeight="Bold"/>
                         <Run Text="{Binding GovernmentVehicle.LastTestDate}"/>
                     </TextBlock>
+
                 </StackPanel>
 
                 <!-- Row 2 - Additional info -->

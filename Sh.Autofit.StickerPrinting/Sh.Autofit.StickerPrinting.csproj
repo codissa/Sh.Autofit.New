@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Sh.Autofit.StickerPrinting</AssemblyName>
+    <RootNamespace>Sh.Autofit.StickerPrinting</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>TSC Sticker Printing - Label Printer</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Database Access -->
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+
+    <!-- UI utilities -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared data access -->
+    <ProjectReference Include="..\Sh.Autofit.New.Entities\Sh.Autofit.New.Entities.csproj" />
+  </ItemGroup>
+</Project>
