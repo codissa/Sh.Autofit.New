@@ -1,8 +1,7 @@
 <Application x:Class="Sh.Autofit.StickerPrinting.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:Sh.Autofit.StickerPrinting.Converters"
-             StartupUri="Views/MainWindow.xaml">
+             xmlns:converters="clr-namespace:Sh.Autofit.StickerPrinting.Converters">
     <Application.Resources>
         <!-- Value Converters -->
         <converters:LanguageConverter x:Key="LanguageConverter"/>
