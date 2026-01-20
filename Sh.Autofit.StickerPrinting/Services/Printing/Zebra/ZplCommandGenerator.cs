@@ -41,26 +41,33 @@ public class ZplCommandGenerator : IZplCommandGenerator
         // This is the "pitch" - the distance from the start of one label to the start of the next
         int totalLabelPitch = labelHeightDots + verticalGapDots;
 
-        // Start label format
-        sb.AppendLine("^XA"); // Start of label
+        // Initialization block (matches legacy PRN that works)
+        sb.AppendLine("CT~~CD,~CC^~CT~");  // Set command chars if modified
+        sb.AppendLine("^XA");
+        sb.AppendLine("~TA000");     // Tear adjust position: 0
+        sb.AppendLine("~JSN");       // Backfeed sequence: None
+        sb.AppendLine("^LT0");       // Label top position: 0
+        sb.AppendLine("^MNW");       // Media tracking: Web sensing
+        sb.AppendLine("^MTD");       // Media type: Direct thermal
+        sb.AppendLine("^PON");       // Print orientation: Normal
+        sb.AppendLine("^PMN");       // Print mirror: No
+        sb.AppendLine("^LH0,0");     // Label home: (0,0)
+        sb.AppendLine("^JMA");       // Graphics mode: Alternative
+        sb.AppendLine("^PR4,4");     // Print rate: 4 ips print, 4 ips slew
+        sb.AppendLine("~SD15");      // Darkness: 15
+        sb.AppendLine("^JUS");       // Save current settings
+        sb.AppendLine("^LRN");       // Label reverse: No
+        sb.AppendLine("^CI0");       // Character set: USA1
+        sb.AppendLine("^XZ");
 
-        // CRITICAL: Set print width to WEB width, not label width
+        // Start actual label format
+        sb.AppendLine("^XA");
+        sb.AppendLine("^MMT");       // Media mode: Tear-off
+        //sb.AppendLine("^PW831");     // Print width: 831 dots (matches legacy)
         sb.AppendLine($"^PW{webWidthDots}"); // Print width in dots
-
-        // CRITICAL: Set label length to LABEL height (printable area)
-        sb.AppendLine($"^LL{labelHeightDots}"); // Label length in dots
-
-        // Label home position
-        sb.AppendLine("^LH0,0");
-
-        // Print mode - Tear-off with gap detection
-        sb.AppendLine("^MMT");  // Media mode: Tear-off
-        sb.AppendLine("^MNM");  // Media tracking: Non-continuous (gap/mark sensing)
-        sb.AppendLine($"^ML{labelHeightDots}");  // Max label length (assists gap detection)
-
-        // Note: ^MNM tells printer to use gap sensor between labels
-        // ^ML sets expected label length to help calibration
-        // If issues persist, printer may need manual calibration via front panel
+        sb.AppendLine($"^LL0{labelHeightDots}"); // Label length with leading zero
+        sb.AppendLine("^LS0");       // Label shift: 0
+        sb.AppendLine("^LH0,0");     // Label home
 
         // Calculate base X positions for left and right labels
         int leftBaseX = leftMarginDots;
@@ -119,8 +126,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
 
         // Calculate Y positions
         int introY = MmToDots(settings.TopMargin, dpi);
-        int itemKeyY = MmToDots(settings.LabelHeightMm * 0.30, dpi);
-        int descriptionY = MmToDots(settings.LabelHeightMm * 0.55, dpi);
+        int itemKeyY = MmToDots(settings.LabelHeightMm * 0.40, dpi);
+        int descriptionY = MmToDots(settings.LabelHeightMm * 0.60, dpi);
 
         // Calculate usable width (label width minus margins)
         int leftMarginDots = MmToDots(settings.LeftMargin, dpi);
@@ -232,7 +239,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
                     labelData.Description,
                     settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin,
                     descFontPt,
-                    fontFamily);
+                    fontFamily,
+                    settings.DescriptionFontWidthScale);
 
                 if (descLines.Count <= settings.DescriptionMaxLines)
                     break;
@@ -247,8 +255,27 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 descLines = descLines.Take(settings.DescriptionMaxLines).ToList();
             }
 
-            // Calculate line spacing (1.1x font height)
-            int lineSpacingDots = (int)(descFontPt * 0.6 * dpi / 72.0);
+            // Calculate line height and check if description fits
+            // Line height factor: font points to dots conversion with spacing
+            const float lineHeightFactor = 0.8f; // Standard line height (1.2x font size)
+            float descHeightScale = settings.DescriptionFontHeightScale;
+            int lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
+            int totalDescriptionHeight = lineHeightDots * descLines.Count;
+            int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
+            int availableHeight = labelBottomDots - descriptionY;
+
+            // If description would overflow, reduce height scale to fit
+            if (totalDescriptionHeight > availableHeight && descLines.Count > 0)
+            {
+                // Calculate required height scale to fit
+                float requiredScale = (float)availableHeight / (descLines.Count * descFontPt * lineHeightFactor * dpi / 72.0f);
+                descHeightScale = Math.Max(0.6f, Math.Min(descHeightScale, requiredScale)); // Minimum 60% height
+                lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
+            }
+
+            // Line spacing for rendering (slightly tighter than full line height)
+            int lineSpacingDots = (int)(lineHeightDots * 0.85);
+
             int lineY = descriptionY;
 
             // Render each line centered
@@ -264,9 +291,9 @@ public class ZplCommandGenerator : IZplCommandGenerator
                     xPosition: centerX,
                     yPosition: lineY,
                     alignment: TextAlignment.Center,
-                    bold: false,
+                    bold: true,
                     widthScale: settings.DescriptionFontWidthScale,
-                    heightScale: settings.DescriptionFontHeightScale);
+                    heightScale: descHeightScale);
 
                 if (!string.IsNullOrEmpty(gfaCommand))
                 {

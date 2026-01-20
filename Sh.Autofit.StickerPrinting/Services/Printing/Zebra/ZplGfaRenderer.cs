@@ -98,14 +98,9 @@ public static class ZplGfaRenderer
                 format.FormatFlags |= StringFormatFlags.DirectionRightToLeft;
             }
 
-            // Set alignment based on parameter (independent of RTL)
-            format.Alignment = alignment switch
-            {
-                TextAlignment.Left => StringAlignment.Near,
-                TextAlignment.Center => StringAlignment.Center,
-                TextAlignment.Right => StringAlignment.Far,
-                _ => StringAlignment.Near
-            };
+            // Always draw left-aligned; centering/right-alignment is handled by final X position calculation
+            // This ensures the cropped bitmap's content starts at x=0, making position calculations accurate
+            format.Alignment = StringAlignment.Near;
 
             format.LineAlignment = StringAlignment.Near;
             format.Trimming = StringTrimming.None;
@@ -143,8 +138,8 @@ public static class ZplGfaRenderer
                 _ => xPosition
             };
 
-            // Return complete ZPL command
-            return $"^FO{finalX},{yPosition}\n{gfaData}\n";
+            // Return complete ZPL command (^FT for baseline positioning, matches legacy)
+            return $"^FT{finalX},{yPosition}\n{gfaData}\n";
         }
         catch (Exception ex)
         {

@@ -38,7 +38,7 @@ public class StickerSettings
     public double TopMargin { get; set; } = 0.5;
     public double BottomMargin { get; set; } = 0.2;
     public double LeftMargin { get; set; } = 0.2;
-    public double RightMargin { get; set; } = 0.2;
+    public double RightMargin { get; set; } = 0.5;
 
     // Convenience property for LeftMargin (used in ZPL generator)
     public double LeftMarginMm
@@ -84,7 +84,7 @@ public class StickerSettings
     /// <summary>
     /// Starting/maximum font size for item key in points (will shrink if needed)
     /// </summary>
-    public float ItemKeyStartFontPt { get; set; } = 18.0f;
+    public float ItemKeyStartFontPt { get; set; } = 32.0f;
 
     /// <summary>
     /// Minimum font size for item key in points
@@ -96,7 +96,7 @@ public class StickerSettings
     /// Starting/maximum font size for description in points (will shrink if needed)
     /// Defaults to match ItemKey for consistent sizing
     /// </summary>
-    public float DescriptionStartFontPt { get; set; } = 18.0f;
+    public float DescriptionStartFontPt { get; set; } = 32.0f;
 
     /// <summary>
     /// Minimum font size for description in points
@@ -133,7 +133,7 @@ public class StickerSettings
     /// <summary>
     /// Width scaling factor for description text (1.0 = normal, &lt;1.0 = compressed, &gt;1.0 = expanded)
     /// </summary>
-    public float DescriptionFontWidthScale { get; set; } = 1.0f;
+    public float DescriptionFontWidthScale { get; set; } = 0.6f;
 
     /// <summary>
     /// Height scaling factor for description text (1.0 = normal, &lt;1.0 = shorter, &gt;1.0 = taller)

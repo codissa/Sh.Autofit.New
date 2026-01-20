@@ -41,17 +41,23 @@ public static class FontSizeCalculator
     /// <summary>
     /// Split text into multiple lines if too long
     /// </summary>
+    /// <param name="text">Text to split</param>
+    /// <param name="maxWidthMm">Maximum width in mm</param>
+    /// <param name="fontSize">Font size in points</param>
+    /// <param name="fontFamily">Font family name</param>
+    /// <param name="widthScale">Width scale factor (e.g., 0.6 for 60% compressed text)</param>
     public static List<string> SplitTextToFit(
         string text,
         double maxWidthMm,
         double fontSize,
-        string fontFamily = "Arial")
+        string fontFamily = "Arial",
+        float widthScale = 1.0f)
     {
         var lines = new List<string>();
         if (string.IsNullOrWhiteSpace(text))
             return lines;
 
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = text.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
         var currentLine = string.Empty;
         double maxWidthPx = maxWidthMm * 3.7795;
 
@@ -62,8 +68,10 @@ public static class FontSizeCalculator
                 : $"{currentLine} {word}";
 
             var size = MeasureText(testLine, fontSize, fontFamily);
+            // Apply width scale to account for compressed/expanded text rendering
+            var scaledWidth = size.Width * widthScale;
 
-            if (size.Width > maxWidthPx && !string.IsNullOrEmpty(currentLine))
+            if (scaledWidth > maxWidthPx && !string.IsNullOrEmpty(currentLine))
             {
                 lines.Add(currentLine);
                 currentLine = word;
