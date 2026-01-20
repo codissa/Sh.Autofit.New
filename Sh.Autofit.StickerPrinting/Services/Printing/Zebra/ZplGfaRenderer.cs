@@ -301,6 +301,50 @@ public static class ZplGfaRenderer
     }
 
     /// <summary>
+    /// Find smallest width scale that fits text at a fixed font size
+    /// Used for intro line which must stay at constant font size but compress horizontally
+    /// </summary>
+    /// <param name="text">Text to fit</param>
+    /// <param name="fontName">Font family name (e.g., "Arial Narrow")</param>
+    /// <param name="fontSizePt">Fixed font size in points (e.g., 28.0)</param>
+    /// <param name="maxWidthDots">Maximum width in dots</param>
+    /// <param name="dpi">Printer DPI (203)</param>
+    /// <param name="bold">Use bold font style</param>
+    /// <param name="minWidthScale">Minimum width scale (0.5 = 50% compression limit)</param>
+    /// <returns>Optimal width scale (1.0 = normal, lower = more compressed)</returns>
+    public static float FitWidthScaleToWidth(
+        string text,
+        string fontName,
+        float fontSizePt,
+        int maxWidthDots,
+        int dpi,
+        bool bold = false,
+        float minWidthScale = 0.5f)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 1.0f;
+
+        // Try normal width first (no compression)
+        var (normalWidth, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, widthScale: 1.0f, heightScale: 1.0f);
+        if (normalWidth <= maxWidthDots)
+            return 1.0f;  // Fits without compression!
+
+        // Need compression - search from 0.95 down to minWidthScale in 5% increments
+        float widthScale = 0.95f;
+        while (widthScale >= minWidthScale)
+        {
+            var (width, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, widthScale, heightScale: 1.0f);
+            if (width <= maxWidthDots)
+                return widthScale;
+
+            widthScale -= 0.05f;  // Reduce by 5% increments
+        }
+
+        // Maximum compression - text still might not fit but this is the best we can do
+        return minWidthScale;
+    }
+
+    /// <summary>
     /// Crop bitmap to actual content size
     /// </summary>
     private static Bitmap CropBitmap(Bitmap source, int width, int height)

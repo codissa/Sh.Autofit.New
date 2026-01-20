@@ -119,7 +119,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
 
         // Calculate Y positions
         int introY = MmToDots(settings.TopMargin, dpi);
-        int itemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
+        int itemKeyY = MmToDots(settings.LabelHeightMm * 0.30, dpi);
         int descriptionY = MmToDots(settings.LabelHeightMm * 0.55, dpi);
 
         // Calculate usable width (label width minus margins)
@@ -130,26 +130,28 @@ public class ZplCommandGenerator : IZplCommandGenerator
         // Center X position for centered elements
         int centerX = baseX + (labelWidthDots / 2);
 
-        // ===== 1. IntroLine (configurable font, left-aligned, shrink to fit) =====
+        // ===== 1. IntroLine (fixed 28pt font, compress width to fit single line) =====
         if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
         {
-            // Use configurable font settings from StickerSettings
-            float introFontPt = ZplGfaRenderer.FitFontPtToWidth(
+            // Intro ALWAYS uses the start font size (28pt) - never shrinks font
+            // Instead, we compress the WIDTH if text is too long
+            float introFontPt = settings.IntroStartFontPt;  // Fixed at 28pt
+
+            // Calculate optimal width compression to fit text in single line
+            float introWidthScale = ZplGfaRenderer.FitWidthScaleToWidth(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
+                introFontPt,  // Use fixed 28pt
                 usableWidthDots,
                 dpi,
-                startFontPt: settings.IntroStartFontPt,
-                minFontPt: settings.IntroMinFontPt,
                 bold: settings.IntroBold,
-                widthScale: settings.IntroFontWidthScale,
-                heightScale: settings.IntroFontHeightScale);
+                minWidthScale: settings.IntroMinWidthScale);  // Down to 50% minimum
 
-            // Render as bitmap (left-aligned)
+            // Render as bitmap (left-aligned, single line)
             string gfaCommand = ZplGfaRenderer.RenderTextAsGfa(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
-                introFontPt,
+                introFontPt,  // Always 28pt
                 usableWidthDots,
                 dpi,
                 isRtl: false, // IntroLine is always LTR
@@ -157,8 +159,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 yPosition: introY,
                 alignment: TextAlignment.Left,
                 bold: settings.IntroBold,
-                widthScale: settings.IntroFontWidthScale,
-                heightScale: settings.IntroFontHeightScale);
+                widthScale: introWidthScale,  // Dynamically compressed!
+                heightScale: 1.0f);           // Always normal height
 
             if (!string.IsNullOrEmpty(gfaCommand))
             {
@@ -246,7 +248,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
             }
 
             // Calculate line spacing (1.1x font height)
-            int lineSpacingDots = (int)(descFontPt * 1.1 * dpi / 72.0);
+            int lineSpacingDots = (int)(descFontPt * 0.6 * dpi / 72.0);
             int lineY = descriptionY;
 
             // Render each line centered

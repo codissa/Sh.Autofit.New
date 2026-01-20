@@ -35,10 +35,10 @@ public class StickerSettings
     public int DPI { get; set; } = 203; // Zebra S4M DPI
 
     // Layout (margins in mm)
-    public double TopMargin { get; set; } = 2.0;
-    public double BottomMargin { get; set; } = 2.0;
-    public double LeftMargin { get; set; } = 2.0;
-    public double RightMargin { get; set; } = 2.0;
+    public double TopMargin { get; set; } = 0.5;
+    public double BottomMargin { get; set; } = 0.2;
+    public double LeftMargin { get; set; } = 0.2;
+    public double RightMargin { get; set; } = 0.2;
 
     // Convenience property for LeftMargin (used in ZPL generator)
     public double LeftMarginMm
@@ -62,17 +62,23 @@ public class StickerSettings
     /// <summary>
     /// Starting/maximum font size for intro line in points (will shrink if needed)
     /// </summary>
-    public float IntroStartFontPt { get; set; } = 14.0f;
+    public float IntroStartFontPt { get; set; } = 28.0f;
 
     /// <summary>
     /// Minimum font size for intro line in points
     /// </summary>
-    public float IntroMinFontPt { get; set; } = 8.0f;
+    public float IntroMinFontPt { get; set; } = 20.0f;
 
     /// <summary>
     /// Use bold font for intro line
     /// </summary>
     public bool IntroBold { get; set; } = true;
+
+    /// <summary>
+    /// Minimum width scale for intro line when compressing to fit (0.5 = 50% width compression)
+    /// Intro line always stays at IntroStartFontPt size, but compresses width if too long
+    /// </summary>
+    public float IntroMinWidthScale { get; set; } = 0.2f;
 
     // ===== ITEMKEY FONT CONFIGURATION =====
     /// <summary>
@@ -107,7 +113,7 @@ public class StickerSettings
     /// Width scaling factor for intro text (1.0 = normal, &lt;1.0 = compressed, &gt;1.0 = expanded)
     /// Example: 0.8 = 20% narrower (condensed), 1.2 = 20% wider
     /// </summary>
-    public float IntroFontWidthScale { get; set; } = 1.0f;
+    public float IntroFontWidthScale { get; set; } = 0.8f;
 
     /// <summary>
     /// Height scaling factor for intro text (1.0 = normal, &lt;1.0 = shorter, &gt;1.0 = taller)
