@@ -2,7 +2,7 @@ using System.Windows;
 using Sh.Autofit.StickerPrinting.Services.Database;
 using Sh.Autofit.StickerPrinting.Services.Label;
 using Sh.Autofit.StickerPrinting.Services.Printing.Infrastructure;
-using Sh.Autofit.StickerPrinting.Services.Printing.Tsc;
+using Sh.Autofit.StickerPrinting.Services.Printing.Zebra;
 using Sh.Autofit.StickerPrinting.ViewModels;
 using Sh.Autofit.StickerPrinting.Views;
 
@@ -23,10 +23,10 @@ public partial class App : Application
         var arabicDescService = new ArabicDescriptionService(connectionString);
         var stockDataService = new StockDataService(connectionString);
 
-        // Printer infrastructure (TSC)
+        // Printer infrastructure (Zebra)
         var rawCommunicator = new RawPrinterCommunicator();
-        var tsplGenerator = new TsplCommandGenerator();
-        var tscPrinterService = new TscPrinterService(tsplGenerator, rawCommunicator);
+        var zplGenerator = new ZplCommandGenerator();
+        var zebraPrinterService = new ZebraPrinterService(zplGenerator, rawCommunicator);
 
         // Label rendering
         var labelRenderService = new LabelRenderService();
@@ -35,19 +35,19 @@ public partial class App : Application
         var printOnDemandVM = new PrintOnDemandViewModel(
             partDataService,
             arabicDescService,
-            tscPrinterService,
+            zebraPrinterService,
             labelRenderService);
 
         var stockMoveVM = new StockMoveViewModel(
             stockDataService,
             partDataService,
-            tscPrinterService,
+            zebraPrinterService,
             labelRenderService);
 
         var mainViewModel = new MainViewModel(
             printOnDemandVM,
             stockMoveVM,
-            tscPrinterService);
+            zebraPrinterService);
 
         var mainWindow = new MainWindow { DataContext = mainViewModel };
         mainWindow.Show();

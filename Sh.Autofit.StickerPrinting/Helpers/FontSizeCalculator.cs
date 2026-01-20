@@ -1,6 +1,6 @@
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
-using System.Windows;
-using System.Windows.Media;
 
 namespace Sh.Autofit.StickerPrinting.Helpers;
 
@@ -80,30 +80,32 @@ public static class FontSizeCalculator
         return lines;
     }
 
-    private static Size MeasureText(string text, double fontSize, string fontFamily)
+    private static SizeF MeasureText(string text, double fontSize, string fontFamily)
     {
         try
         {
-            var typeface = new Typeface(new FontFamily(fontFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            // Use printer DPI for accurate measurement
+            const int printerDpi = 203;
+            int estimatedSize = (int)(fontSize * printerDpi / 72.0 * 2);
 
-            // Use a reasonable DPI value for measurement
-            double dpiScale = 96.0 / 96.0;  // Standard DPI scale
+            using var bitmap = new Bitmap(estimatedSize, estimatedSize, PixelFormat.Format32bppArgb);
+            using var graphics = Graphics.FromImage(bitmap);
 
-            var formattedText = new FormattedText(
-                text,
-                CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                typeface,
-                fontSize,
-                Brushes.Black,
-                dpiScale);
+            // Match ZplGfaRenderer settings for consistency
+            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+            graphics.PageUnit = GraphicsUnit.Pixel;
 
-            return new Size(formattedText.Width, formattedText.Height);
+            using var font = new Font(fontFamily, (float)fontSize, FontStyle.Regular, GraphicsUnit.Point);
+            var size = graphics.MeasureString(text, font);
+
+            // Scale back to mm-like units for existing callers (96 DPI compatibility)
+            float scaleFactor = 96.0f / printerDpi;
+            return new SizeF(size.Width * scaleFactor, size.Height * scaleFactor);
         }
         catch
         {
             // Fallback: approximate size
-            return new Size(text.Length * fontSize * 0.6, fontSize * 1.2);
+            return new SizeF((float)(text.Length * fontSize * 0.6), (float)(fontSize * 1.2));
         }
     }
 }

@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="TSC Label Sticker Printing - S.H. Car Rubber"
-        Height="600" Width="900"
+        Title="Zebra Label Sticker Printing - S.H. Car Rubber"
+        Height="720" Width="900"
         WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>

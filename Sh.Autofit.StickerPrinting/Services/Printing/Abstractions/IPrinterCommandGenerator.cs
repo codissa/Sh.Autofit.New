@@ -12,7 +12,7 @@ public interface IPrinterCommandGenerator<TCommand>
     /// <summary>
     /// Generate printer commands for a single label
     /// </summary>
-    TCommand GenerateLabelCommands(LabelData labelData, StickerSettings settings);
+    TCommand GenerateLabelCommands(LabelData labelData, StickerSettings settings, int pairs, bool printTwoUp);
 
     /// <summary>
     /// Generate initialization commands (if needed before printing)

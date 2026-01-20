@@ -6,7 +6,7 @@ namespace Sh.Autofit.StickerPrinting.Models;
 
 public class LabelData : INotifyPropertyChanged
 {
-    private string _introLine = "S.H. Car Rubber Import and Distribution";
+    private string _introLine = "S.H. CAR PARTS IMPORT AND DISTRIBUTION";
     private string _itemKey = string.Empty;
     private string _description = string.Empty;
     private string _language = "he"; // "he" or "ar"
