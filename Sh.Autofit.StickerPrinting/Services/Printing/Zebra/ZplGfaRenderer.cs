@@ -65,7 +65,9 @@ public static class ZplGfaRenderer
             int estimatedHeight = (int)(fontSize * 1.5);
 
             // Adjust bitmap size for scaling to ensure proper rendering space
-            int bitmapWidth = (int)Math.Ceiling(maxWidthDots / Math.Min(widthScale, 1.0f));
+            // Add extra padding (20 pixels) to prevent edge clipping, especially for RTL text
+            const int edgePadding = 20;
+            int bitmapWidth = (int)Math.Ceiling(maxWidthDots / Math.Min(widthScale, 1.0f)) + edgePadding;
             int bitmapHeight = (int)Math.Ceiling(estimatedHeight / Math.Min(heightScale, 1.0f));
 
             using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
@@ -107,14 +109,19 @@ public static class ZplGfaRenderer
             format.FormatFlags |= StringFormatFlags.NoWrap;  // Prevent DrawString from re-wrapping pre-split lines
 
             // Draw text (use unscaled dimensions since we applied ScaleTransform)
+            // For RTL text: use full bitmap width to prevent GDI+ from clipping at rectangle boundary
+            // RTL with StringAlignment.Near starts at RIGHT edge and flows LEFT - can clip at rect.X
             using var brush = new SolidBrush(Color.Black);
-            float drawWidth = widthScale != 1.0f ? maxWidthDots / widthScale : maxWidthDots;
             float drawHeight = heightScale != 1.0f ? estimatedHeight / heightScale : estimatedHeight;
-            var rect = new RectangleF(0, 0, drawWidth, drawHeight);
+
+            // Use full bitmap width for drawing to prevent any clipping
+            // CropToInk will crop to actual ink bounds afterward
+            float actualBitmapWidth = bitmapWidth / (widthScale != 1.0f ? widthScale : 1.0f);
+            var rect = new RectangleF(0, 0, actualBitmapWidth, drawHeight);
             graphics.DrawString(text, font, brush, rect, format);
 
             // Measure actual text size to crop bitmap
-            var textSize = graphics.MeasureString(text, font, (int)drawWidth, format);
+            var textSize = graphics.MeasureString(text, font, (int)actualBitmapWidth, format);
             //int actualWidth = (int)Math.Ceiling(textSize.Width);
             //int actualHeight = (int)Math.Ceiling(textSize.Height);
             //todo remove once debugged
@@ -407,7 +414,7 @@ public static class ZplGfaRenderer
     /// Crop bitmap to actual content size with ink bounds 
     /// </summary>
 
-    private static Bitmap CropToInk(Bitmap source, int padding = 1)
+    private static Bitmap CropToInk(Bitmap source, int padding = 3)
     {
         int minX = source.Width, minY = source.Height, maxX = -1, maxY = -1;
 

@@ -168,8 +168,6 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
                 SelectedPrinter,
                 CurrentLabel.Quantity);
 
-            MessageBox.Show($"Printed {CurrentLabel.Quantity} label(s) successfully", "Success",
-                MessageBoxButton.OK, MessageBoxImage.Information);
             StatusMessage = "Print complete";
         }
         catch (Exception ex)

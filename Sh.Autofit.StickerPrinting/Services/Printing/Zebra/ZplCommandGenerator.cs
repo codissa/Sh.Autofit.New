@@ -69,9 +69,12 @@ public class ZplCommandGenerator : IZplCommandGenerator
         sb.AppendLine("^LS0");       // Label shift: 0
         sb.AppendLine("^LH0,0");     // Label home
 
-        // Calculate base X positions for left and right labels
-        int leftBaseX = leftMarginDots;
-        int rightBaseX = leftMarginDots + labelWidthDots + gapDots;
+        // Calculate base X positions for left and right labels (with optional horizontal offset)
+        int horizontalOffsetDots = MmToDots(settings.HorizontalOffsetMm, settings.DPI);
+        int leftBaseX = leftMarginDots + horizontalOffsetDots;
+        if(leftBaseX < 0)
+            leftBaseX = 0; // Prevent negative X position
+        int rightBaseX = leftMarginDots + labelWidthDots + gapDots + horizontalOffsetDots;
 
         // ALWAYS draw left label
         DrawSingleLabel(sb, labelData, settings, leftBaseX, labelWidthDots);
@@ -131,6 +134,9 @@ public class ZplCommandGenerator : IZplCommandGenerator
         int leftMarginDots = MmToDots(settings.LeftMargin, dpi);
         int rightMarginDots = MmToDots(settings.RightMargin, dpi);
         int usableWidthDots = labelWidthDots - leftMarginDots - rightMarginDots;
+
+        // Description needs extra margins to prevent edge clipping (0.3mm on each side)
+        int descriptionUsableWidth = usableWidthDots - MmToDots(0.6, dpi);
 
         // Center X position for centered elements
         int centerX = baseX + (labelWidthDots / 2);
@@ -259,8 +265,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
                 settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
 
-            // Description starts after ItemKey with minimal gap (0.2mm)
-            descriptionY = itemKeyY + itemKeyHeightDots + MmToDots(0.2, dpi);
+            // Description starts after ItemKey with gap (0.4mm)
+            descriptionY = itemKeyY + itemKeyHeightDots + MmToDots(0.4, dpi);
         }
         else
         {
@@ -280,11 +286,13 @@ public class ZplCommandGenerator : IZplCommandGenerator
             var descLines = new System.Collections.Generic.List<string>();
 
             // Shrink font until text fits within max lines
+            // Use description-specific width (with extra margins for edge protection)
+            double descriptionWidthMm = settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin - 0.6;
             do
             {
                 descLines = FontSizeCalculator.SplitTextToFit(
                     labelData.Description,
-                    settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin,
+                    descriptionWidthMm,
                     descFontPt,
                     fontFamily,
                     settings.DescriptionFontWidthScale);
@@ -336,8 +344,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
 
             if (widestLineWidthDots > 0 && totalDescriptionHeight > 0)
             {
-                // Calculate potential scale-up factors independently
-                float widthScaleUp = (float)usableWidthDots / widestLineWidthDots;
+                // Calculate potential scale-up factors independently (use description-specific width)
+                float widthScaleUp = (float)descriptionUsableWidth / widestLineWidthDots;
                 float heightScaleUp = (float)availableHeight / totalDescriptionHeight;
 
                 // Scale width independently - try progressively smaller scales until one fits
@@ -355,7 +363,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
                             var (scaledWidth, _) = ZplGfaRenderer.MeasureTextDots(
                                 line, fontFamily, descFontPt, dpi, 0, bold: true,
                                 descWidthScale * attemptedWidthScale, descHeightScale);
-                            if (scaledWidth > usableWidthDots)
+                            if (scaledWidth > descriptionUsableWidth)
                             {
                                 allLinesFit = false;
                                 break;
@@ -372,27 +380,22 @@ public class ZplCommandGenerator : IZplCommandGenerator
                     }
                 }
 
-                // Scale height independently - try progressively smaller scales until one fits
-                if (heightScaleUp > 1.0f)
+                // Scale height independently if there's room to grow
+                if (heightScaleUp > 1.05f)  // At least 5% room to grow
                 {
-                    // Cap initial attempt at 1.5x max
-                    float attemptedHeightScale = Math.Min(heightScaleUp, 1.5f);
+                    // Apply scale-up directly (capped at 1.4x to avoid overly tall text)
+                    float appliedHeightScale = Math.Min(heightScaleUp * 0.95f, 1.4f);  // 95% of available to leave margin
 
-                    // Try progressively smaller scales until height fits
-                    while (attemptedHeightScale > 1.0f)
+                    // Verify it actually fits
+                    float testHeightScale = descHeightScale * appliedHeightScale;
+                    int testLineHeight = (int)(descFontPt * testHeightScale * lineHeightFactor * dpi / 72.0);
+                    int testTotalHeight = testLineHeight * descLines.Count;
+
+                    if (testTotalHeight <= availableHeight)
                     {
-                        float testHeightScale = descHeightScale * attemptedHeightScale;
-                        int testLineHeight = (int)(descFontPt * testHeightScale * lineHeightFactor * dpi / 72.0);
-                        int testTotalHeight = testLineHeight * descLines.Count;
-
-                        if (testTotalHeight <= availableHeight)
-                        {
-                            descHeightScale = testHeightScale;
-                            lineHeightDots = testLineHeight;
-                            break;  // Found a working scale
-                        }
-
-                        attemptedHeightScale -= 0.05f;  // Try 5% smaller
+                        descHeightScale = testHeightScale;
+                        lineHeightDots = testLineHeight;
+                        System.Diagnostics.Debug.WriteLine($"[ZPL] Height scaled up by {appliedHeightScale:F2}x, new descHeightScale={descHeightScale:F2}");
                     }
                 }
             }
@@ -402,14 +405,14 @@ public class ZplCommandGenerator : IZplCommandGenerator
 
             int lineY = descriptionY;
 
-            // Render each line centered
+            // Render each line centered (use description-specific width for edge protection)
             foreach (var line in descLines)
             {
                 string gfaCommand = ZplGfaRenderer.RenderTextAsGfa(
                     line,
                     fontFamily,
                     descFontPt,
-                    usableWidthDots,
+                    descriptionUsableWidth,
                     dpi,
                     isRtl: isRtl,
                     xPosition: centerX,

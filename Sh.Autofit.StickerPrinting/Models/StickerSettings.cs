@@ -9,11 +9,11 @@ public class StickerSettings
     public double WebWidthMm { get; set; } = 106.0;
 
     // Single label dimensions
-    public double LabelWidthMm { get; set; } = 51.0;  // (106 - 2*2mm margin - 2mm gap) / 2
+    public double LabelWidthMm { get; set; } = 50.0;  // (106 - 2*2mm margin - 2mm gap) / 2
     public double LabelHeightMm { get; set; } = 25.0;  // 2.5cm
 
     // Layout spacing
-    public double HorizontalGapMm { get; set; } = 2.0;  // Gap between left and right labels
+    public double HorizontalGapMm { get; set; } = 3.0;  // Gap between left and right labels
     public double VerticalSpacingMm { get; set; } = 3.0; // Spacing between label rows (increased for better tear-off)
 
     // Backward compatibility properties
@@ -38,7 +38,7 @@ public class StickerSettings
     public double TopMargin { get; set; } = 0.5;
     public double BottomMargin { get; set; } = 0.2;
     public double LeftMargin { get; set; } = 0.2;
-    public double RightMargin { get; set; } = 0.5;
+    public double RightMargin { get; set; } = 2.0;
 
     // Convenience property for LeftMargin (used in ZPL generator)
     public double LeftMarginMm
@@ -46,6 +46,13 @@ public class StickerSettings
         get => LeftMargin;
         set => LeftMargin = value;
     }
+
+    /// <summary>
+    /// Horizontal offset to shift all label content (in mm).
+    /// Positive values shift content to the right, negative values shift to the left.
+    /// Use this to fine-tune alignment if labels appear misaligned on the physical printer.
+    /// </summary>
+    public double HorizontalOffsetMm { get; set; } = 0;
 
     // Default font sizes (in points)
     public int IntroFontSize { get; set; } = 12;
