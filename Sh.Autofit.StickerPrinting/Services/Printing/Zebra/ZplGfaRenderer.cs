@@ -104,6 +104,7 @@ public static class ZplGfaRenderer
 
             format.LineAlignment = StringAlignment.Near;
             format.Trimming = StringTrimming.None;
+            format.FormatFlags |= StringFormatFlags.NoWrap;  // Prevent DrawString from re-wrapping pre-split lines
 
             // Draw text (use unscaled dimensions since we applied ScaleTransform)
             using var brush = new SolidBrush(Color.Black);
@@ -117,7 +118,7 @@ public static class ZplGfaRenderer
             //int actualWidth = (int)Math.Ceiling(textSize.Width);
             //int actualHeight = (int)Math.Ceiling(textSize.Height);
             //todo remove once debugged
-            bitmap.Save(@"c:\temp\zpl_debug.png", ImageFormat.Png);
+            //bitmap.Save(@"c:\temp\zpl_debug.png", ImageFormat.Png);
             // Crop bitmap to actual size
             // using var croppedBitmap = CropBitmap(bitmap, actualWidth, actualHeight);
             //todo remove once debugged
@@ -125,7 +126,7 @@ public static class ZplGfaRenderer
             int actualWidth = croppedBitmap.Width;
             int actualHeight = croppedBitmap.Height;
             //string gfaData = ConvertToGfaFormat(croppedBitmap);
-            croppedBitmap.Save(@"C:\temp\zpl_debug_cropped.png", ImageFormat.Png);
+            //croppedBitmap.Save(@"C:\temp\zpl_debug_cropped.png", ImageFormat.Png);
             // Convert to ZPL GFA format
             string gfaData = ConvertToGfaFormat(croppedBitmap);
 
@@ -139,7 +140,7 @@ public static class ZplGfaRenderer
             };
 
             // Return complete ZPL command (^FT for baseline positioning, matches legacy)
-            return $"^FT{finalX},{yPosition}\n{gfaData}\n";
+            return $"^FO{finalX},{yPosition}\n{gfaData}\n";
         }
         catch (Exception ex)
         {
@@ -191,47 +192,67 @@ public static class ZplGfaRenderer
 
         try
         {
-            // Create bitmap at printer DPI for accurate measurement
-            // Use estimated size based on font size
-            int estimatedSize = (int)(fontSizePt * dpi / 72.0 * 2);
-            int bitmapWidth = maxWidthDots > 0 ? maxWidthDots : estimatedSize * text.Length / 2;
-            int bitmapHeight = estimatedSize;
+            // Match RenderTextAsGfa exactly: render text and measure actual ink bounds
+            // This ensures MeasureTextDots returns the same dimensions as the rendered bitmap
+
+            // Convert points to pixels at printer DPI (same as RenderTextAsGfa line 62)
+            int fontSize = (int)Math.Ceiling(fontSizePt * dpi / 72.0);
+            int estimatedHeight = (int)(fontSize * 1.5);
+
+            // Calculate bitmap size (same logic as RenderTextAsGfa)
+            int bitmapWidth = maxWidthDots > 0 ? maxWidthDots : (int)Math.Ceiling(fontSize * text.Length * 0.8);
+            bitmapWidth = (int)Math.Ceiling(bitmapWidth / Math.Min(widthScale, 1.0f));
+            int bitmapHeight = (int)Math.Ceiling(estimatedHeight / Math.Min(heightScale, 1.0f));
 
             using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
- 
             using var graphics = Graphics.FromImage(bitmap);
 
-            // Match rendering settings from RenderTextAsGfa for consistency
+            // Match rendering settings from RenderTextAsGfa exactly
             graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
-            graphics.PageUnit = GraphicsUnit.Pixel;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.None;
+            graphics.Clear(Color.White);
+
+            // Apply scaling transform (same as RenderTextAsGfa)
+            if (widthScale != 1.0f || heightScale != 1.0f)
+            {
+                graphics.ScaleTransform(widthScale, heightScale);
+            }
 
             FontStyle fontStyle = bold ? FontStyle.Bold : FontStyle.Regular;
             using var font = new Font(fontName, fontSizePt, fontStyle, GraphicsUnit.Point);
             using var format = new StringFormat();
+            format.Alignment = StringAlignment.Near;
+            format.LineAlignment = StringAlignment.Near;
+            format.Trimming = StringTrimming.None;
 
-            // Set wrapping behavior
             if (maxWidthDots > 0)
             {
                 format.FormatFlags = StringFormatFlags.LineLimit;
-                format.Trimming = StringTrimming.Word;
             }
             else
             {
                 format.FormatFlags = StringFormatFlags.NoWrap;
             }
 
-            // Measure text
-            var sizeF = graphics.MeasureString(text, font, maxWidthDots > 0 ? maxWidthDots : int.MaxValue, format);
+            // Draw text (same as RenderTextAsGfa)
+            using var brush = new SolidBrush(Color.Black);
+            float drawWidth = widthScale != 1.0f ? bitmapWidth / widthScale : bitmapWidth;
+            float drawHeight = heightScale != 1.0f ? estimatedHeight / heightScale : estimatedHeight;
+            var rect = new RectangleF(0, 0, drawWidth, drawHeight);
+            graphics.DrawString(text, font, brush, rect, format);
 
-            // Apply scaling to measurements
-            int finalWidth = (int)Math.Ceiling(sizeF.Width * widthScale);
-            int finalHeight = (int)Math.Ceiling(sizeF.Height * heightScale);
+            // Measure actual ink bounds (same as RenderTextAsGfa uses CropToInk)
+            var (minX, minY, maxX, maxY) = GetInkBounds(bitmap);
 
-            // Return ceiling to ensure text always fits
-            return (
-                widthDots: finalWidth,
-                heightDots: finalHeight
-            );
+            if (maxX < 0) // Nothing drawn
+                return (0, 0);
+
+            int actualWidth = maxX - minX + 1;
+            int actualHeight = maxY - minY + 1;
+
+            return (actualWidth, actualHeight);
         }
         catch (Exception ex)
         {
@@ -241,6 +262,31 @@ public static class ZplGfaRenderer
             int fallbackHeight = (int)(fontSizePt * dpi / 72.0 * 1.2);
             return (fallbackWidth, fallbackHeight);
         }
+    }
+
+    /// <summary>
+    /// Get ink bounds without creating a new bitmap (for measurement only)
+    /// </summary>
+    private static (int minX, int minY, int maxX, int maxY) GetInkBounds(Bitmap source)
+    {
+        int minX = source.Width, minY = source.Height, maxX = -1, maxY = -1;
+
+        for (int y = 0; y < source.Height; y++)
+        {
+            for (int x = 0; x < source.Width; x++)
+            {
+                var p = source.GetPixel(x, y);
+                bool isInk = p.A > 0 && (p.R + p.G + p.B) < (250 * 3);
+                if (!isInk) continue;
+
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+
+        return (minX, minY, maxX, maxY);
     }
 
     /// <summary>

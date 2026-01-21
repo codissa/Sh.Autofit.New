@@ -124,10 +124,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
     {
         int dpi = settings.DPI;
 
-        // Calculate Y positions
+        // Calculate initial Y position (itemKeyY will be calculated dynamically after IntroLine)
         int introY = MmToDots(settings.TopMargin, dpi);
-        int itemKeyY = MmToDots(settings.LabelHeightMm * 0.40, dpi);
-        int descriptionY = MmToDots(settings.LabelHeightMm * 0.60, dpi);
 
         // Calculate usable width (label width minus margins)
         int leftMarginDots = MmToDots(settings.LeftMargin, dpi);
@@ -138,14 +136,16 @@ public class ZplCommandGenerator : IZplCommandGenerator
         int centerX = baseX + (labelWidthDots / 2);
 
         // ===== 1. IntroLine (fixed 28pt font, compress width to fit single line) =====
+        float introFontPt = settings.IntroStartFontPt;  // Fixed at 28pt
+        float introWidthScale = 1.0f;
+
         if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
         {
             // Intro ALWAYS uses the start font size (28pt) - never shrinks font
             // Instead, we compress the WIDTH if text is too long
-            float introFontPt = settings.IntroStartFontPt;  // Fixed at 28pt
 
             // Calculate optimal width compression to fit text in single line
-            float introWidthScale = ZplGfaRenderer.FitWidthScaleToWidth(
+            introWidthScale = ZplGfaRenderer.FitWidthScaleToWidth(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
                 introFontPt,  // Use fixed 28pt
@@ -167,12 +167,30 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 alignment: TextAlignment.Left,
                 bold: settings.IntroBold,
                 widthScale: introWidthScale,  // Dynamically compressed!
-                heightScale: 1.0f);           // Always normal height
+                heightScale: settings.IntroFontHeightScale);
 
             if (!string.IsNullOrEmpty(gfaCommand))
             {
                 sb.Append(gfaCommand);
             }
+        }
+
+        // Calculate itemKeyY dynamically based on where IntroLine ends
+        int itemKeyY;
+        if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
+        {
+            // Measure IntroLine height to know where it ends
+            var (_, introHeightDots) = ZplGfaRenderer.MeasureTextDots(
+                labelData.IntroLine, settings.IntroFontFamily, introFontPt, dpi, 0,
+                bold: settings.IntroBold, introWidthScale, settings.IntroFontHeightScale);
+
+            // ItemKey starts after IntroLine with small gap (1mm)
+            itemKeyY = introY + introHeightDots + MmToDots(1, dpi);
+        }
+        else
+        {
+            // Fallback if no IntroLine
+            itemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
         }
 
         // ===== 2. ItemKey (centered, configurable font sizes) =====
@@ -221,6 +239,35 @@ public class ZplCommandGenerator : IZplCommandGenerator
             System.Diagnostics.Debug.WriteLine("[WARNING] ItemKey is empty - label will not show item number!");
         }
 
+        // Calculate descriptionY dynamically based on where ItemKey ends
+        int descriptionY;
+        if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
+        {
+            // Measure ItemKey height to know where it ends
+            float itemKeyFontPt = ZplGfaRenderer.FitFontPtToWidth(
+                labelData.ItemKey,
+                "Arial",
+                usableWidthDots,
+                dpi,
+                startFontPt: settings.ItemKeyStartFontPt,
+                minFontPt: settings.ItemKeyMinFontPt,
+                bold: true,
+                widthScale: settings.ItemKeyFontWidthScale,
+                heightScale: settings.ItemKeyFontHeightScale);
+
+            var (_, itemKeyHeightDots) = ZplGfaRenderer.MeasureTextDots(
+                labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
+
+            // Description starts after ItemKey with minimal gap (0.2mm)
+            descriptionY = itemKeyY + itemKeyHeightDots + MmToDots(0.2, dpi);
+        }
+        else
+        {
+            // Fallback if no ItemKey
+            descriptionY = MmToDots(settings.LabelHeightMm * 0.50, dpi);
+        }
+
         // ===== 3. Description (multi-line, centered, intelligent 3-line shrinking, RTL aware) =====
         if (labelData.ShouldShowDescription && !string.IsNullOrWhiteSpace(labelData.Description))
         {
@@ -259,6 +306,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
             // Line height factor: font points to dots conversion with spacing
             const float lineHeightFactor = 0.8f; // Standard line height (1.2x font size)
             float descHeightScale = settings.DescriptionFontHeightScale;
+            float descWidthScale = settings.DescriptionFontWidthScale;
             int lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
             int totalDescriptionHeight = lineHeightDots * descLines.Count;
             int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
@@ -271,6 +319,82 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 float requiredScale = (float)availableHeight / (descLines.Count * descFontPt * lineHeightFactor * dpi / 72.0f);
                 descHeightScale = Math.Max(0.6f, Math.Min(descHeightScale, requiredScale)); // Minimum 60% height
                 lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
+                totalDescriptionHeight = lineHeightDots * descLines.Count;
+            }
+
+            // === SCALE UP DESCRIPTION TO FILL AVAILABLE SPACE (WIDTH AND HEIGHT INDEPENDENTLY) ===
+            // Measure the widest line to determine width scale potential
+            int widestLineWidthDots = 0;
+            foreach (var line in descLines)
+            {
+                var (lineWidth, _) = ZplGfaRenderer.MeasureTextDots(
+                    line, fontFamily, descFontPt, dpi, 0, bold: true,
+                    descWidthScale, descHeightScale);
+                if (lineWidth > widestLineWidthDots)
+                    widestLineWidthDots = lineWidth;
+            }
+
+            if (widestLineWidthDots > 0 && totalDescriptionHeight > 0)
+            {
+                // Calculate potential scale-up factors independently
+                float widthScaleUp = (float)usableWidthDots / widestLineWidthDots;
+                float heightScaleUp = (float)availableHeight / totalDescriptionHeight;
+
+                // Scale width independently - try progressively smaller scales until one fits
+                if (widthScaleUp > 1.0f)
+                {
+                    // Cap initial attempt at 1.5x max
+                    float attemptedWidthScale = Math.Min(widthScaleUp, 1.5f);
+
+                    // Try progressively smaller scales until one fits
+                    while (attemptedWidthScale > 1.0f)
+                    {
+                        bool allLinesFit = true;
+                        foreach (var line in descLines)
+                        {
+                            var (scaledWidth, _) = ZplGfaRenderer.MeasureTextDots(
+                                line, fontFamily, descFontPt, dpi, 0, bold: true,
+                                descWidthScale * attemptedWidthScale, descHeightScale);
+                            if (scaledWidth > usableWidthDots)
+                            {
+                                allLinesFit = false;
+                                break;
+                            }
+                        }
+
+                        if (allLinesFit)
+                        {
+                            descWidthScale *= attemptedWidthScale;
+                            break;  // Found a working scale
+                        }
+
+                        attemptedWidthScale -= 0.05f;  // Try 5% smaller
+                    }
+                }
+
+                // Scale height independently - try progressively smaller scales until one fits
+                if (heightScaleUp > 1.0f)
+                {
+                    // Cap initial attempt at 1.5x max
+                    float attemptedHeightScale = Math.Min(heightScaleUp, 1.5f);
+
+                    // Try progressively smaller scales until height fits
+                    while (attemptedHeightScale > 1.0f)
+                    {
+                        float testHeightScale = descHeightScale * attemptedHeightScale;
+                        int testLineHeight = (int)(descFontPt * testHeightScale * lineHeightFactor * dpi / 72.0);
+                        int testTotalHeight = testLineHeight * descLines.Count;
+
+                        if (testTotalHeight <= availableHeight)
+                        {
+                            descHeightScale = testHeightScale;
+                            lineHeightDots = testLineHeight;
+                            break;  // Found a working scale
+                        }
+
+                        attemptedHeightScale -= 0.05f;  // Try 5% smaller
+                    }
+                }
             }
 
             // Line spacing for rendering (slightly tighter than full line height)
@@ -292,7 +416,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
                     yPosition: lineY,
                     alignment: TextAlignment.Center,
                     bold: true,
-                    widthScale: settings.DescriptionFontWidthScale,
+                    widthScale: descWidthScale,
                     heightScale: descHeightScale);
 
                 if (!string.IsNullOrEmpty(gfaCommand))
