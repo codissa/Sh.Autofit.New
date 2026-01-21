@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Sh.Autofit.StickerPrinting.Services.Printing.Zebra;
@@ -22,6 +24,299 @@ public enum TextAlignment
 /// </summary>
 public static class ZplGfaRenderer
 {
+    #region Caching Infrastructure
+
+    /// <summary>
+    /// Cache key for text measurements - uses value equality
+    /// </summary>
+    private readonly struct MeasurementCacheKey : IEquatable<MeasurementCacheKey>
+    {
+        public readonly string Text;
+        public readonly string FontName;
+        public readonly int FontSizePtX100; // Store as int (fontSizePt * 100) for reliable equality
+        public readonly int Dpi;
+        public readonly int MaxWidthDots;
+        public readonly bool Bold;
+        public readonly int WidthScaleX1000;
+        public readonly int HeightScaleX1000;
+
+        public MeasurementCacheKey(string text, string fontName, float fontSizePt, int dpi,
+            int maxWidthDots, bool bold, float widthScale, float heightScale)
+        {
+            Text = text;
+            FontName = fontName;
+            FontSizePtX100 = (int)(fontSizePt * 100);
+            Dpi = dpi;
+            MaxWidthDots = maxWidthDots;
+            Bold = bold;
+            WidthScaleX1000 = (int)(widthScale * 1000);
+            HeightScaleX1000 = (int)(heightScale * 1000);
+        }
+
+        public bool Equals(MeasurementCacheKey other) =>
+            Text == other.Text &&
+            FontName == other.FontName &&
+            FontSizePtX100 == other.FontSizePtX100 &&
+            Dpi == other.Dpi &&
+            MaxWidthDots == other.MaxWidthDots &&
+            Bold == other.Bold &&
+            WidthScaleX1000 == other.WidthScaleX1000 &&
+            HeightScaleX1000 == other.HeightScaleX1000;
+
+        public override bool Equals(object? obj) => obj is MeasurementCacheKey other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Text, FontName, FontSizePtX100, Dpi, MaxWidthDots, Bold, WidthScaleX1000, HeightScaleX1000);
+    }
+
+    /// <summary>
+    /// Cache key for rendered GFA commands
+    /// </summary>
+    private readonly struct GfaCacheKey : IEquatable<GfaCacheKey>
+    {
+        public readonly string Text;
+        public readonly string FontName;
+        public readonly int FontSizePtX100;
+        public readonly int MaxWidthDots;
+        public readonly int Dpi;
+        public readonly bool IsRtl;
+        public readonly bool Bold;
+        public readonly int WidthScaleX1000;
+        public readonly int HeightScaleX1000;
+
+        public GfaCacheKey(string text, string fontName, float fontSizePt, int maxWidthDots, int dpi,
+            bool isRtl, bool bold, float widthScale, float heightScale)
+        {
+            Text = text;
+            FontName = fontName;
+            FontSizePtX100 = (int)(fontSizePt * 100);
+            MaxWidthDots = maxWidthDots;
+            Dpi = dpi;
+            IsRtl = isRtl;
+            Bold = bold;
+            WidthScaleX1000 = (int)(widthScale * 1000);
+            HeightScaleX1000 = (int)(heightScale * 1000);
+        }
+
+        public bool Equals(GfaCacheKey other) =>
+            Text == other.Text &&
+            FontName == other.FontName &&
+            FontSizePtX100 == other.FontSizePtX100 &&
+            MaxWidthDots == other.MaxWidthDots &&
+            Dpi == other.Dpi &&
+            IsRtl == other.IsRtl &&
+            Bold == other.Bold &&
+            WidthScaleX1000 == other.WidthScaleX1000 &&
+            HeightScaleX1000 == other.HeightScaleX1000;
+
+        public override bool Equals(object? obj) => obj is GfaCacheKey other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Text, FontName, FontSizePtX100, MaxWidthDots, Dpi, IsRtl, Bold, WidthScaleX1000);
+    }
+
+    /// <summary>
+    /// Cached GFA result includes the command string and actual dimensions
+    /// </summary>
+    private readonly struct GfaCachedResult
+    {
+        public readonly string GfaCommand;
+        public readonly int ActualWidth;
+        public readonly int ActualHeight;
+
+        public GfaCachedResult(string gfaCommand, int width, int height)
+        {
+            GfaCommand = gfaCommand;
+            ActualWidth = width;
+            ActualHeight = height;
+        }
+    }
+
+    // Thread-safe caches with LRU-like eviction
+    private static readonly ConcurrentDictionary<MeasurementCacheKey, (int width, int height)> _measurementCache = new();
+    private static readonly ConcurrentDictionary<GfaCacheKey, GfaCachedResult> _gfaCache = new();
+
+    private const int MaxMeasurementCacheSize = 2000;
+    private const int MaxGfaCacheSize = 500;
+
+    /// <summary>
+    /// Clear all caches (useful for testing or when settings change)
+    /// </summary>
+    public static void ClearCaches()
+    {
+        _measurementCache.Clear();
+        _gfaCache.Clear();
+    }
+
+    /// <summary>
+    /// Get cache statistics for monitoring
+    /// </summary>
+    public static (int measurementCacheCount, int gfaCacheCount) GetCacheStats() =>
+        (_measurementCache.Count, _gfaCache.Count);
+
+    private static void TrimCacheIfNeeded<TKey, TValue>(ConcurrentDictionary<TKey, TValue> cache, int maxSize) where TKey : notnull
+    {
+        // Simple trim: if over 110% capacity, clear half
+        // This is a simple approach; a true LRU would track access times
+        if (cache.Count > maxSize * 1.1)
+        {
+            var keysToRemove = cache.Keys.Take(cache.Count / 2).ToList();
+            foreach (var key in keysToRemove)
+            {
+                cache.TryRemove(key, out _);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Fast Pixel Access (LockBits)
+
+    /// <summary>
+    /// Extract pixel data from bitmap using LockBits for fast access
+    /// Returns BGRA format (4 bytes per pixel)
+    /// </summary>
+    private static (byte[] pixels, int stride) GetBitmapBytes(Bitmap bitmap)
+    {
+        var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        var bitmapData = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+
+        try
+        {
+            int stride = bitmapData.Stride;
+            int byteCount = Math.Abs(stride) * bitmap.Height;
+            byte[] pixels = new byte[byteCount];
+
+            Marshal.Copy(bitmapData.Scan0, pixels, 0, byteCount);
+
+            return (pixels, stride);
+        }
+        finally
+        {
+            bitmap.UnlockBits(bitmapData);
+        }
+    }
+
+    /// <summary>
+    /// Get ink bounds using fast LockBits pixel access (10-100x faster than GetPixel)
+    /// </summary>
+    private static (int minX, int minY, int maxX, int maxY) GetInkBoundsFast(Bitmap source)
+    {
+        var (pixels, stride) = GetBitmapBytes(source);
+        int width = source.Width;
+        int height = source.Height;
+
+        int minX = width, minY = height, maxX = -1, maxY = -1;
+
+        for (int y = 0; y < height; y++)
+        {
+            int rowOffset = y * stride;
+            for (int x = 0; x < width; x++)
+            {
+                int pixelOffset = rowOffset + (x * 4); // BGRA format
+                byte b = pixels[pixelOffset];
+                byte g = pixels[pixelOffset + 1];
+                byte r = pixels[pixelOffset + 2];
+                byte a = pixels[pixelOffset + 3];
+
+                // Ink detection: alpha > 0 and RGB sum < 750 (near-white threshold)
+                bool isInk = a > 0 && (r + g + b) < 750;
+                if (!isInk) continue;
+
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+
+        return (minX, minY, maxX, maxY);
+    }
+
+    /// <summary>
+    /// Convert bitmap to ZPL ^GFA format using fast LockBits pixel access
+    /// </summary>
+    private static string ConvertToGfaFormatFast(Bitmap bitmap)
+    {
+        int width = bitmap.Width;
+        int height = bitmap.Height;
+
+        var (pixels, stride) = GetBitmapBytes(bitmap);
+
+        int bytesPerRow = (width + 7) / 8;
+        int totalBytes = bytesPerRow * height;
+
+        // Pre-allocate StringBuilder with known capacity
+        var sb = new StringBuilder(totalBytes * 2 + 50);
+        sb.Append($"^GFA,{totalBytes},{totalBytes},{bytesPerRow},");
+
+        for (int y = 0; y < height; y++)
+        {
+            int rowOffset = y * stride;
+            byte currentByte = 0;
+            int bitPosition = 0;
+
+            for (int x = 0; x < width; x++)
+            {
+                int pixelOffset = rowOffset + (x * 4); // BGRA format
+                byte b = pixels[pixelOffset];
+                byte g = pixels[pixelOffset + 1];
+                byte r = pixels[pixelOffset + 2];
+
+                // Black if RGB sum < 384 (average < 128)
+                bool isBlack = (r + g + b) < 384;
+
+                if (isBlack)
+                {
+                    currentByte |= (byte)(1 << (7 - bitPosition));
+                }
+
+                bitPosition++;
+
+                if (bitPosition == 8)
+                {
+                    sb.Append(currentByte.ToString("X2"));
+                    currentByte = 0;
+                    bitPosition = 0;
+                }
+            }
+
+            if (bitPosition > 0)
+            {
+                sb.Append(currentByte.ToString("X2"));
+            }
+        }
+
+        sb.Append("^FS");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Crop bitmap to ink bounds using fast LockBits access
+    /// </summary>
+    private static Bitmap CropToInkFast(Bitmap source, int padding = 3)
+    {
+        var (minX, minY, maxX, maxY) = GetInkBoundsFast(source);
+
+        if (maxX < 0) // nothing drawn
+            return new Bitmap(1, 1, PixelFormat.Format32bppArgb);
+
+        minX = Math.Max(0, minX - padding);
+        minY = Math.Max(0, minY - padding);
+        maxX = Math.Min(source.Width - 1, maxX + padding);
+        maxY = Math.Min(source.Height - 1, maxY + padding);
+
+        int w = maxX - minX + 1;
+        int h = maxY - minY + 1;
+
+        var cropped = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(cropped);
+        g.Clear(Color.White);
+        g.DrawImage(source,
+            new Rectangle(0, 0, w, h),
+            new Rectangle(minX, minY, w, h),
+            GraphicsUnit.Pixel);
+        return cropped;
+    }
+
+    #endregion
+
     /// <summary>
     /// Render text as a bitmap and return ZPL ^GFA command
     /// </summary>
@@ -54,6 +349,21 @@ public static class ZplGfaRenderer
     {
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
+
+        // Check GFA cache first (position-independent cache key)
+        var gfaCacheKey = new GfaCacheKey(text, fontName, fontSizePt, maxWidthDots, dpi, isRtl, bold, widthScale, heightScale);
+        if (_gfaCache.TryGetValue(gfaCacheKey, out var cachedGfa))
+        {
+            // Use cached GFA data, but calculate final position based on alignment
+            int finalX = alignment switch
+            {
+                TextAlignment.Left => xPosition,
+                TextAlignment.Center => xPosition - (cachedGfa.ActualWidth / 2),
+                TextAlignment.Right => xPosition - cachedGfa.ActualWidth,
+                _ => xPosition
+            };
+            return $"^FO{finalX},{yPosition}\n{cachedGfa.GfaCommand}\n";
+        }
 
         try
         {
@@ -127,15 +437,17 @@ public static class ZplGfaRenderer
             //todo remove once debugged
             //bitmap.Save(@"c:\temp\zpl_debug.png", ImageFormat.Png);
             // Crop bitmap to actual size
-            // using var croppedBitmap = CropBitmap(bitmap, actualWidth, actualHeight);
-            //todo remove once debugged
-            using var croppedBitmap = CropToInk(bitmap);
+            // Use fast LockBits-based cropping (10-100x faster than GetPixel)
+            using var croppedBitmap = CropToInkFast(bitmap);
             int actualWidth = croppedBitmap.Width;
             int actualHeight = croppedBitmap.Height;
-            //string gfaData = ConvertToGfaFormat(croppedBitmap);
-            //croppedBitmap.Save(@"C:\temp\zpl_debug_cropped.png", ImageFormat.Png);
-            // Convert to ZPL GFA format
-            string gfaData = ConvertToGfaFormat(croppedBitmap);
+
+            // Convert to ZPL GFA format using fast method
+            string gfaData = ConvertToGfaFormatFast(croppedBitmap);
+
+            // Cache the GFA result for future use (position-independent)
+            _gfaCache[gfaCacheKey] = new GfaCachedResult(gfaData, actualWidth, actualHeight);
+            TrimCacheIfNeeded(_gfaCache, MaxGfaCacheSize);
 
             // Calculate final X position based on alignment
             int finalX = alignment switch
@@ -197,6 +509,13 @@ public static class ZplGfaRenderer
         if (string.IsNullOrWhiteSpace(text))
             return (0, 0);
 
+        // Check measurement cache first
+        var cacheKey = new MeasurementCacheKey(text, fontName, fontSizePt, dpi, maxWidthDots, bold, widthScale, heightScale);
+        if (_measurementCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
         try
         {
             // Match RenderTextAsGfa exactly: render text and measure actual ink bounds
@@ -250,8 +569,8 @@ public static class ZplGfaRenderer
             var rect = new RectangleF(0, 0, drawWidth, drawHeight);
             graphics.DrawString(text, font, brush, rect, format);
 
-            // Measure actual ink bounds (same as RenderTextAsGfa uses CropToInk)
-            var (minX, minY, maxX, maxY) = GetInkBounds(bitmap);
+            // Measure actual ink bounds using fast LockBits method
+            var (minX, minY, maxX, maxY) = GetInkBoundsFast(bitmap);
 
             if (maxX < 0) // Nothing drawn
                 return (0, 0);
@@ -259,7 +578,13 @@ public static class ZplGfaRenderer
             int actualWidth = maxX - minX + 1;
             int actualHeight = maxY - minY + 1;
 
-            return (actualWidth, actualHeight);
+            var result = (actualWidth, actualHeight);
+
+            // Cache the result and trim if needed
+            _measurementCache[cacheKey] = result;
+            TrimCacheIfNeeded(_measurementCache, MaxMeasurementCacheSize);
+
+            return result;
         }
         catch (Exception ex)
         {
@@ -332,20 +657,34 @@ public static class ZplGfaRenderer
             return startFontPt;
         }
 
-        // Start size too big, use linear search downward (simpler and more predictable)
-        float fontSize = startFontPt - 0.5f;
-        while (fontSize >= minFontPt)
+        // Use binary search instead of linear search (reduces iterations from ~40 to ~6)
+        float low = minFontPt;
+        float high = startFontPt;
+        float bestFit = minFontPt;
+
+        // Tolerance: 0.5pt precision (matching original step size)
+        const float tolerance = 0.5f;
+
+        while (high - low > tolerance)
         {
-            var (width, _) = MeasureTextDots(text, fontName, fontSize, dpi, 0, bold, widthScale, heightScale);
+            float mid = (low + high) / 2f;
+            // Round to 0.5pt increments for consistency
+            mid = (float)Math.Round(mid * 2) / 2f;
+
+            var (width, _) = MeasureTextDots(text, fontName, mid, dpi, 0, bold, widthScale, heightScale);
+
             if (width <= maxWidthDots)
             {
-                return fontSize;
+                bestFit = mid;
+                low = mid + tolerance; // Try larger
             }
-            fontSize -= 0.5f;
+            else
+            {
+                high = mid - tolerance; // Try smaller
+            }
         }
 
-        // Text too long even at minimum
-        return minFontPt;
+        return bestFit;
     }
 
     /// <summary>
@@ -377,19 +716,34 @@ public static class ZplGfaRenderer
         if (normalWidth <= maxWidthDots)
             return 1.0f;  // Fits without compression!
 
-        // Need compression - search from 0.95 down to minWidthScale in 5% increments
-        float widthScale = 0.95f;
-        while (widthScale >= minWidthScale)
-        {
-            var (width, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, widthScale, heightScale: 1.0f);
-            if (width <= maxWidthDots)
-                return widthScale;
+        // Use binary search instead of linear search (reduces iterations from ~10 to ~4)
+        float low = minWidthScale;
+        float high = 1.0f;
+        float bestFit = minWidthScale;
 
-            widthScale -= 0.05f;  // Reduce by 5% increments
+        // Tolerance: 0.05 precision (matching original step size)
+        const float tolerance = 0.05f;
+
+        while (high - low > tolerance)
+        {
+            float mid = (low + high) / 2f;
+            // Round to 0.05 increments for consistency
+            mid = (float)Math.Round(mid * 20) / 20f;
+
+            var (width, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, mid, heightScale: 1.0f);
+
+            if (width <= maxWidthDots)
+            {
+                bestFit = mid;
+                low = mid + tolerance; // Try larger scale (less compression)
+            }
+            else
+            {
+                high = mid - tolerance; // Try smaller scale (more compression)
+            }
         }
 
-        // Maximum compression - text still might not fit but this is the best we can do
-        return minWidthScale;
+        return bestFit;
     }
 
     /// <summary>
