@@ -5,6 +5,8 @@ using System.Drawing.Imaging;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using Sh.Autofit.StickerPrinting.Helpers;
+using Sh.Autofit.StickerPrinting.Models;
 
 namespace Sh.Autofit.StickerPrinting.Services.Printing.Zebra;
 
@@ -866,4 +868,320 @@ public static class ZplGfaRenderer
         sb.Append("^FS");
         return sb.ToString();
     }
+
+    #region Label Preview Rendering
+
+    /// <summary>
+    /// Render a single text element to a bitmap (extracted from RenderTextAsGfa for reuse)
+    /// Returns the cropped bitmap containing the rendered text
+    /// </summary>
+    public static Bitmap? RenderTextToBitmap(
+        string text,
+        string fontName,
+        float fontSizePt,
+        int maxWidthDots,
+        int dpi,
+        bool isRtl,
+        bool bold = false,
+        float widthScale = 1.0f,
+        float heightScale = 1.0f)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        try
+        {
+            // Convert points to pixels: pixels = points * dpi / 72
+            int fontSize = (int)Math.Ceiling(fontSizePt * dpi / 72.0);
+            int estimatedHeight = (int)(fontSize * 1.5);
+
+            const int edgePadding = 20;
+            int bitmapWidth = (int)Math.Ceiling(maxWidthDots / Math.Min(widthScale, 1.0f)) + edgePadding;
+            int bitmapHeight = (int)Math.Ceiling(estimatedHeight / Math.Min(heightScale, 1.0f));
+
+            using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
+            using var graphics = Graphics.FromImage(bitmap);
+
+            // Match rendering settings from RenderTextAsGfa exactly
+            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.None;
+            graphics.Clear(Color.White);
+
+            if (widthScale != 1.0f || heightScale != 1.0f)
+            {
+                graphics.ScaleTransform(widthScale, heightScale);
+            }
+
+            FontStyle fontStyle = bold ? FontStyle.Bold : FontStyle.Regular;
+            using var font = new Font(fontName, fontSizePt, fontStyle, GraphicsUnit.Point);
+            using var format = new StringFormat();
+
+            if (isRtl)
+            {
+                format.FormatFlags |= StringFormatFlags.DirectionRightToLeft;
+            }
+
+            format.Alignment = StringAlignment.Near;
+            format.LineAlignment = StringAlignment.Near;
+            format.Trimming = StringTrimming.None;
+            format.FormatFlags |= StringFormatFlags.NoWrap;
+
+            using var brush = new SolidBrush(Color.Black);
+            float drawHeight = heightScale != 1.0f ? estimatedHeight / heightScale : estimatedHeight;
+            float actualBitmapWidth = bitmapWidth / (widthScale != 1.0f ? widthScale : 1.0f);
+            var rect = new RectangleF(0, 0, actualBitmapWidth, drawHeight);
+            graphics.DrawString(text, font, brush, rect, format);
+
+            // Return cropped bitmap
+            return CropToInkFast(bitmap);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RenderTextToBitmap failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Render a complete label to a bitmap using the EXACT same logic as DrawSingleLabel
+    /// This provides pixel-perfect preview that matches printed output
+    /// </summary>
+    public static Bitmap RenderLabelToBitmap(LabelData labelData, StickerSettings settings)
+    {
+        int dpi = settings.DPI;
+        int labelWidthDots = MmToDots(settings.LabelWidthMm, dpi);
+        int labelHeightDots = MmToDots(settings.LabelHeightMm, dpi);
+
+        // Create label bitmap
+        var labelBitmap = new Bitmap(labelWidthDots, labelHeightDots, PixelFormat.Format32bppArgb);
+        using var graphics = Graphics.FromImage(labelBitmap);
+        graphics.Clear(Color.White);
+
+        // Calculate margins and positions (same as DrawSingleLabel)
+        int introY = MmToDots(settings.TopMargin, dpi);
+        int leftMarginDots = MmToDots(settings.LeftMargin, dpi);
+        int rightMarginDots = MmToDots(settings.RightMargin, dpi);
+        int usableWidthDots = labelWidthDots - leftMarginDots - rightMarginDots;
+        int descriptionUsableWidth = usableWidthDots - MmToDots(0.6, dpi);
+        int centerX = labelWidthDots / 2;
+
+        // ===== 1. IntroLine =====
+        float introFontPt = settings.IntroStartFontPt;
+        float introWidthScale = 1.0f;
+        int introHeightDots = 0;
+
+        if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
+        {
+            introWidthScale = FitWidthScaleToWidth(
+                labelData.IntroLine,
+                settings.IntroFontFamily,
+                introFontPt,
+                usableWidthDots,
+                dpi,
+                bold: settings.IntroBold,
+                minWidthScale: settings.IntroMinWidthScale);
+
+            using var introBitmap = RenderTextToBitmap(
+                labelData.IntroLine,
+                settings.IntroFontFamily,
+                introFontPt,
+                usableWidthDots,
+                dpi,
+                isRtl: false,
+                bold: settings.IntroBold,
+                widthScale: introWidthScale,
+                heightScale: settings.IntroFontHeightScale);
+
+            if (introBitmap != null)
+            {
+                graphics.DrawImage(introBitmap, leftMarginDots, introY);
+                introHeightDots = introBitmap.Height;
+            }
+        }
+
+        // Calculate itemKeyY
+        int itemKeyY;
+        if (!string.IsNullOrWhiteSpace(labelData.IntroLine) && introHeightDots > 0)
+        {
+            itemKeyY = introY + introHeightDots + MmToDots(1, dpi);
+        }
+        else
+        {
+            itemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
+        }
+
+        // ===== 2. ItemKey =====
+        if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
+        {
+            bool hasExtraSpace = !labelData.ShouldShowDescription ||
+                                 string.IsNullOrWhiteSpace(labelData.Description);
+
+            int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
+            int availableHeightForItemKey = labelBottomDots - itemKeyY;
+
+            float itemKeyStartFontPt = hasExtraSpace
+                ? settings.ItemKeyStartFontPt * 1.5f
+                : settings.ItemKeyStartFontPt;
+
+            float itemKeyMinFontPt = hasExtraSpace
+                ? settings.ItemKeyStartFontPt
+                : settings.ItemKeyMinFontPt;
+
+            float widthScale = hasExtraSpace ? 1.3f : settings.ItemKeyFontWidthScale;
+            float heightScale = hasExtraSpace ? 1.5f : settings.ItemKeyFontHeightScale;
+
+            float itemKeyFontPt = FitFontPtToWidth(
+                labelData.ItemKey,
+                "Arial",
+                usableWidthDots,
+                dpi,
+                startFontPt: itemKeyStartFontPt,
+                minFontPt: itemKeyMinFontPt,
+                bold: true,
+                widthScale: widthScale,
+                heightScale: heightScale);
+
+            int finalItemKeyY = itemKeyY;
+            if (hasExtraSpace)
+            {
+                var (currentWidth, currentHeightDots) = MeasureTextDots(
+                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                    widthScale, heightScale);
+
+                if (currentHeightDots > 0 && currentHeightDots < availableHeightForItemKey)
+                {
+                    float potentialHeightScale = (float)availableHeightForItemKey / currentHeightDots;
+                    potentialHeightScale = Math.Min(potentialHeightScale * 0.85f, 2.0f);
+
+                    var (scaledWidth, scaledHeight) = MeasureTextDots(
+                        labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                        widthScale, heightScale * potentialHeightScale);
+
+                    if (scaledWidth <= usableWidthDots && scaledHeight <= availableHeightForItemKey)
+                    {
+                        heightScale *= potentialHeightScale;
+                    }
+                }
+
+                var (_, finalHeightDots) = MeasureTextDots(
+                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                    widthScale, heightScale);
+
+                finalItemKeyY = itemKeyY + ((availableHeightForItemKey - finalHeightDots) / 2);
+                finalItemKeyY = Math.Max(finalItemKeyY, itemKeyY + MmToDots(0.5, dpi));
+            }
+
+            using var itemKeyBitmap = RenderTextToBitmap(
+                labelData.ItemKey,
+                "Arial",
+                itemKeyFontPt,
+                usableWidthDots,
+                dpi,
+                isRtl: false,
+                bold: true,
+                widthScale: widthScale,
+                heightScale: heightScale);
+
+            if (itemKeyBitmap != null)
+            {
+                int itemKeyX = centerX - (itemKeyBitmap.Width / 2);
+                graphics.DrawImage(itemKeyBitmap, itemKeyX, finalItemKeyY);
+            }
+        }
+
+        // ===== 3. Description =====
+        if (labelData.ShouldShowDescription && !string.IsNullOrWhiteSpace(labelData.Description))
+        {
+            bool isRtl = ContainsHebrewOrArabic(labelData.Description);
+            string fontFamily = labelData.FontFamily ?? "Arial Narrow";
+
+            // Calculate descriptionY
+            int descriptionY;
+            if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
+            {
+                float itemKeyFontPt = FitFontPtToWidth(
+                    labelData.ItemKey, "Arial", usableWidthDots, dpi,
+                    settings.ItemKeyStartFontPt, settings.ItemKeyMinFontPt, true,
+                    settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
+
+                var (_, itemKeyHeightDots) = MeasureTextDots(
+                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, true,
+                    settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
+
+                descriptionY = itemKeyY + itemKeyHeightDots + MmToDots(0.4, dpi);
+            }
+            else
+            {
+                descriptionY = MmToDots(settings.LabelHeightMm * 0.50, dpi);
+            }
+
+            float descFontPt = settings.DescriptionStartFontPt;
+            var descLines = new System.Collections.Generic.List<string>();
+
+            double descriptionWidthMm = settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin - 0.6;
+            do
+            {
+                descLines = FontSizeCalculator.SplitTextToFit(
+                    labelData.Description,
+                    descriptionWidthMm,
+                    descFontPt,
+                    fontFamily,
+                    settings.DescriptionFontWidthScale);
+
+                if (descLines.Count <= settings.DescriptionMaxLines)
+                    break;
+
+                descFontPt -= 0.5f;
+            } while (descFontPt >= settings.DescriptionMinFontPt);
+
+            if (descLines.Count > settings.DescriptionMaxLines)
+            {
+                descLines = descLines.Take(settings.DescriptionMaxLines).ToList();
+            }
+
+            const float lineHeightFactor = 0.8f;
+            float descHeightScale = settings.DescriptionFontHeightScale;
+            float descWidthScale = settings.DescriptionFontWidthScale;
+            int lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
+            int lineSpacingDots = (int)(lineHeightDots * 0.85);
+
+            int lineY = descriptionY;
+            foreach (var line in descLines)
+            {
+                using var lineBitmap = RenderTextToBitmap(
+                    line,
+                    fontFamily,
+                    descFontPt,
+                    descriptionUsableWidth,
+                    dpi,
+                    isRtl: isRtl,
+                    bold: true,
+                    widthScale: descWidthScale,
+                    heightScale: descHeightScale);
+
+                if (lineBitmap != null)
+                {
+                    int lineX = centerX - (lineBitmap.Width / 2);
+                    graphics.DrawImage(lineBitmap, lineX, lineY);
+                }
+
+                lineY += lineSpacingDots;
+            }
+        }
+
+        // Draw border for visual reference
+        using var borderPen = new Pen(Color.LightGray, 1);
+        graphics.DrawRectangle(borderPen, 0, 0, labelWidthDots - 1, labelHeightDots - 1);
+
+        return labelBitmap;
+    }
+
+    private static int MmToDots(double mm, int dpi)
+    {
+        return (int)Math.Round(mm * dpi / 25.4);
+    }
+
+    #endregion
 }

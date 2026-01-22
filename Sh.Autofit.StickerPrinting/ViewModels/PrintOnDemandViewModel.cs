@@ -1,6 +1,9 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Sh.Autofit.StickerPrinting.Commands;
 using Sh.Autofit.StickerPrinting.Models;
 using Sh.Autofit.StickerPrinting.Services.Database;
@@ -15,6 +18,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     private readonly IArabicDescriptionService _arabicDescService;
     private readonly IPrinterService _printerService;
     private readonly ILabelRenderService _labelRenderService;
+    private readonly ILabelPreviewService? _previewService;
 
     private string _itemKey = string.Empty;
     private string _selectedLanguage = "he";
@@ -23,18 +27,79 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     private string _statusMessage = string.Empty;
     private string _selectedPrinter = string.Empty;
 
+    // AutoSuggest fields
+    private ObservableCollection<PartInfo> _searchResults = new();
+    private bool _isDropdownOpen = false;
+    private PartInfo? _selectedSearchResult;
+    private CancellationTokenSource? _searchCts;
+    private DispatcherTimer? _debounceTimer;
+    private bool _suppressSearch = false;
+
+    // Print feedback fields
+    private bool _isPrinting = false;
+    private string _lastPrintedInfo = string.Empty;
+
+    // Preview field
+    private BitmapSource? _previewImage;
+
     public string ItemKey
     {
         get => _itemKey;
         set
         {
-            if (_itemKey != value)
+            var upperValue = value?.ToUpperInvariant() ?? string.Empty;
+            if (_itemKey != upperValue)
             {
-                _itemKey = value;
+                _itemKey = upperValue;
                 OnPropertyChanged();
                 LoadItemCommand.RaiseCanExecuteChanged();
+
+                // Trigger debounced search for autosuggest
+                if (!_suppressSearch)
+                {
+                    DebouncedSearch(upperValue);
+                }
             }
         }
+    }
+
+    // AutoSuggest properties
+    public ObservableCollection<PartInfo> SearchResults
+    {
+        get => _searchResults;
+        set { _searchResults = value; OnPropertyChanged(); }
+    }
+
+    public bool IsDropdownOpen
+    {
+        get => _isDropdownOpen;
+        set { _isDropdownOpen = value; OnPropertyChanged(); }
+    }
+
+    public PartInfo? SelectedSearchResult
+    {
+        get => _selectedSearchResult;
+        set { _selectedSearchResult = value; OnPropertyChanged(); }
+    }
+
+    // Print feedback properties
+    public bool IsPrinting
+    {
+        get => _isPrinting;
+        set { _isPrinting = value; OnPropertyChanged(); }
+    }
+
+    public string LastPrintedInfo
+    {
+        get => _lastPrintedInfo;
+        set { _lastPrintedInfo = value; OnPropertyChanged(); }
+    }
+
+    // Preview property
+    public BitmapSource? PreviewImage
+    {
+        get => _previewImage;
+        set { _previewImage = value; OnPropertyChanged(); }
     }
 
     public string SelectedLanguage
@@ -56,7 +121,22 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     public LabelData? CurrentLabel
     {
         get => _currentLabel;
-        set { _currentLabel = value; OnPropertyChanged(); }
+        set
+        {
+            // Unsubscribe from old label
+            if (_currentLabel != null)
+                _currentLabel.PropertyChanged -= OnLabelDataChanged;
+
+            _currentLabel = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanEditArabicDescription));
+
+            // Subscribe to new label
+            if (_currentLabel != null)
+                _currentLabel.PropertyChanged += OnLabelDataChanged;
+
+            UpdatePreview();
+        }
     }
 
     public bool IsLoading
@@ -89,21 +169,38 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     public AsyncRelayCommand LoadItemCommand { get; }
     public AsyncRelayCommand PrintCommand { get; }
     public AsyncRelayCommand EditArabicCommand { get; }
+    public RelayCommand SelectSuggestionCommand { get; }
+    public RelayCommand CloseDropdownCommand { get; }
 
     public PrintOnDemandViewModel(
         IPartDataService partDataService,
         IArabicDescriptionService arabicDescService,
         IPrinterService printerService,
-        ILabelRenderService labelRenderService)
+        ILabelRenderService labelRenderService,
+        ILabelPreviewService? previewService = null)
     {
         _partDataService = partDataService ?? throw new ArgumentNullException(nameof(partDataService));
         _arabicDescService = arabicDescService ?? throw new ArgumentNullException(nameof(arabicDescService));
         _printerService = printerService ?? throw new ArgumentNullException(nameof(printerService));
         _labelRenderService = labelRenderService ?? throw new ArgumentNullException(nameof(labelRenderService));
+        _previewService = previewService;
 
         LoadItemCommand = new AsyncRelayCommand(_ => LoadItemAsync(), _ => CanLoadItem());
         PrintCommand = new AsyncRelayCommand(_ => PrintAsync(), _ => CanPrint());
         EditArabicCommand = new AsyncRelayCommand(_ => EditArabicDescriptionAsync(), _ => CanEditArabicDescription);
+        SelectSuggestionCommand = new RelayCommand(SelectSuggestion);
+        CloseDropdownCommand = new RelayCommand(_ => CloseDropdown());
+
+        // Initialize debounce timer
+        _debounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(300)
+        };
+        _debounceTimer.Tick += async (s, e) =>
+        {
+            _debounceTimer.Stop();
+            await PerformSearchAsync(_itemKey);
+        };
     }
 
     private bool CanLoadItem() => !string.IsNullOrWhiteSpace(ItemKey) && !IsLoading;
@@ -155,8 +252,10 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         if (CurrentLabel == null || string.IsNullOrEmpty(SelectedPrinter))
             return;
 
+        IsPrinting = true;
         IsLoading = true;
         StatusMessage = "Printing...";
+        LastPrintedInfo = string.Empty;
 
         try
         {
@@ -168,7 +267,20 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
                 SelectedPrinter,
                 CurrentLabel.Quantity);
 
+            LastPrintedInfo = $"Printed {CurrentLabel.ItemKey} x {CurrentLabel.Quantity}";
             StatusMessage = "Print complete";
+
+            // Auto-clear success message after 5 seconds
+            var itemKeyPrinted = CurrentLabel.ItemKey;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(5000);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (LastPrintedInfo.Contains(itemKeyPrinted))
+                        LastPrintedInfo = string.Empty;
+                });
+            });
         }
         catch (Exception ex)
         {
@@ -178,6 +290,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         }
         finally
         {
+            IsPrinting = false;
             IsLoading = false;
         }
     }
@@ -187,11 +300,142 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         if (CurrentLabel == null || !IsArabicMode)
             return;
 
-        // TODO: Show dialog to edit Arabic description
-        MessageBox.Show("Edit Arabic Description dialog not yet implemented", "TODO",
-            MessageBoxButton.OK, MessageBoxImage.Information);
-        await Task.CompletedTask;
+        var dialog = new Views.EditArabicDialog
+        {
+            ArabicDescription = CurrentLabel.Description,
+            Owner = Application.Current.MainWindow
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            IsLoading = true;
+            StatusMessage = "Saving Arabic description...";
+
+            try
+            {
+                // Save to database
+                await _arabicDescService.SaveArabicDescriptionAsync(
+                    CurrentLabel.ItemKey,
+                    dialog.ArabicDescription,
+                    Environment.UserName);
+
+                // Update current label
+                CurrentLabel.Description = dialog.ArabicDescription;
+
+                // Refresh preview
+                UpdatePreview();
+
+                StatusMessage = "Arabic description saved";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = "Save failed";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
     }
+
+    #region AutoSuggest Methods
+
+    private void DebouncedSearch(string searchTerm)
+    {
+        _debounceTimer?.Stop();
+
+        if (string.IsNullOrWhiteSpace(searchTerm) || searchTerm.Length < 2)
+        {
+            SearchResults.Clear();
+            IsDropdownOpen = false;
+            return;
+        }
+
+        _debounceTimer?.Start();
+    }
+
+    private async Task PerformSearchAsync(string searchTerm)
+    {
+        // Cancel previous search
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+
+        try
+        {
+            var results = await _partDataService.SearchPartsAsync(searchTerm);
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                SearchResults.Clear();
+                foreach (var part in results.Take(10)) // Limit to 10 results
+                {
+                    SearchResults.Add(part);
+                }
+                IsDropdownOpen = SearchResults.Count > 0;
+            });
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Search failed: {ex.Message}");
+        }
+    }
+
+    private void SelectSuggestion(object? param)
+    {
+        if (param is PartInfo selectedPart)
+        {
+            _suppressSearch = true;
+            _itemKey = selectedPart.ItemKey;
+            OnPropertyChanged(nameof(ItemKey));
+            _suppressSearch = false;
+
+            IsDropdownOpen = false;
+            SearchResults.Clear();
+
+            // Auto-load the selected item
+            _ = LoadItemAsync();
+        }
+    }
+
+    private void CloseDropdown()
+    {
+        IsDropdownOpen = false;
+    }
+
+    #endregion
+
+    #region Preview Methods
+
+    private void OnLabelDataChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Update preview when any label property changes
+        UpdatePreview();
+    }
+
+    private void UpdatePreview()
+    {
+        if (CurrentLabel == null || _previewService == null)
+        {
+            PreviewImage = null;
+            return;
+        }
+
+        try
+        {
+            var settings = new StickerSettings();
+            PreviewImage = _previewService.GeneratePreview(CurrentLabel, settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Preview generation failed: {ex.Message}");
+            PreviewImage = null;
+        }
+    }
+
+    #endregion
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? name = null)

@@ -199,20 +199,79 @@ public class ZplCommandGenerator : IZplCommandGenerator
             itemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
         }
 
-        // ===== 2. ItemKey (centered, configurable font sizes) =====
+        // ===== 2. ItemKey (centered, configurable font sizes, scale up when no description) =====
         if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
         {
+            // Determine if we have extra space (no description)
+            bool hasExtraSpace = !labelData.ShouldShowDescription ||
+                                 string.IsNullOrWhiteSpace(labelData.Description);
+
+            // Calculate available height for ItemKey when no description
+            int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
+            int availableHeightForItemKey = labelBottomDots - itemKeyY;
+
+            // Use larger font and scales when no description
+            float itemKeyStartFontPt = hasExtraSpace
+                ? settings.ItemKeyStartFontPt * 1.5f  // 50% larger starting point
+                : settings.ItemKeyStartFontPt;
+
+            float itemKeyMinFontPt = hasExtraSpace
+                ? settings.ItemKeyStartFontPt  // Original start becomes new minimum
+                : settings.ItemKeyMinFontPt;
+
+            float widthScale = hasExtraSpace ? 1.3f : settings.ItemKeyFontWidthScale;
+            float heightScale = hasExtraSpace ? 1.5f : settings.ItemKeyFontHeightScale;
+
             // Use configurable font settings from StickerSettings
             float itemKeyFontPt = ZplGfaRenderer.FitFontPtToWidth(
                 labelData.ItemKey,
                 "Arial",
                 usableWidthDots,
                 dpi,
-                startFontPt: settings.ItemKeyStartFontPt,
-                minFontPt: settings.ItemKeyMinFontPt,
+                startFontPt: itemKeyStartFontPt,
+                minFontPt: itemKeyMinFontPt,
                 bold: true,
-                widthScale: settings.ItemKeyFontWidthScale,
-                heightScale: settings.ItemKeyFontHeightScale);
+                widthScale: widthScale,
+                heightScale: heightScale);
+
+            // When no description, try to scale up to fill available height
+            int finalItemKeyY = itemKeyY;
+            if (hasExtraSpace)
+            {
+                // Measure current height
+                var (currentWidth, currentHeightDots) = ZplGfaRenderer.MeasureTextDots(
+                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                    widthScale, heightScale);
+
+                if (currentHeightDots > 0 && currentHeightDots < availableHeightForItemKey)
+                {
+                    // Calculate how much we can scale up (cap at 2.0x)
+                    float potentialHeightScale = (float)availableHeightForItemKey / currentHeightDots;
+                    potentialHeightScale = Math.Min(potentialHeightScale * 0.85f, 2.0f); // 85% of available, max 2x
+
+                    // Verify the scaled-up version still fits width
+                    var (scaledWidth, scaledHeight) = ZplGfaRenderer.MeasureTextDots(
+                        labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                        widthScale, heightScale * potentialHeightScale);
+
+                    if (scaledWidth <= usableWidthDots && scaledHeight <= availableHeightForItemKey)
+                    {
+                        heightScale *= potentialHeightScale;
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[ZPL] ItemKey scaled up: heightScale={heightScale:F2} for no-description label");
+                    }
+                }
+
+                // Recenter ItemKey vertically in available space
+                var (_, finalHeightDots) = ZplGfaRenderer.MeasureTextDots(
+                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
+                    widthScale, heightScale);
+
+                // Center vertically between introY end and label bottom
+                int introEndY = itemKeyY; // itemKeyY is already positioned after intro
+                finalItemKeyY = introEndY + ((availableHeightForItemKey - finalHeightDots) / 2);
+                finalItemKeyY = Math.Max(finalItemKeyY, introEndY + MmToDots(0.5, dpi)); // Minimum gap
+            }
 
             // Render as bitmap (centered, bold for emphasis)
             string gfaCommand = ZplGfaRenderer.RenderTextAsGfa(
@@ -223,11 +282,11 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 dpi,
                 isRtl: false, // Item keys are always LTR
                 xPosition: centerX,
-                yPosition: itemKeyY,
+                yPosition: finalItemKeyY,
                 alignment: TextAlignment.Center,
                 bold: true,  // Make ItemKey bold for better visibility
-                widthScale: settings.ItemKeyFontWidthScale,
-                heightScale: settings.ItemKeyFontHeightScale);
+                widthScale: widthScale,
+                heightScale: heightScale);
 
             if (!string.IsNullOrEmpty(gfaCommand))
             {

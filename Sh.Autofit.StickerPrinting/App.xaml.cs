@@ -30,13 +30,15 @@ public partial class App : Application
 
         // Label rendering
         var labelRenderService = new LabelRenderService();
+        var labelPreviewService = new LabelPreviewService();
 
         // ViewModels
         var printOnDemandVM = new PrintOnDemandViewModel(
             partDataService,
             arabicDescService,
             zebraPrinterService,
-            labelRenderService);
+            labelRenderService,
+            labelPreviewService);
 
         var stockMoveVM = new StockMoveViewModel(
             stockDataService,

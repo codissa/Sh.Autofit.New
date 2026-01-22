@@ -61,7 +61,7 @@
         <TabControl Grid.Row="1" Margin="5" SelectedIndex="{Binding SelectedTabIndex}">
             <!-- Print on Demand Tab -->
             <TabItem Header="Print on Demand">
-                <Grid Margin="10" DataContext="{Binding PrintOnDemandVM}">
+                <Grid Margin="5" DataContext="{Binding PrintOnDemandVM}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -70,57 +70,191 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Item Key Input -->
-                    <GroupBox Grid.Row="0" Header="Part Selection" Margin="0,0,0,10">
-                        <StackPanel>
-                            <Label Content="Item Key:"/>
-                            <TextBox Text="{Binding ItemKey, UpdateSourceTrigger=PropertyChanged}"
-                                     MinWidth="200" HorizontalAlignment="Left"/>
-                            <Button Content="Load Part" Command="{Binding LoadItemCommand}"
-                                    HorizontalAlignment="Left" Margin="0,5,0,0"/>
-                        </StackPanel>
+                    <!-- Item Key Input with AutoSuggest -->
+                    <GroupBox Grid.Row="0" Header="Part Selection" Margin="0,0,0,5" Padding="3">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0">
+                                <Label Content="Item Key:" Padding="2"/>
+                                <Grid>
+                                    <TextBox x:Name="ItemKeyTextBox"
+                                             Text="{Binding ItemKey, UpdateSourceTrigger=PropertyChanged}"
+                                             MinWidth="300" HorizontalAlignment="Left"
+                                             Margin="2"
+                                             PreviewKeyDown="ItemKeyTextBox_PreviewKeyDown"/>
+
+                                    <!-- Dropdown Popup for suggestions -->
+                                    <Popup IsOpen="{Binding IsDropdownOpen}"
+                                           PlacementTarget="{Binding ElementName=ItemKeyTextBox}"
+                                           Placement="Bottom"
+                                           StaysOpen="False"
+                                           Width="400">
+                                        <Border BorderBrush="Gray" BorderThickness="1" Background="White">
+                                            <ListBox x:Name="SuggestionsList"
+                                                     ItemsSource="{Binding SearchResults}"
+                                                     MaxHeight="200"
+                                                     SelectedItem="{Binding SelectedSearchResult}"
+                                                     PreviewKeyDown="SuggestionsList_PreviewKeyDown"
+                                                     MouseDoubleClick="SuggestionsList_MouseDoubleClick">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding ItemKey}" FontWeight="Bold" Width="120"/>
+                                                            <TextBlock Text=" - "/>
+                                                            <TextBlock Text="{Binding PartName}" Foreground="Gray" TextTrimming="CharacterEllipsis" MaxWidth="230"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
+
+                            <Button Grid.Row="1" Content="Load Part" Command="{Binding LoadItemCommand}"
+                                    HorizontalAlignment="Left" Margin="2,3,0,0" Padding="8,3"/>
+                        </Grid>
                     </GroupBox>
 
-                    <!-- Language Selection -->
-                    <GroupBox Grid.Row="1" Header="Language" Margin="0,0,0,10">
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton Content="Hebrew"
-                                         IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"
-                                         GroupName="Language" Margin="5"/>
-                            <RadioButton Content="Arabic"
-                                         IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"
-                                         GroupName="Language" Margin="5"/>
-                        </StackPanel>
+                    <!-- Language Selection with Edit Arabic Button -->
+                    <GroupBox Grid.Row="1" Header="Language" Margin="0,0,0,5" Padding="3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <RadioButton Content="Hebrew"
+                                             IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"
+                                             GroupName="Language" Margin="2"/>
+                                <RadioButton Content="Arabic"
+                                             IsChecked="{Binding SelectedLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"
+                                             GroupName="Language" Margin="2"/>
+                            </StackPanel>
+
+                            <!-- Edit/Add Arabic Button - only visible when Arabic selected and label loaded -->
+                            <Button Grid.Column="1"
+                                    Command="{Binding EditArabicCommand}"
+                                    HorizontalAlignment="Right"
+                                    Padding="8,3" FontSize="11" Margin="0"
+                                    Visibility="{Binding CanEditArabicDescription, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                        <Setter Property="Content" Value="Edit Arabic Description"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentLabel.Description}" Value="">
+                                                <Setter Property="Content" Value="Add Arabic Description"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentLabel.Description}" Value="{x:Null}">
+                                                <Setter Property="Content" Value="Add Arabic Description"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
                     </GroupBox>
 
-                    <!-- Label Preview -->
-                    <GroupBox Grid.Row="2" Header="Label Preview" Margin="0,0,0,10">
-                        <StackPanel DataContext="{Binding CurrentLabel}">
-                            <Label Content="Intro Line:"/>
-                            <TextBox Text="{Binding IntroLine}" IsEnabled="{Binding DataContext.CurrentLabel, RelativeSource={RelativeSource AncestorType=GroupBox}, Converter={StaticResource NullToBoolConverter}}"/>
+                    <!-- Label Preview with Visual Preview Image -->
+                    <GroupBox Grid.Row="2" Header="Label Preview" Margin="0,0,0,5" Padding="3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                            <Label Content="Item Key:"/>
-                            <TextBox Text="{Binding ItemKey}" IsReadOnly="True" Background="LightGray"/>
+                            <!-- Input Fields -->
+                            <StackPanel Grid.Column="0" DataContext="{Binding CurrentLabel}">
+                                <Label Content="Intro Line:" Padding="2"/>
+                                <TextBox Text="{Binding IntroLine, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding DataContext.CurrentLabel, RelativeSource={RelativeSource AncestorType=GroupBox}, Converter={StaticResource NullToBoolConverter}}"
+                                         Margin="2"/>
 
-                            <Label Content="Description:"/>
-                            <TextBox Text="{Binding Description}"
-                                     IsReadOnly="{Binding ShouldShowDescription, Converter={StaticResource InverseBoolConverter}}"
-                                     TextWrapping="Wrap" MinHeight="60"/>
+                                <Label Content="Item Key:" Padding="2"/>
+                                <TextBox Text="{Binding ItemKey}" IsReadOnly="True" Background="LightGray" Margin="2"/>
 
-                            <Label Content="Quantity:"/>
-                            <TextBox Text="{Binding Quantity}" Width="100" HorizontalAlignment="Left"/>
-                        </StackPanel>
+                                <Label Content="Description:" Padding="2"/>
+                                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
+                                         IsReadOnly="{Binding ShouldShowDescription, Converter={StaticResource InverseBoolConverter}}"
+                                         TextWrapping="Wrap" MinHeight="50" Margin="2"/>
+
+                                <Label Content="Quantity:" Padding="2"/>
+                                <TextBox Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="80" HorizontalAlignment="Left" Margin="2"/>
+                            </StackPanel>
+
+                            <!-- Visual Preview Image -->
+                            <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1"
+                                    Margin="10,0,0,0" Background="White" VerticalAlignment="Top">
+                                <Image Source="{Binding PreviewImage}"
+                                       Width="200" Height="100"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                            </Border>
+                        </Grid>
                     </GroupBox>
 
-                    <!-- Status Bar -->
-                    <TextBlock Grid.Row="3" Text="{Binding StatusMessage}"
-                               VerticalAlignment="Bottom"
-                               Foreground="Blue" FontStyle="Italic" Margin="0,0,0,10"/>
+                    <!-- Status and Success Note -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Bottom" Margin="0,0,0,5">
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="Blue" FontStyle="Italic" Margin="2"/>
 
-                    <!-- Print Button -->
-                    <Button Grid.Row="4" Content="Print Label"
-                            Command="{Binding PrintCommand}"
-                            HorizontalAlignment="Left" Padding="20,10" FontSize="14" FontWeight="Bold"/>
+                        <!-- Success notification -->
+                        <Border Background="#E8F5E9" CornerRadius="3" Padding="8,4" Margin="2,3,2,0"
+                                Visibility="{Binding LastPrintedInfo, Converter={StaticResource StringToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2714;" Foreground="Green" FontWeight="Bold" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding LastPrintedInfo}" Foreground="Green"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Print Button with Spinner -->
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="Print Label"
+                                Command="{Binding PrintCommand}"
+                                HorizontalAlignment="Left"
+                                Padding="15,8" FontSize="13" FontWeight="Bold"
+                                IsEnabled="{Binding IsPrinting, Converter={StaticResource InverseBoolConverter}}"/>
+
+                        <!-- Spinner when printing -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsPrinting, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
+                                     StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform x:Name="SpinnerRotation"/>
+                                </Ellipse.RenderTransform>
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPrinting}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
+                                                                             From="0" To="360" Duration="0:0:1"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="Printing..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </TabItem>
 

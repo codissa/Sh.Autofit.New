@@ -12,7 +12,7 @@ public class LabelData : INotifyPropertyChanged
     private string _language = "he"; // "he" or "ar"
     private double _fontSize = 12.0;
     private string _fontFamily = "Arial";
-    private int _quantity = 1;
+    private int _quantity = 10;
 
     public string IntroLine
     {

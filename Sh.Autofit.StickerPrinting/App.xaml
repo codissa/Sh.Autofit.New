@@ -7,6 +7,8 @@
         <converters:LanguageConverter x:Key="LanguageConverter"/>
         <converters:NullToBoolConverter x:Key="NullToBoolConverter"/>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <!-- Global Application Resources -->
         <Style TargetType="Button">
