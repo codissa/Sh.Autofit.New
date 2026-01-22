@@ -18,6 +18,11 @@ public partial class MainWindow : Window
         return (DataContext as MainViewModel)?.PrintOnDemandVM;
     }
 
+    private StockMoveViewModel? GetStockMoveVM()
+    {
+        return (DataContext as MainViewModel)?.StockMoveVM;
+    }
+
     private void ItemKeyTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         var vm = GetPrintOnDemandVM();
@@ -84,6 +89,71 @@ public partial class MainWindow : Window
         {
             vm.SelectSuggestionCommand.Execute(selected);
             ItemKeyTextBox.Focus();
+        }
+    }
+
+    private void StockItemsListView_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var vm = GetStockMoveVM();
+        if (vm == null || vm.Items.Count == 0) return;
+
+        var listView = sender as ListView;
+        if (listView == null) return;
+
+        switch (e.Key)
+        {
+            case Key.Up:
+                if (listView.SelectedIndex > 0)
+                {
+                    listView.SelectedIndex--;
+                    listView.ScrollIntoView(listView.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+
+            case Key.Down:
+                if (listView.SelectedIndex < vm.Items.Count - 1)
+                {
+                    listView.SelectedIndex++;
+                    listView.ScrollIntoView(listView.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+
+            case Key.Delete:
+                if (listView.SelectedItem is StockMoveLabelItem itemToDelete)
+                {
+                    vm.RemoveItemCommand.Execute(itemToDelete);
+                }
+                e.Handled = true;
+                break;
+
+            case Key.Enter:
+                // If Arabic mode and item selected, open Arabic edit dialog
+                if (listView.SelectedItem is StockMoveLabelItem item && item.IsArabic)
+                {
+                    vm.EditArabicCommand.Execute(item);
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Home:
+                if (vm.Items.Count > 0)
+                {
+                    listView.SelectedIndex = 0;
+                    listView.ScrollIntoView(listView.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+
+            case Key.End:
+                if (vm.Items.Count > 0)
+                {
+                    listView.SelectedIndex = vm.Items.Count - 1;
+                    listView.ScrollIntoView(listView.SelectedItem);
+                }
+                e.Handled = true;
+                break;
         }
     }
 }

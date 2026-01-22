@@ -358,7 +358,11 @@
                             </Grid>
 
                             <!-- Scrollable Items List with Virtualization -->
-                            <ListView Grid.Row="1" ItemsSource="{Binding Items}"
+                            <ListView x:Name="StockItemsListView"
+                                      Grid.Row="1" ItemsSource="{Binding Items}"
+                                      SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                                      SelectionMode="Single"
+                                      PreviewKeyDown="StockItemsListView_PreviewKeyDown"
                                       VirtualizingStackPanel.IsVirtualizing="True"
                                       VirtualizingStackPanel.VirtualizationMode="Recycling"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -421,6 +425,13 @@
                                                     <TextBlock Text="{Binding ItemKey}" FontWeight="Bold" FontSize="14"/>
                                                     <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis"
                                                                Foreground="Gray" MaxWidth="300" Margin="0,3,0,0"/>
+
+                                                    <!-- Missing Arabic Warning -->
+                                                    <TextBlock Text="אין תיאור ערבית - מוצג תיאור עברי"
+                                                               Foreground="Red" FontWeight="SemiBold" FontSize="11"
+                                                               Margin="0,2,0,0"
+                                                               Visibility="{Binding HasMissingArabicDescription, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                               ToolTip="לחץ על 'ערוך ערבית' להוספת תיאור"/>
 
                                                     <!-- Quantity & Language Controls -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

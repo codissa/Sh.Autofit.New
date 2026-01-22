@@ -7,9 +7,13 @@ public class LabelRenderService : ILabelRenderService
 {
     public LabelData CreateLabelData(string itemKey, PartInfo partInfo, string language)
     {
+        // Check if this item has an excluded prefix (no description)
+        bool hasExcludedPrefix = PrefixChecker.HasExcludedPrefix(itemKey);
+
         var labelData = new LabelData
         {
-            ItemKey = itemKey,
+            // Uppercase the ItemKey when it has an excluded prefix (will be displayed alone, larger)
+            ItemKey = hasExcludedPrefix ? itemKey.ToUpperInvariant() : itemKey,
             Language = language
         };
 
@@ -23,8 +27,8 @@ public class LabelRenderService : ILabelRenderService
             labelData.Description = partInfo.HebrewDescription ?? partInfo.PartName;
         }
 
-        // Check if description should be hidden
-        if (PrefixChecker.HasExcludedPrefix(itemKey))
+        // Clear description for excluded prefix items
+        if (hasExcludedPrefix)
         {
             labelData.Description = string.Empty;
         }

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using Sh.Autofit.StickerPrinting.Commands;
+using Sh.Autofit.StickerPrinting.Helpers;
 using Sh.Autofit.StickerPrinting.Models;
 using Sh.Autofit.StickerPrinting.Services.Database;
 using Sh.Autofit.StickerPrinting.Services.Label;
@@ -27,6 +28,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
     private ObservableCollection<StockMoveLabelItem> _items = new();
     private string _globalLanguage = "ar";
     private string _selectedPrinter = string.Empty;
+    private StockMoveLabelItem? _selectedItem;
 
     // Loading states
     private bool _isLoadingStock = false;
@@ -82,6 +84,12 @@ public class StockMoveViewModel : INotifyPropertyChanged
     {
         get => _selectedPrinter;
         set { _selectedPrinter = value; OnPropertyChanged(); PrintAllCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public StockMoveLabelItem? SelectedItem
+    {
+        get => _selectedItem;
+        set { _selectedItem = value; OnPropertyChanged(); }
     }
 
     public bool IsLoadingStock
@@ -193,6 +201,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
         foreach (var item in Items)
         {
             item.PreviewUpdateRequested -= OnItemPreviewUpdateRequested;
+            item.LanguageChanged -= OnItemLanguageChanged;
             item.Cleanup();
         }
         Items.Clear();
@@ -215,6 +224,12 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
             // Load stock move items
             var stockMoves = await _stockDataService.GetStockMovesAsync(stockId);
+
+            // Filter out ignored items (cv*, 100, *)
+            stockMoves = stockMoves
+                .Where(m => !PrefixChecker.ShouldIgnoreItem(m.ItemKey))
+                .ToList();
+
             StatusMessage = $"טוען {stockMoves.Count} פריטים...";
 
             // Load part info for each item and create label items
@@ -235,8 +250,9 @@ public class StockMoveViewModel : INotifyPropertyChanged
                     OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty
                 };
 
-                // Subscribe to preview update requests
+                // Subscribe to preview update requests and language changes
                 item.PreviewUpdateRequested += OnItemPreviewUpdateRequested;
+                item.LanguageChanged += OnItemLanguageChanged;
 
                 Items.Add(item);
             }
@@ -322,6 +338,14 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
     private async Task AddItemAsync(string itemKey, int quantity)
     {
+        // Check if item should be ignored
+        if (PrefixChecker.ShouldIgnoreItem(itemKey))
+        {
+            MessageBox.Show($"פריט {itemKey} אינו ניתן להוספה (סוג פריט מוחרג)", "שים לב",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         StatusMessage = "מוסיף פריט...";
 
         try
@@ -352,6 +376,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
             };
 
             item.PreviewUpdateRequested += OnItemPreviewUpdateRequested;
+            item.LanguageChanged += OnItemLanguageChanged;
             Items.Add(item);
 
             // Generate preview
@@ -372,6 +397,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
         if (param is StockMoveLabelItem item)
         {
             item.PreviewUpdateRequested -= OnItemPreviewUpdateRequested;
+            item.LanguageChanged -= OnItemLanguageChanged;
             item.Cleanup();
             Items.Remove(item);
 
@@ -467,13 +493,20 @@ public class StockMoveViewModel : INotifyPropertyChanged
                 // Update language first
                 item.LabelData.Language = _globalLanguage;
 
-                // Update description based on language
-                if (item.IsArabic)
+                // Store original Arabic for reference (for warning display)
+                item.OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty;
+
+                // Update description based on language (use _globalLanguage directly to avoid timing issues)
+                if (_globalLanguage == "ar")
                 {
-                    item.LabelData.Description = partInfo.ArabicDescription ?? string.Empty;
+                    // For Arabic: use Arabic description, fall back to Hebrew, then PartName
+                    item.LabelData.Description = !string.IsNullOrWhiteSpace(partInfo.ArabicDescription)
+                        ? partInfo.ArabicDescription
+                        : (partInfo.HebrewDescription ?? partInfo.PartName);
                 }
                 else
                 {
+                    // For Hebrew: use Hebrew description, fall back to PartName
                     item.LabelData.Description = partInfo.HebrewDescription ?? partInfo.PartName;
                 }
 
@@ -494,6 +527,48 @@ public class StockMoveViewModel : INotifyPropertyChanged
             var cacheKey = GetCacheKey(item);
             _previewCache.Remove(cacheKey);
             _ = GeneratePreviewForItemAsync(item);
+        }
+    }
+
+    private void OnItemLanguageChanged(object? sender, EventArgs e)
+    {
+        if (sender is StockMoveLabelItem item)
+        {
+            // Refresh description for this specific item based on its new language
+            _ = RefreshSingleItemDescriptionAsync(item);
+        }
+    }
+
+    private async Task RefreshSingleItemDescriptionAsync(StockMoveLabelItem item)
+    {
+        try
+        {
+            var partInfo = await _partDataService.GetPartByItemKeyAsync(item.ItemKey);
+            if (partInfo != null)
+            {
+                // Update description based on the item's current language
+                if (item.IsArabic)
+                {
+                    // For Arabic: use Arabic description, fall back to Hebrew, then PartName
+                    item.LabelData.Description = !string.IsNullOrWhiteSpace(partInfo.ArabicDescription)
+                        ? partInfo.ArabicDescription
+                        : (partInfo.HebrewDescription ?? partInfo.PartName);
+                }
+                else
+                {
+                    // For Hebrew: use Hebrew description, fall back to PartName
+                    item.LabelData.Description = partInfo.HebrewDescription ?? partInfo.PartName;
+                }
+
+                // Invalidate cache and regenerate preview
+                var cacheKey = GetCacheKey(item);
+                _previewCache.Remove(cacheKey);
+                await GeneratePreviewForItemAsync(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to refresh single item description: {ex.Message}");
         }
     }
 

@@ -67,8 +67,20 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     public string OriginalArabicDescription
     {
         get => _originalArabicDescription;
-        set { _originalArabicDescription = value; OnPropertyChanged(); }
+        set
+        {
+            _originalArabicDescription = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasMissingArabicDescription));
+        }
     }
+
+    /// <summary>
+    /// Returns true when Arabic mode is selected but there's no original Arabic description.
+    /// Used to show a warning to the user.
+    /// </summary>
+    public bool HasMissingArabicDescription =>
+        IsArabic && string.IsNullOrWhiteSpace(OriginalArabicDescription);
 
     // Convenience properties that delegate to LabelData
     public string ItemKey => _labelData.ItemKey;
@@ -102,6 +114,9 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     // Event fired when preview needs regeneration
     public event EventHandler? PreviewUpdateRequested;
 
+    // Event fired when language is changed on this specific item (for description refresh)
+    public event EventHandler? LanguageChanged;
+
     private void OnLabelDataPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Notify UI of changes
@@ -113,6 +128,10 @@ public class StockMoveLabelItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsArabic));
             OnPropertyChanged(nameof(IsHebrew));
             OnPropertyChanged(nameof(CanEditArabic));
+            OnPropertyChanged(nameof(HasMissingArabicDescription));
+
+            // Notify that language changed so ViewModel can refresh description
+            LanguageChanged?.Invoke(this, EventArgs.Empty);
         }
         else if (e.PropertyName == nameof(LabelData.Quantity))
         {
