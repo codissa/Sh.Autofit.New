@@ -401,7 +401,9 @@ public partial class PlateLookupViewModel : ObservableObject
                         YearFrom = govVehicle.ManufacturingYear,
                         YearTo = govVehicle.ManufacturingYear,
                         EngineVolume = vehicleType.EngineVolume,
-                        TransmissionType= vehicleType.TransmissionType
+                        TransmissionType= vehicleType.TransmissionType,
+                        DriveType =vehicleType.DriveType,
+                        TrimLevel = vehicleType.TrimLevel
                     };
                 }
 

@@ -259,11 +259,264 @@
             </TabItem>
 
             <!-- Stock Move Tab -->
-            <TabItem Header="Print by Stock Move">
-                <Grid Margin="10">
-                    <TextBlock Text="Stock Move functionality - Coming Soon"
-                               VerticalAlignment="Center" HorizontalAlignment="Center"
-                               FontSize="16" Foreground="Gray"/>
+            <TabItem Header="הדפסה לפי תנועת מלאי">
+                <Grid Margin="5" DataContext="{Binding StockMoveVM}" FlowDirection="RightToLeft">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Stock ID Input Section -->
+                    <GroupBox Grid.Row="0" Header="טעינת תנועת מלאי" Margin="0,0,0,5" Padding="5">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Column="0" Content="מספר תנועת מלאי:" Padding="2"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding StockIdInput, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="5,0"/>
+                            <Button Grid.Column="2" Content="טען"
+                                    Command="{Binding LoadStockCommand}"
+                                    Padding="15,5"/>
+
+                            <!-- Loading spinner -->
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="10,0,0,0"
+                                        Visibility="{Binding IsLoadingStock, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
+                                         StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
+                                    <Ellipse.RenderTransform>
+                                        <RotateTransform/>
+                                    </Ellipse.RenderTransform>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLoadingStock}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard RepeatBehavior="Forever">
+                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
+                                                                                 From="0" To="360" Duration="0:0:1"/>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="טוען..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Stock Info Display -->
+                    <GroupBox Grid.Row="1" Header="פרטי תנועה" Margin="0,0,0,5" Padding="5"
+                              Visibility="{Binding HasStockLoaded, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="חשבון:"/>
+                            <TextBlock Text="{Binding CurrentStockInfo.AccountName}" FontWeight="Bold" Margin="5,0,15,0"/>
+                            <TextBlock Text="תאריך:"/>
+                            <TextBlock Text="{Binding CurrentStockInfo.ValueDate, StringFormat=d}" FontWeight="Bold" Margin="5,0,15,0"/>
+                            <TextBlock Text="הערות:"/>
+                            <TextBlock Text="{Binding CurrentStockInfo.Remarks}" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Global Controls & Items List -->
+                    <GroupBox Grid.Row="2" Header="פריטים להדפסה" Margin="0,0,0,5" Padding="5">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Global Language Selection + Add Button -->
+                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                    <TextBlock Text="שפה גלובלית:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <RadioButton Content="עברית" GroupName="GlobalLang"
+                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"/>
+                                    <RadioButton Content="ערבית" GroupName="GlobalLang"
+                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="2" Content="הוסף פריט" Command="{Binding AddItemCommand}" Padding="10,5"/>
+                            </Grid>
+
+                            <!-- Scrollable Items List with Virtualization -->
+                            <ListView Grid.Row="1" ItemsSource="{Binding Items}"
+                                      VirtualizingStackPanel.IsVirtualizing="True"
+                                      VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      BorderThickness="1" BorderBrush="LightGray">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="10" Margin="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="160"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Preview Image with Loading Indicator -->
+                                                <Grid Grid.Column="0" Margin="0,0,15,0">
+                                                    <Border BorderBrush="Gray" BorderThickness="1" Background="White">
+                                                        <Image Source="{Binding PreviewImage}"
+                                                               Width="140" Height="70"
+                                                               Stretch="Uniform"
+                                                               RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                                    </Border>
+                                                    <!-- Preview loading spinner -->
+                                                    <Ellipse Width="24" Height="24" StrokeThickness="2" Stroke="#2196F3"
+                                                             StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Visibility="{Binding IsLoadingPreview, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <Ellipse.RenderTransform>
+                                                            <RotateTransform/>
+                                                        </Ellipse.RenderTransform>
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsLoadingPreview}" Value="True">
+                                                                        <DataTrigger.EnterActions>
+                                                                            <BeginStoryboard>
+                                                                                <Storyboard RepeatBehavior="Forever">
+                                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
+                                                                                                     From="0" To="360" Duration="0:0:1"/>
+                                                                                </Storyboard>
+                                                                            </BeginStoryboard>
+                                                                        </DataTrigger.EnterActions>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                </Grid>
+
+                                                <!-- Item Details -->
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{Binding ItemKey}" FontWeight="Bold" FontSize="14"/>
+                                                    <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis"
+                                                               Foreground="Gray" MaxWidth="300" Margin="0,3,0,0"/>
+
+                                                    <!-- Quantity & Language Controls -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                        <TextBlock Text="כמות:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBox Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Width="60" Margin="0,0,15,0"/>
+
+                                                        <TextBlock Text="שפה:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <RadioButton Content="עברית"
+                                                                     IsChecked="{Binding Language, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"
+                                                                     GroupName="{Binding ItemKey}"/>
+                                                        <RadioButton Content="ערבית"
+                                                                     IsChecked="{Binding Language, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"
+                                                                     GroupName="{Binding ItemKey}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+
+                                                <!-- Action Buttons -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- Edit Arabic Button - only visible for Arabic language -->
+                                                    <Button Content="ערוך ערבית" Padding="8,4" Margin="0,0,5,0"
+                                                            Command="{Binding DataContext.EditArabicCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding CanEditArabic, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                                    <!-- Delete Button -->
+                                                    <Button Content="X" Padding="8,4" Foreground="Red" FontWeight="Bold"
+                                                            Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip="הסר פריט"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Status Bar -->
+                    <StackPanel Grid.Row="3" Margin="0,5,0,5">
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="Blue" FontStyle="Italic"/>
+
+                        <!-- Print Progress Bar -->
+                        <Grid Visibility="{Binding IsPrinting, Converter={StaticResource BoolToVisibilityConverter}}" Margin="0,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ProgressBar Grid.Column="0" Minimum="0" Maximum="{Binding PrintTotal}"
+                                         Value="{Binding PrintProgress}" Height="20"/>
+                            <TextBlock Grid.Column="1" Text="{Binding PrintProgressText}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Print All Button -->
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" Content="הדפס הכל"
+                                Command="{Binding PrintAllCommand}"
+                                Padding="20,10" FontSize="14" FontWeight="Bold"
+                                IsEnabled="{Binding IsPrinting, Converter={StaticResource InverseBoolConverter}}"/>
+
+                        <!-- Printing spinner -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsPrinting, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Ellipse Width="20" Height="20" StrokeThickness="2" Stroke="#2196F3"
+                                     StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform/>
+                                </Ellipse.RenderTransform>
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPrinting}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
+                                                                             From="0" To="360" Duration="0:0:1"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="מדפיס..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </TabItem>
         </TabControl>

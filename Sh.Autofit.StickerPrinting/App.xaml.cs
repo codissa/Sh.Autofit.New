@@ -44,7 +44,9 @@ public partial class App : Application
             stockDataService,
             partDataService,
             zebraPrinterService,
-            labelRenderService);
+            labelRenderService,
+            labelPreviewService,
+            arabicDescService);
 
         var mainViewModel = new MainViewModel(
             printOnDemandVM,
