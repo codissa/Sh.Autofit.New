@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -9,7 +9,11 @@
     <RootNamespace>Sh.Autofit.StickerPrinting</RootNamespace>
     <Version>1.0.0</Version>
     <Product>TSC Sticker Printing - Label Printer</Product>
+    <ApplicationIcon>barcode_icon_178039.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="barcode_icon_178039.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Database Access -->
