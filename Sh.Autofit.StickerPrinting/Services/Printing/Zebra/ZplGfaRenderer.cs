@@ -954,83 +954,74 @@ public static class ZplGfaRenderer
     }
 
     /// <summary>
-    /// Render a complete label to a bitmap using the EXACT same logic as DrawSingleLabel
-    /// This provides pixel-perfect preview that matches printed output
+    /// Calculate all layout positions and scales for a label.
+    /// This is the single source of truth - both preview and print use this.
     /// </summary>
-    public static Bitmap RenderLabelToBitmap(LabelData labelData, StickerSettings settings)
+    public static LabelLayout CalculateLayout(LabelData labelData, StickerSettings settings, int labelWidthDots = 0)
     {
+        var layout = new LabelLayout();
         int dpi = settings.DPI;
-        int labelWidthDots = MmToDots(settings.LabelWidthMm, dpi);
-        int labelHeightDots = MmToDots(settings.LabelHeightMm, dpi);
 
-        // Create label bitmap
-        var labelBitmap = new Bitmap(labelWidthDots, labelHeightDots, PixelFormat.Format32bppArgb);
-        using var graphics = Graphics.FromImage(labelBitmap);
-        graphics.Clear(Color.White);
+        // Use provided width or calculate from settings
+        layout.Dpi = dpi;
+        layout.LabelWidthDots = labelWidthDots > 0 ? labelWidthDots : MmToDots(settings.LabelWidthMm, dpi);
+        layout.LabelHeightDots = MmToDots(settings.LabelHeightMm, dpi);
 
-        // Calculate margins and positions (same as DrawSingleLabel)
-        int introY = MmToDots(settings.TopMargin, dpi);
-        int leftMarginDots = MmToDots(settings.LeftMargin, dpi);
+        // Calculate margins and usable width
+        layout.LeftMarginDots = MmToDots(settings.LeftMargin, dpi);
         int rightMarginDots = MmToDots(settings.RightMargin, dpi);
-        int usableWidthDots = labelWidthDots - leftMarginDots - rightMarginDots;
-        int descriptionUsableWidth = usableWidthDots - MmToDots(0.6, dpi);
-        int centerX = labelWidthDots / 2;
+        layout.UsableWidthDots = layout.LabelWidthDots - layout.LeftMarginDots - rightMarginDots;
+        layout.DescriptionUsableWidth = layout.UsableWidthDots - MmToDots(0.6, dpi);
+        layout.CenterX = layout.LabelWidthDots / 2;
 
         // ===== 1. IntroLine =====
-        float introFontPt = settings.IntroStartFontPt;
-        float introWidthScale = 1.0f;
-        int introHeightDots = 0;
+        layout.IntroY = MmToDots(settings.TopMargin, dpi);
+        layout.IntroFontPt = settings.IntroStartFontPt;
+        layout.IntroHeightScale = settings.IntroFontHeightScale;
+        layout.HasIntroLine = !string.IsNullOrWhiteSpace(labelData.IntroLine);
 
-        if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
+        if (layout.HasIntroLine)
         {
-            // Apply base width scale (same as DrawSingleLabel)
-            introWidthScale = FitWidthScaleToWidth(
+            layout.IntroWidthScale = FitWidthScaleToWidth(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
-                introFontPt,
-                usableWidthDots,
+                layout.IntroFontPt,
+                layout.UsableWidthDots,
                 dpi,
                 bold: settings.IntroBold,
                 minWidthScale: settings.IntroMinWidthScale,
                 baseWidthScale: settings.IntroFontWidthScale);
 
-            using var introBitmap = RenderTextToBitmap(
-                labelData.IntroLine,
-                settings.IntroFontFamily,
-                introFontPt,
-                usableWidthDots,
-                dpi,
-                isRtl: false,
-                bold: settings.IntroBold,
-                widthScale: introWidthScale,
-                heightScale: settings.IntroFontHeightScale);
-
-            if (introBitmap != null)
-            {
-                graphics.DrawImage(introBitmap, leftMarginDots, introY);
-                introHeightDots = introBitmap.Height;
-            }
-        }
-
-        // Calculate itemKeyY
-        int itemKeyY;
-        if (!string.IsNullOrWhiteSpace(labelData.IntroLine) && introHeightDots > 0)
-        {
-            itemKeyY = introY + introHeightDots + MmToDots(1, dpi);
+            var (_, introHeight) = MeasureTextDots(
+                labelData.IntroLine, settings.IntroFontFamily, layout.IntroFontPt, dpi, 0,
+                bold: settings.IntroBold, layout.IntroWidthScale, layout.IntroHeightScale);
+            layout.IntroHeightDots = introHeight;
         }
         else
         {
-            itemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
+            layout.IntroWidthScale = settings.IntroFontWidthScale;
+            layout.IntroHeightDots = 0;
         }
 
         // ===== 2. ItemKey =====
-        if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
+        layout.HasItemKey = !string.IsNullOrWhiteSpace(labelData.ItemKey);
+
+        if (layout.HasIntroLine && layout.IntroHeightDots > 0)
+        {
+            layout.ItemKeyY = layout.IntroY + layout.IntroHeightDots + MmToDots(1, dpi);
+        }
+        else
+        {
+            layout.ItemKeyY = MmToDots(settings.LabelHeightMm * 0.25, dpi);
+        }
+
+        if (layout.HasItemKey)
         {
             bool hasExtraSpace = !labelData.ShouldShowDescription ||
                                  string.IsNullOrWhiteSpace(labelData.Description);
 
             int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
-            int availableHeightForItemKey = labelBottomDots - itemKeyY;
+            int availableHeightForItemKey = labelBottomDots - layout.ItemKeyY;
 
             float itemKeyStartFontPt = hasExtraSpace
                 ? settings.ItemKeyStartFontPt * 1.5f
@@ -1040,26 +1031,26 @@ public static class ZplGfaRenderer
                 ? settings.ItemKeyStartFontPt
                 : settings.ItemKeyMinFontPt;
 
-            float widthScale = hasExtraSpace ? 1.3f : settings.ItemKeyFontWidthScale;
-            float heightScale = hasExtraSpace ? 1.5f : settings.ItemKeyFontHeightScale;
+            layout.ItemKeyWidthScale = hasExtraSpace ? 1.3f : settings.ItemKeyFontWidthScale;
+            layout.ItemKeyHeightScale = hasExtraSpace ? 1.5f : settings.ItemKeyFontHeightScale;
 
-            float itemKeyFontPt = FitFontPtToWidth(
+            layout.ItemKeyFontPt = FitFontPtToWidth(
                 labelData.ItemKey,
                 "Arial",
-                usableWidthDots,
+                layout.UsableWidthDots,
                 dpi,
                 startFontPt: itemKeyStartFontPt,
                 minFontPt: itemKeyMinFontPt,
                 bold: true,
-                widthScale: widthScale,
-                heightScale: heightScale);
+                widthScale: layout.ItemKeyWidthScale,
+                heightScale: layout.ItemKeyHeightScale);
 
-            int finalItemKeyY = itemKeyY;
+            // Scale up ItemKey if no description
             if (hasExtraSpace)
             {
                 var (currentWidth, currentHeightDots) = MeasureTextDots(
-                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
-                    widthScale, heightScale);
+                    labelData.ItemKey, "Arial", layout.ItemKeyFontPt, dpi, 0, bold: true,
+                    layout.ItemKeyWidthScale, layout.ItemKeyHeightScale);
 
                 if (currentHeightDots > 0 && currentHeightDots < availableHeightForItemKey)
                 {
@@ -1067,53 +1058,38 @@ public static class ZplGfaRenderer
                     potentialHeightScale = Math.Min(potentialHeightScale * 0.85f, 2.0f);
 
                     var (scaledWidth, scaledHeight) = MeasureTextDots(
-                        labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
-                        widthScale, heightScale * potentialHeightScale);
+                        labelData.ItemKey, "Arial", layout.ItemKeyFontPt, dpi, 0, bold: true,
+                        layout.ItemKeyWidthScale, layout.ItemKeyHeightScale * potentialHeightScale);
 
-                    if (scaledWidth <= usableWidthDots && scaledHeight <= availableHeightForItemKey)
+                    if (scaledWidth <= layout.UsableWidthDots && scaledHeight <= availableHeightForItemKey)
                     {
-                        heightScale *= potentialHeightScale;
+                        layout.ItemKeyHeightScale *= potentialHeightScale;
                     }
                 }
 
+                // Recenter ItemKey vertically
                 var (_, finalHeightDots) = MeasureTextDots(
-                    labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, bold: true,
-                    widthScale, heightScale);
+                    labelData.ItemKey, "Arial", layout.ItemKeyFontPt, dpi, 0, bold: true,
+                    layout.ItemKeyWidthScale, layout.ItemKeyHeightScale);
 
-                finalItemKeyY = itemKeyY + ((availableHeightForItemKey - finalHeightDots) / 2);
-                finalItemKeyY = Math.Max(finalItemKeyY, itemKeyY + MmToDots(0.5, dpi));
-            }
-
-            using var itemKeyBitmap = RenderTextToBitmap(
-                labelData.ItemKey,
-                "Arial",
-                itemKeyFontPt,
-                usableWidthDots,
-                dpi,
-                isRtl: false,
-                bold: true,
-                widthScale: widthScale,
-                heightScale: heightScale);
-
-            if (itemKeyBitmap != null)
-            {
-                int itemKeyX = centerX - (itemKeyBitmap.Width / 2);
-                graphics.DrawImage(itemKeyBitmap, itemKeyX, finalItemKeyY);
+                layout.ItemKeyY = layout.ItemKeyY + ((availableHeightForItemKey - finalHeightDots) / 2);
+                layout.ItemKeyY = Math.Max(layout.ItemKeyY, layout.IntroY + layout.IntroHeightDots + MmToDots(0.5, dpi));
             }
         }
 
         // ===== 3. Description =====
-        if (labelData.ShouldShowDescription && !string.IsNullOrWhiteSpace(labelData.Description))
+        layout.HasDescription = labelData.ShouldShowDescription && !string.IsNullOrWhiteSpace(labelData.Description);
+
+        if (layout.HasDescription)
         {
-            bool isRtl = ContainsHebrewOrArabic(labelData.Description);
-            string fontFamily = labelData.FontFamily ?? "Arial Narrow";
+            layout.IsRtl = ContainsHebrewOrArabic(labelData.Description);
+            layout.FontFamily = labelData.FontFamily ?? "Arial Narrow";
 
             // Calculate descriptionY
-            int descriptionY;
-            if (!string.IsNullOrWhiteSpace(labelData.ItemKey))
+            if (layout.HasItemKey)
             {
                 float itemKeyFontPt = FitFontPtToWidth(
-                    labelData.ItemKey, "Arial", usableWidthDots, dpi,
+                    labelData.ItemKey, "Arial", layout.UsableWidthDots, dpi,
                     settings.ItemKeyStartFontPt, settings.ItemKeyMinFontPt, true,
                     settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
 
@@ -1121,79 +1097,88 @@ public static class ZplGfaRenderer
                     labelData.ItemKey, "Arial", itemKeyFontPt, dpi, 0, true,
                     settings.ItemKeyFontWidthScale, settings.ItemKeyFontHeightScale);
 
-                descriptionY = itemKeyY + itemKeyHeightDots + MmToDots(0.4, dpi);
+                layout.DescY = layout.ItemKeyY + itemKeyHeightDots + MmToDots(0.4, dpi);
             }
             else
             {
-                descriptionY = MmToDots(settings.LabelHeightMm * 0.50, dpi);
+                layout.DescY = MmToDots(settings.LabelHeightMm * 0.50, dpi);
             }
 
-            float descFontPt = settings.DescriptionStartFontPt;
-            var descLines = new System.Collections.Generic.List<string>();
-
+            // Split text and find optimal font size
+            layout.DescFontPt = settings.DescriptionStartFontPt;
             double descriptionWidthMm = settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin - 0.6;
+
             do
             {
-                descLines = FontSizeCalculator.SplitTextToFit(
+                layout.DescLines = FontSizeCalculator.SplitTextToFit(
                     labelData.Description,
                     descriptionWidthMm,
-                    descFontPt,
-                    fontFamily,
+                    layout.DescFontPt,
+                    layout.FontFamily,
                     settings.DescriptionFontWidthScale);
 
-                if (descLines.Count <= settings.DescriptionMaxLines)
+                if (layout.DescLines.Count <= settings.DescriptionMaxLines)
                     break;
 
-                descFontPt -= 0.5f;
-            } while (descFontPt >= settings.DescriptionMinFontPt);
+                layout.DescFontPt -= 0.5f;
+            } while (layout.DescFontPt >= settings.DescriptionMinFontPt);
 
-            if (descLines.Count > settings.DescriptionMaxLines)
+            if (layout.DescLines.Count > settings.DescriptionMaxLines)
             {
-                descLines = descLines.Take(settings.DescriptionMaxLines).ToList();
+                layout.DescLines = layout.DescLines.Take(settings.DescriptionMaxLines).ToList();
             }
 
+            // Calculate scales
             const float lineHeightFactor = 0.8f;
-            float descHeightScale = settings.DescriptionFontHeightScale;
-            float descWidthScale = settings.DescriptionFontWidthScale;
-            int lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
+            layout.DescHeightScale = settings.DescriptionFontHeightScale;
+            layout.DescWidthScale = settings.DescriptionFontWidthScale;
+            int lineHeightDots = (int)(layout.DescFontPt * layout.DescHeightScale * lineHeightFactor * dpi / 72.0);
+            int totalDescriptionHeight = lineHeightDots * layout.DescLines.Count;
             int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
-            int availableHeight = labelBottomDots - descriptionY;
+            int availableHeight = labelBottomDots - layout.DescY;
 
-            // === SCALE UP DESCRIPTION (same logic as DrawSingleLabel) ===
-            // Measure actual dimensions of each line
+            // Reduce if overflow
+            if (totalDescriptionHeight > availableHeight && layout.DescLines.Count > 0)
+            {
+                float requiredScale = (float)availableHeight / (layout.DescLines.Count * layout.DescFontPt * lineHeightFactor * dpi / 72.0f);
+                layout.DescHeightScale = Math.Max(0.6f, Math.Min(layout.DescHeightScale, requiredScale));
+                lineHeightDots = (int)(layout.DescFontPt * layout.DescHeightScale * lineHeightFactor * dpi / 72.0);
+            }
+
+            // Scale up if room available
             int widestLineWidthDots = 0;
             int tallestLineHeightDots = 0;
-            foreach (var line in descLines)
+            foreach (var line in layout.DescLines)
             {
                 var (lineWidth, lineHeight) = MeasureTextDots(
-                    line, fontFamily, descFontPt, dpi, 0, bold: true,
-                    descWidthScale, descHeightScale);
+                    line, layout.FontFamily, layout.DescFontPt, dpi, 0, bold: true,
+                    layout.DescWidthScale, layout.DescHeightScale);
                 if (lineWidth > widestLineWidthDots)
                     widestLineWidthDots = lineWidth;
                 if (lineHeight > tallestLineHeightDots)
                     tallestLineHeightDots = lineHeight;
             }
 
-            int actualTotalHeight = tallestLineHeightDots * descLines.Count;
+            int actualTotalHeight = tallestLineHeightDots * layout.DescLines.Count;
 
             if (widestLineWidthDots > 0 && actualTotalHeight > 0)
             {
-                float widthScaleUp = (float)descriptionUsableWidth / widestLineWidthDots;
+                float widthScaleUp = (float)layout.DescriptionUsableWidth / widestLineWidthDots;
                 float heightScaleUp = (float)availableHeight / actualTotalHeight;
 
-                // Scale width independently
+                // Scale width
                 if (widthScaleUp > 1.0f)
                 {
                     float attemptedWidthScale = Math.Min(widthScaleUp, 1.5f);
                     while (attemptedWidthScale > 1.0f)
                     {
                         bool allLinesFit = true;
-                        foreach (var line in descLines)
+                        foreach (var line in layout.DescLines)
                         {
                             var (scaledWidth, _) = MeasureTextDots(
-                                line, fontFamily, descFontPt, dpi, 0, bold: true,
-                                descWidthScale * attemptedWidthScale, descHeightScale);
-                            if (scaledWidth > descriptionUsableWidth)
+                                line, layout.FontFamily, layout.DescFontPt, dpi, 0, bold: true,
+                                layout.DescWidthScale * attemptedWidthScale, layout.DescHeightScale);
+                            if (scaledWidth > layout.DescriptionUsableWidth)
                             {
                                 allLinesFit = false;
                                 break;
@@ -1201,17 +1186,17 @@ public static class ZplGfaRenderer
                         }
                         if (allLinesFit)
                         {
-                            descWidthScale *= attemptedWidthScale;
+                            layout.DescWidthScale *= attemptedWidthScale;
                             break;
                         }
                         attemptedWidthScale -= 0.05f;
                     }
                 }
 
-                // Scale height independently (using ItemKey's pattern)
+                // Scale height
                 if (heightScaleUp > 1.05f)
                 {
-                    float maxHeightScale = descLines.Count switch
+                    float maxHeightScale = layout.DescLines.Count switch
                     {
                         1 => 2.0f,
                         2 => 1.7f,
@@ -1220,53 +1205,115 @@ public static class ZplGfaRenderer
 
                     float potentialHeightScale = Math.Min(heightScaleUp * 0.85f, maxHeightScale);
 
-                    // Verify scaled version fits
                     int scaledTotalHeight = 0;
-                    foreach (var line in descLines)
+                    foreach (var line in layout.DescLines)
                     {
                         var (_, scaledHeight) = MeasureTextDots(
-                            line, fontFamily, descFontPt, dpi, 0, bold: true,
-                            descWidthScale, descHeightScale * potentialHeightScale);
-                        if (scaledHeight > scaledTotalHeight / descLines.Count || scaledTotalHeight == 0)
-                            scaledTotalHeight = scaledHeight * descLines.Count;
+                            line, layout.FontFamily, layout.DescFontPt, dpi, 0, bold: true,
+                            layout.DescWidthScale, layout.DescHeightScale * potentialHeightScale);
+                        if (scaledHeight > scaledTotalHeight / layout.DescLines.Count || scaledTotalHeight == 0)
+                            scaledTotalHeight = scaledHeight * layout.DescLines.Count;
                     }
 
                     if (scaledTotalHeight <= availableHeight)
                     {
-                        descHeightScale *= potentialHeightScale;
-                        lineHeightDots = scaledTotalHeight / descLines.Count;
+                        layout.DescHeightScale *= potentialHeightScale;
+                        lineHeightDots = scaledTotalHeight / layout.DescLines.Count;
                     }
                 }
             }
 
-            int lineSpacingDots = (int)(lineHeightDots * 0.85);
-            int lineY = descriptionY;
-            foreach (var line in descLines)
+            layout.LineSpacingDots = (int)(lineHeightDots * 0.85);
+        }
+
+        return layout;
+    }
+
+    /// <summary>
+    /// Render a complete label to a bitmap using the shared layout calculation.
+    /// This provides pixel-perfect preview that matches printed output.
+    /// </summary>
+    public static Bitmap RenderLabelToBitmap(LabelData labelData, StickerSettings settings)
+    {
+        // Use shared layout calculation - single source of truth
+        var layout = CalculateLayout(labelData, settings);
+
+        // Create label bitmap
+        var labelBitmap = new Bitmap(layout.LabelWidthDots, layout.LabelHeightDots, PixelFormat.Format32bppArgb);
+        using var graphics = Graphics.FromImage(labelBitmap);
+        graphics.Clear(Color.White);
+
+        // ===== 1. IntroLine =====
+        if (layout.HasIntroLine)
+        {
+            using var introBitmap = RenderTextToBitmap(
+                labelData.IntroLine,
+                settings.IntroFontFamily,
+                layout.IntroFontPt,
+                layout.UsableWidthDots,
+                layout.Dpi,
+                isRtl: false,
+                bold: settings.IntroBold,
+                widthScale: layout.IntroWidthScale,
+                heightScale: layout.IntroHeightScale);
+
+            if (introBitmap != null)
+            {
+                graphics.DrawImage(introBitmap, layout.LeftMarginDots, layout.IntroY);
+            }
+        }
+
+        // ===== 2. ItemKey =====
+        if (layout.HasItemKey)
+        {
+            using var itemKeyBitmap = RenderTextToBitmap(
+                labelData.ItemKey,
+                "Arial",
+                layout.ItemKeyFontPt,
+                layout.UsableWidthDots,
+                layout.Dpi,
+                isRtl: false,
+                bold: true,
+                widthScale: layout.ItemKeyWidthScale,
+                heightScale: layout.ItemKeyHeightScale);
+
+            if (itemKeyBitmap != null)
+            {
+                int itemKeyX = layout.CenterX - (itemKeyBitmap.Width / 2);
+                graphics.DrawImage(itemKeyBitmap, itemKeyX, layout.ItemKeyY);
+            }
+        }
+
+        // ===== 3. Description =====
+        if (layout.HasDescription && layout.DescLines.Count > 0)
+        {
+            int lineY = layout.DescY;
+            foreach (var line in layout.DescLines)
             {
                 using var lineBitmap = RenderTextToBitmap(
                     line,
-                    fontFamily,
-                    descFontPt,
-                    descriptionUsableWidth,
-                    dpi,
-                    isRtl: isRtl,
+                    layout.FontFamily,
+                    layout.DescFontPt,
+                    layout.DescriptionUsableWidth,
+                    layout.Dpi,
+                    isRtl: layout.IsRtl,
                     bold: true,
-                    widthScale: descWidthScale,
-                    heightScale: descHeightScale);
+                    widthScale: layout.DescWidthScale,
+                    heightScale: layout.DescHeightScale);
 
                 if (lineBitmap != null)
                 {
-                    int lineX = centerX - (lineBitmap.Width / 2);
+                    int lineX = layout.CenterX - (lineBitmap.Width / 2);
                     graphics.DrawImage(lineBitmap, lineX, lineY);
                 }
 
-                lineY += lineSpacingDots;
+                lineY += layout.LineSpacingDots;
             }
         }
 
         // Draw border for visual reference
         using var borderPen = new Pen(Color.LightGray, 1);
-        graphics.DrawRectangle(borderPen, 0, 0, labelWidthDots - 1, labelHeightDots - 1);
+        graphics.DrawRectangle(borderPen, 0, 0, layout.LabelWidthDots - 1, layout.LabelHeightDots - 1);
 
         return labelBitmap;
     }
