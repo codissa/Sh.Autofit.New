@@ -151,6 +151,7 @@ public class ZplCommandGenerator : IZplCommandGenerator
             // Instead, we compress the WIDTH if text is too long
 
             // Calculate optimal width compression to fit text in single line
+            // baseWidthScale applies the configured IntroFontWidthScale (e.g., 0.8 for condensed)
             introWidthScale = ZplGfaRenderer.FitWidthScaleToWidth(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
@@ -158,7 +159,8 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 usableWidthDots,
                 dpi,
                 bold: settings.IntroBold,
-                minWidthScale: settings.IntroMinWidthScale);  // Down to 50% minimum
+                minWidthScale: settings.IntroMinWidthScale,  // Down to 20% minimum
+                baseWidthScale: settings.IntroFontWidthScale);  // Apply base condensed scale (0.8)
 
             // Render as bitmap (left-aligned, single line)
             string gfaCommand = ZplGfaRenderer.RenderTextAsGfa(
@@ -386,26 +388,31 @@ public class ZplCommandGenerator : IZplCommandGenerator
                 float requiredScale = (float)availableHeight / (descLines.Count * descFontPt * lineHeightFactor * dpi / 72.0f);
                 descHeightScale = Math.Max(0.6f, Math.Min(descHeightScale, requiredScale)); // Minimum 60% height
                 lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
-                totalDescriptionHeight = lineHeightDots * descLines.Count;
             }
 
             // === SCALE UP DESCRIPTION TO FILL AVAILABLE SPACE (WIDTH AND HEIGHT INDEPENDENTLY) ===
-            // Measure the widest line to determine width scale potential
+            // Measure actual dimensions of each line (like ItemKey does)
             int widestLineWidthDots = 0;
+            int tallestLineHeightDots = 0;
             foreach (var line in descLines)
             {
-                var (lineWidth, _) = ZplGfaRenderer.MeasureTextDots(
+                var (lineWidth, lineHeight) = ZplGfaRenderer.MeasureTextDots(
                     line, fontFamily, descFontPt, dpi, 0, bold: true,
                     descWidthScale, descHeightScale);
                 if (lineWidth > widestLineWidthDots)
                     widestLineWidthDots = lineWidth;
+                if (lineHeight > tallestLineHeightDots)
+                    tallestLineHeightDots = lineHeight;
             }
 
-            if (widestLineWidthDots > 0 && totalDescriptionHeight > 0)
+            // Use actual measured height for scale calculations (not formula-based)
+            int actualTotalHeight = tallestLineHeightDots * descLines.Count;
+
+            if (widestLineWidthDots > 0 && actualTotalHeight > 0)
             {
-                // Calculate potential scale-up factors independently (use description-specific width)
+                // Calculate potential scale-up factors from actual measurements
                 float widthScaleUp = (float)descriptionUsableWidth / widestLineWidthDots;
-                float heightScaleUp = (float)availableHeight / totalDescriptionHeight;
+                float heightScaleUp = (float)availableHeight / actualTotalHeight;
 
                 // Scale width independently - try progressively smaller scales until one fits
                 if (widthScaleUp > 1.0f)
@@ -439,22 +446,37 @@ public class ZplCommandGenerator : IZplCommandGenerator
                     }
                 }
 
-                // Scale height independently if there's room to grow
+                // Scale height independently if there's room to grow (using ItemKey's pattern)
                 if (heightScaleUp > 1.05f)  // At least 5% room to grow
                 {
-                    // Apply scale-up directly (capped at 1.4x to avoid overly tall text)
-                    float appliedHeightScale = Math.Min(heightScaleUp * 0.95f, 1.4f);  // 95% of available to leave margin
-
-                    // Verify it actually fits
-                    float testHeightScale = descHeightScale * appliedHeightScale;
-                    int testLineHeight = (int)(descFontPt * testHeightScale * lineHeightFactor * dpi / 72.0);
-                    int testTotalHeight = testLineHeight * descLines.Count;
-
-                    if (testTotalHeight <= availableHeight)
+                    // Dynamic max scale based on line count - fewer lines can scale more
+                    float maxHeightScale = descLines.Count switch
                     {
-                        descHeightScale = testHeightScale;
-                        lineHeightDots = testLineHeight;
-                        System.Diagnostics.Debug.WriteLine($"[ZPL] Height scaled up by {appliedHeightScale:F2}x, new descHeightScale={descHeightScale:F2}");
+                        1 => 2.0f,   // Single line can double in height
+                        2 => 1.7f,   // Two lines can grow moderately
+                        _ => 1.4f    // 3+ lines: conservative scaling
+                    };
+
+                    // Calculate potential scale (85% of available to leave margin, capped by max)
+                    float potentialHeightScale = Math.Min(heightScaleUp * 0.85f, maxHeightScale);
+
+                    // Verify scaled version fits by re-measuring (like ItemKey does)
+                    int scaledTotalHeight = 0;
+                    foreach (var line in descLines)
+                    {
+                        var (_, scaledHeight) = ZplGfaRenderer.MeasureTextDots(
+                            line, fontFamily, descFontPt, dpi, 0, bold: true,
+                            descWidthScale, descHeightScale * potentialHeightScale);
+                        if (scaledHeight > scaledTotalHeight / descLines.Count || scaledTotalHeight == 0)
+                            scaledTotalHeight = scaledHeight * descLines.Count;
+                    }
+
+                    if (scaledTotalHeight <= availableHeight)
+                    {
+                        descHeightScale *= potentialHeightScale;
+                        // Update lineHeightDots based on actual measurement
+                        lineHeightDots = scaledTotalHeight / descLines.Count;
+                        System.Diagnostics.Debug.WriteLine($"[ZPL] Height scaled up by {potentialHeightScale:F2}x (max {maxHeightScale:F1}x for {descLines.Count} line(s)), new descHeightScale={descHeightScale:F2}");
                     }
                 }
             }

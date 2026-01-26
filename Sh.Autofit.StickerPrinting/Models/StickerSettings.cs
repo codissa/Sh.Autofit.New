@@ -69,7 +69,7 @@ public class StickerSettings
     /// <summary>
     /// Starting/maximum font size for intro line in points (will shrink if needed)
     /// </summary>
-    public float IntroStartFontPt { get; set; } = 28.0f;
+    public float IntroStartFontPt { get; set; } = 32.0f;
 
     /// <summary>
     /// Minimum font size for intro line in points
@@ -148,7 +148,7 @@ public class StickerSettings
     public float DescriptionFontHeightScale { get; set; } = 1.0f;
 
     // Global defaults
-    public string DefaultIntroLine { get; set; } = "S.H. CAR PARTS IMPORT AND DISTRIBUTION";
+    public string DefaultIntroLine { get; set; } = "S.H. CAR PARTS IMPORT & DISTRIBUTION";
 
     // Font names (Zebra built-in fonts)
     public string DefaultFontName { get; set; } = "0";  // Zebra internal font

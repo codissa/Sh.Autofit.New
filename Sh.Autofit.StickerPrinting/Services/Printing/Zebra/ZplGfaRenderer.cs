@@ -377,10 +377,13 @@ public static class ZplGfaRenderer
             int estimatedHeight = (int)(fontSize * 1.5);
 
             // Adjust bitmap size for scaling to ensure proper rendering space
-            // Add extra padding (20 pixels) to prevent edge clipping, especially for RTL text
+            // For scale-down (< 1.0): need larger canvas to fit pre-transformed text
+            // For scale-up (> 1.0): need larger canvas to fit post-transformed stretched text
             const int edgePadding = 20;
-            int bitmapWidth = (int)Math.Ceiling(maxWidthDots / Math.Min(widthScale, 1.0f)) + edgePadding;
-            int bitmapHeight = (int)Math.Ceiling(estimatedHeight / Math.Min(heightScale, 1.0f));
+            float widthMultiplier = widthScale < 1.0f ? 1.0f / widthScale : widthScale;
+            float heightMultiplier = heightScale < 1.0f ? 1.0f / heightScale : heightScale;
+            int bitmapWidth = (int)Math.Ceiling(maxWidthDots * widthMultiplier) + edgePadding;
+            int bitmapHeight = (int)Math.Ceiling(estimatedHeight * heightMultiplier);
 
             using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
             using var graphics = Graphics.FromImage(bitmap);
@@ -528,9 +531,13 @@ public static class ZplGfaRenderer
             int estimatedHeight = (int)(fontSize * 1.5);
 
             // Calculate bitmap size (same logic as RenderTextAsGfa)
+            // For scale-down (< 1.0): need larger canvas to fit pre-transformed text
+            // For scale-up (> 1.0): need larger canvas to fit post-transformed stretched text
+            float widthMultiplier = widthScale < 1.0f ? 1.0f / widthScale : widthScale;
+            float heightMultiplier = heightScale < 1.0f ? 1.0f / heightScale : heightScale;
             int bitmapWidth = maxWidthDots > 0 ? maxWidthDots : (int)Math.Ceiling(fontSize * text.Length * 0.8);
-            bitmapWidth = (int)Math.Ceiling(bitmapWidth / Math.Min(widthScale, 1.0f));
-            int bitmapHeight = (int)Math.Ceiling(estimatedHeight / Math.Min(heightScale, 1.0f));
+            bitmapWidth = (int)Math.Ceiling(bitmapWidth * widthMultiplier);
+            int bitmapHeight = (int)Math.Ceiling(estimatedHeight * heightMultiplier);
 
             using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
             using var graphics = Graphics.FromImage(bitmap);
@@ -700,7 +707,8 @@ public static class ZplGfaRenderer
     /// <param name="dpi">Printer DPI (203)</param>
     /// <param name="bold">Use bold font style</param>
     /// <param name="minWidthScale">Minimum width scale (0.5 = 50% compression limit)</param>
-    /// <returns>Optimal width scale (1.0 = normal, lower = more compressed)</returns>
+    /// <param name="baseWidthScale">Base width scale to apply (e.g., 0.8 for 80% condensed baseline)</param>
+    /// <returns>Optimal width scale (includes baseWidthScale, ready for rendering)</returns>
     public static float FitWidthScaleToWidth(
         string text,
         string fontName,
@@ -708,19 +716,20 @@ public static class ZplGfaRenderer
         int maxWidthDots,
         int dpi,
         bool bold = false,
-        float minWidthScale = 0.5f)
+        float minWidthScale = 0.5f,
+        float baseWidthScale = 1.0f)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return 1.0f;
+            return baseWidthScale;
 
-        // Try normal width first (no compression)
-        var (normalWidth, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, widthScale: 1.0f, heightScale: 1.0f);
+        // Try base width scale first (no additional compression)
+        var (normalWidth, _) = MeasureTextDots(text, fontName, fontSizePt, dpi, 0, bold, widthScale: baseWidthScale, heightScale: 1.0f);
         if (normalWidth <= maxWidthDots)
-            return 1.0f;  // Fits without compression!
+            return baseWidthScale;  // Fits with just base scale!
 
-        // Use binary search instead of linear search (reduces iterations from ~10 to ~4)
+        // Use binary search to find optimal scale between minWidthScale and baseWidthScale
         float low = minWidthScale;
-        float high = 1.0f;
+        float high = baseWidthScale;
         float bestFit = minWidthScale;
 
         // Tolerance: 0.05 precision (matching original step size)
@@ -974,6 +983,7 @@ public static class ZplGfaRenderer
 
         if (!string.IsNullOrWhiteSpace(labelData.IntroLine))
         {
+            // Apply base width scale (same as DrawSingleLabel)
             introWidthScale = FitWidthScaleToWidth(
                 labelData.IntroLine,
                 settings.IntroFontFamily,
@@ -981,7 +991,8 @@ public static class ZplGfaRenderer
                 usableWidthDots,
                 dpi,
                 bold: settings.IntroBold,
-                minWidthScale: settings.IntroMinWidthScale);
+                minWidthScale: settings.IntroMinWidthScale,
+                baseWidthScale: settings.IntroFontWidthScale);
 
             using var introBitmap = RenderTextToBitmap(
                 labelData.IntroLine,
@@ -1145,8 +1156,90 @@ public static class ZplGfaRenderer
             float descHeightScale = settings.DescriptionFontHeightScale;
             float descWidthScale = settings.DescriptionFontWidthScale;
             int lineHeightDots = (int)(descFontPt * descHeightScale * lineHeightFactor * dpi / 72.0);
-            int lineSpacingDots = (int)(lineHeightDots * 0.85);
+            int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
+            int availableHeight = labelBottomDots - descriptionY;
 
+            // === SCALE UP DESCRIPTION (same logic as DrawSingleLabel) ===
+            // Measure actual dimensions of each line
+            int widestLineWidthDots = 0;
+            int tallestLineHeightDots = 0;
+            foreach (var line in descLines)
+            {
+                var (lineWidth, lineHeight) = MeasureTextDots(
+                    line, fontFamily, descFontPt, dpi, 0, bold: true,
+                    descWidthScale, descHeightScale);
+                if (lineWidth > widestLineWidthDots)
+                    widestLineWidthDots = lineWidth;
+                if (lineHeight > tallestLineHeightDots)
+                    tallestLineHeightDots = lineHeight;
+            }
+
+            int actualTotalHeight = tallestLineHeightDots * descLines.Count;
+
+            if (widestLineWidthDots > 0 && actualTotalHeight > 0)
+            {
+                float widthScaleUp = (float)descriptionUsableWidth / widestLineWidthDots;
+                float heightScaleUp = (float)availableHeight / actualTotalHeight;
+
+                // Scale width independently
+                if (widthScaleUp > 1.0f)
+                {
+                    float attemptedWidthScale = Math.Min(widthScaleUp, 1.5f);
+                    while (attemptedWidthScale > 1.0f)
+                    {
+                        bool allLinesFit = true;
+                        foreach (var line in descLines)
+                        {
+                            var (scaledWidth, _) = MeasureTextDots(
+                                line, fontFamily, descFontPt, dpi, 0, bold: true,
+                                descWidthScale * attemptedWidthScale, descHeightScale);
+                            if (scaledWidth > descriptionUsableWidth)
+                            {
+                                allLinesFit = false;
+                                break;
+                            }
+                        }
+                        if (allLinesFit)
+                        {
+                            descWidthScale *= attemptedWidthScale;
+                            break;
+                        }
+                        attemptedWidthScale -= 0.05f;
+                    }
+                }
+
+                // Scale height independently (using ItemKey's pattern)
+                if (heightScaleUp > 1.05f)
+                {
+                    float maxHeightScale = descLines.Count switch
+                    {
+                        1 => 2.0f,
+                        2 => 1.7f,
+                        _ => 1.4f
+                    };
+
+                    float potentialHeightScale = Math.Min(heightScaleUp * 0.85f, maxHeightScale);
+
+                    // Verify scaled version fits
+                    int scaledTotalHeight = 0;
+                    foreach (var line in descLines)
+                    {
+                        var (_, scaledHeight) = MeasureTextDots(
+                            line, fontFamily, descFontPt, dpi, 0, bold: true,
+                            descWidthScale, descHeightScale * potentialHeightScale);
+                        if (scaledHeight > scaledTotalHeight / descLines.Count || scaledTotalHeight == 0)
+                            scaledTotalHeight = scaledHeight * descLines.Count;
+                    }
+
+                    if (scaledTotalHeight <= availableHeight)
+                    {
+                        descHeightScale *= potentialHeightScale;
+                        lineHeightDots = scaledTotalHeight / descLines.Count;
+                    }
+                }
+            }
+
+            int lineSpacingDots = (int)(lineHeightDots * 0.85);
             int lineY = descriptionY;
             foreach (var line in descLines)
             {
