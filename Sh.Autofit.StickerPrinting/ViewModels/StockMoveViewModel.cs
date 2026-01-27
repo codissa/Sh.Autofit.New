@@ -40,6 +40,10 @@ public class StockMoveViewModel : INotifyPropertyChanged
     private int _printTotal = 0;
     private string _printProgressText = string.Empty;
 
+    // Print debounce
+    private DateTime _lastPrintTime = DateTime.MinValue;
+    private const int PrintCooldownMs = 500;
+
     // Preview cache to avoid regenerating
     private readonly Dictionary<string, BitmapSource> _previewCache = new();
     private readonly StickerSettings _settings = new();
@@ -183,7 +187,8 @@ public class StockMoveViewModel : INotifyPropertyChanged
     private bool CanPrintAll() =>
         Items.Count > 0 &&
         !string.IsNullOrEmpty(SelectedPrinter) &&
-        !IsPrinting;
+        !IsPrinting &&
+        (DateTime.Now - _lastPrintTime).TotalMilliseconds > PrintCooldownMs;
 
     private async Task LoadStockAsync()
     {
@@ -322,13 +327,18 @@ public class StockMoveViewModel : INotifyPropertyChanged
         finally
         {
             IsPrinting = false;
+            _lastPrintTime = DateTime.Now;
+            PrintAllCommand.RaiseCanExecuteChanged();
         }
     }
 
     private void ShowAddItemDialog()
     {
-        // Show dialog to manually add an item by ItemKey
-        var dialog = new Views.AddItemDialog { Owner = Application.Current.MainWindow };
+        // Show dialog to manually add an item by ItemKey (with autocomplete)
+        var dialog = new Views.AddItemDialog(_partDataService)
+        {
+            Owner = Application.Current.MainWindow
+        };
 
         if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.ItemKey))
         {

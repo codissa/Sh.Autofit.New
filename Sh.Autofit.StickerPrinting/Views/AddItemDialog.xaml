@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="הוסף פריט"
-        Height="180" Width="350"
+        Height="350" Width="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         FlowDirection="RightToLeft">
@@ -10,21 +10,69 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Text="מק''ט:" VerticalAlignment="Center" Width="60"/>
-            <TextBox x:Name="ItemKeyTextBox" Width="200" CharacterCasing="Upper"/>
+        <!-- Item Key Input with Suggestions -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="מק''ט:" VerticalAlignment="Center" Width="60"/>
+                <Grid>
+                    <TextBox x:Name="ItemKeyTextBox" Width="250" CharacterCasing="Upper"
+                             TextChanged="ItemKeyTextBox_TextChanged"
+                             PreviewKeyDown="ItemKeyTextBox_PreviewKeyDown"/>
+
+                    <!-- Suggestions Popup -->
+                    <Popup x:Name="SuggestionsPopup"
+                           PlacementTarget="{Binding ElementName=ItemKeyTextBox}"
+                           Placement="Bottom"
+                           StaysOpen="False"
+                           Width="250">
+                        <Border BorderBrush="Gray" BorderThickness="1" Background="White">
+                            <ListBox x:Name="SuggestionsList"
+                                     MaxHeight="150"
+                                     SelectionChanged="SuggestionsList_SelectionChanged"
+                                     PreviewKeyDown="SuggestionsList_PreviewKeyDown"
+                                     MouseDoubleClick="SuggestionsList_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding ItemKey}" FontWeight="Bold" Width="100"/>
+                                            <TextBlock Text=" - "/>
+                                            <TextBlock Text="{Binding PartName}" Foreground="Gray"
+                                                       TextTrimming="CharacterEllipsis" MaxWidth="120"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+        <!-- Selected Item Description -->
+        <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="1"
+                Background="#F5F5F5" Padding="8" Margin="0,0,0,10"
+                Visibility="{Binding ElementName=SelectedItemPanel, Path=Tag, FallbackValue=Collapsed}">
+            <StackPanel x:Name="SelectedItemPanel" Tag="Collapsed">
+                <TextBlock Text="פריט נבחר:" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock x:Name="SelectedItemKeyText" FontWeight="SemiBold"/>
+                <TextBlock x:Name="SelectedItemDescText" TextWrapping="Wrap" Foreground="Gray"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Quantity Input -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="כמות:" VerticalAlignment="Center" Width="60"/>
-            <TextBox x:Name="QuantityTextBox" Width="80" Text="1"/>
+            <TextBox x:Name="QuantityTextBox" Width="80" Text="1"
+                     PreviewKeyDown="QuantityTextBox_PreviewKeyDown"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,10,0,0">
+        <!-- Buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,10,0,0">
             <Button Content="הוסף" Width="80" Click="AddButton_Click" IsDefault="True"/>
             <Button Content="ביטול" Width="80" Margin="10,0,0,0" Click="CancelButton_Click" IsCancel="True"/>
         </StackPanel>

@@ -92,6 +92,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private void StockIdTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            var vm = GetStockMoveVM();
+            if (vm?.LoadStockCommand.CanExecute(null) == true)
+            {
+                vm.LoadStockCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void QuantityTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            var vm = GetPrintOnDemandVM();
+            if (vm?.PrintCommand.CanExecute(null) == true)
+            {
+                vm.PrintCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+    }
+
     private void StockItemsListView_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         var vm = GetStockMoveVM();

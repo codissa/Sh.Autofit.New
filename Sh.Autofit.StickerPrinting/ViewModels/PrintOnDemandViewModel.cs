@@ -39,6 +39,10 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     private bool _isPrinting = false;
     private string _lastPrintedInfo = string.Empty;
 
+    // Print debounce
+    private DateTime _lastPrintTime = DateTime.MinValue;
+    private const int PrintCooldownMs = 200;
+
     // Preview field
     private BitmapSource? _previewImage;
 
@@ -204,7 +208,11 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     }
 
     private bool CanLoadItem() => !string.IsNullOrWhiteSpace(ItemKey) && !IsLoading;
-    private bool CanPrint() => CurrentLabel != null && !IsLoading && !string.IsNullOrEmpty(SelectedPrinter);
+    private bool CanPrint() =>
+        CurrentLabel != null &&
+        !IsLoading &&
+        !string.IsNullOrEmpty(SelectedPrinter) &&
+        (DateTime.Now - _lastPrintTime).TotalMilliseconds > PrintCooldownMs;
 
     private async Task LoadItemAsync()
     {
@@ -292,6 +300,8 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         {
             IsPrinting = false;
             IsLoading = false;
+            _lastPrintTime = DateTime.Now;
+            PrintCommand.RaiseCanExecuteChanged();
         }
     }
 

@@ -1222,8 +1222,9 @@ public static class ZplGfaRenderer
                     }
                 }
             }
-
-            layout.LineSpacingDots = (int)(lineHeightDots * 0.85);
+            int pad = Math.Max(2, (int)Math.Round(layout.DescFontPt * dpi / 72.0 * 0.12)); // ~8% of font px
+            layout.LineSpacingDots = tallestLineHeightDots + pad;
+            //layout.LineSpacingDots = (int)(lineHeightDots * 0.85);
         }
 
         return layout;
