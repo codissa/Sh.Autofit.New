@@ -9,10 +9,10 @@
     <RootNamespace>Sh.Autofit.StickerPrinting</RootNamespace>
     <Version>1.0.0</Version>
     <Product>TSC Sticker Printing - Label Printer</Product>
-    <ApplicationIcon>barcode_icon_178039.ico</ApplicationIcon>
+    <ApplicationIcon>Barcode_27025.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="barcode_icon_178039.ico" />
+    <Content Include="Barcode_27025.ico" />
   </ItemGroup>
 
   <ItemGroup>

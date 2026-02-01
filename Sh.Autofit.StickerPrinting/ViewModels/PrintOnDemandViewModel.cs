@@ -26,6 +26,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     private bool _isLoading = false;
     private string _statusMessage = string.Empty;
     private string _selectedPrinter = string.Empty;
+    private string? _currentLocalization;
 
     // AutoSuggest fields
     private ObservableCollection<PartInfo> _searchResults = new();
@@ -170,6 +171,12 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     public bool IsArabicMode => SelectedLanguage == "ar";
     public bool CanEditArabicDescription => IsArabicMode && CurrentLabel != null;
 
+    public string? CurrentLocalization
+    {
+        get => _currentLocalization;
+        set { _currentLocalization = value; OnPropertyChanged(); }
+    }
+
     public AsyncRelayCommand LoadItemCommand { get; }
     public AsyncRelayCommand PrintCommand { get; }
     public AsyncRelayCommand EditArabicCommand { get; }
@@ -231,8 +238,12 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
                 MessageBox.Show($"Part not found: {ItemKey}", "Not Found",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 StatusMessage = "Part not found";
+                CurrentLocalization = null;
                 return;
             }
+
+            // Set localization for display
+            CurrentLocalization = partInfo.Localization;
 
             // Create label data
             CurrentLabel = _labelRenderService.CreateLabelData(ItemKey, partInfo, SelectedLanguage);

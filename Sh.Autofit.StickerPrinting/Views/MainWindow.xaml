@@ -178,6 +178,13 @@
                                 <Label Content="Item Key:" Padding="2"/>
                                 <TextBox Text="{Binding ItemKey}" IsReadOnly="True" Background="LightGray" Margin="2"/>
 
+                                <StackPanel Orientation="Horizontal" Margin="2,2,2,5"
+                                            Visibility="{Binding DataContext.CurrentLocalization, RelativeSource={RelativeSource AncestorType=GroupBox}, Converter={StaticResource StringToVisibilityConverter}}">
+                                    <TextBlock Text="איתור: " Foreground="#666" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DataContext.CurrentLocalization, RelativeSource={RelativeSource AncestorType=GroupBox}}"
+                                               FontWeight="SemiBold" Foreground="#2196F3" VerticalAlignment="Center"/>
+                                </StackPanel>
+
                                 <Label Content="Description:" Padding="2"/>
                                 <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
                                          IsReadOnly="{Binding ShouldShowDescription, Converter={StaticResource InverseBoolConverter}}"
@@ -237,24 +244,18 @@
                             <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
                                      StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
                                 <Ellipse.RenderTransform>
-                                    <RotateTransform x:Name="SpinnerRotation"/>
+                                    <RotateTransform Angle="0"/>
                                 </Ellipse.RenderTransform>
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPrinting}" Value="True">
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard>
-                                                        <Storyboard RepeatBehavior="Forever">
-                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                             From="0" To="360" Duration="0:0:1"/>
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                 From="0" To="360" Duration="0:0:1"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
                             </Ellipse>
                             <TextBlock Text="Printing..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
                         </StackPanel>
@@ -298,24 +299,18 @@
                                 <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
                                          StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
                                     <Ellipse.RenderTransform>
-                                        <RotateTransform/>
+                                        <RotateTransform x:Name="LoadingSpinnerRotate" Angle="0"/>
                                     </Ellipse.RenderTransform>
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsLoadingStock}" Value="True">
-                                                    <DataTrigger.EnterActions>
-                                                        <BeginStoryboard>
-                                                            <Storyboard RepeatBehavior="Forever">
-                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                                 From="0" To="360" Duration="0:0:1"/>
-                                                            </Storyboard>
-                                                        </BeginStoryboard>
-                                                    </DataTrigger.EnterActions>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                     From="0" To="360" Duration="0:0:1"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
                                 </Ellipse>
                                 <TextBlock Text="טוען..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
                             </StackPanel>
@@ -354,12 +349,42 @@
                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                                     <TextBlock Text="שפה גלובלית:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <RadioButton Content="עברית" GroupName="GlobalLang"
-                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"/>
+                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=he}"
+                                                 IsEnabled="{Binding IsRefreshingLanguage, Converter={StaticResource InverseBoolConverter}}"/>
                                     <RadioButton Content="ערבית" GroupName="GlobalLang"
-                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"/>
+                                                 IsChecked="{Binding GlobalLanguage, Converter={StaticResource LanguageConverter}, ConverterParameter=ar}"
+                                                 IsEnabled="{Binding IsRefreshingLanguage, Converter={StaticResource InverseBoolConverter}}"/>
+
+                                    <!-- Language refresh spinner -->
+                                    <StackPanel Orientation="Horizontal" Margin="15,0,0,0"
+                                                Visibility="{Binding IsRefreshingLanguage, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Ellipse Width="16" Height="16" StrokeThickness="2" Stroke="#2196F3"
+                                                 StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform Angle="0"/>
+                                            </Ellipse.RenderTransform>
+                                            <Ellipse.Triggers>
+                                                <EventTrigger RoutedEvent="Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0" To="360" Duration="0:0:1"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Ellipse.Triggers>
+                                        </Ellipse>
+                                        <TextBlock Text="מעדכן..." VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#2196F3" FontSize="11"/>
+                                    </StackPanel>
                                 </StackPanel>
 
-                                <Button Grid.Column="2" Content="הוסף פריט" Command="{Binding AddItemCommand}" Padding="10,5"/>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Button Content="{Binding SortButtonText}"
+                                            Command="{Binding CycleSortCommand}"
+                                            Padding="10,5" Margin="0,0,10,0"
+                                            ToolTip="לחץ לשינוי אופן המיון"/>
+                                    <Button Content="הוסף פריט" Command="{Binding AddItemCommand}" Padding="10,5"/>
+                                </StackPanel>
                             </Grid>
 
                             <!-- Scrollable Items List with Virtualization -->
@@ -404,30 +429,29 @@
                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
                                                              Visibility="{Binding IsLoadingPreview, Converter={StaticResource BoolToVisibilityConverter}}">
                                                         <Ellipse.RenderTransform>
-                                                            <RotateTransform/>
+                                                            <RotateTransform Angle="0"/>
                                                         </Ellipse.RenderTransform>
-                                                        <Ellipse.Style>
-                                                            <Style TargetType="Ellipse">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsLoadingPreview}" Value="True">
-                                                                        <DataTrigger.EnterActions>
-                                                                            <BeginStoryboard>
-                                                                                <Storyboard RepeatBehavior="Forever">
-                                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                                                     From="0" To="360" Duration="0:0:1"/>
-                                                                                </Storyboard>
-                                                                            </BeginStoryboard>
-                                                                        </DataTrigger.EnterActions>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Ellipse.Style>
+                                                        <Ellipse.Triggers>
+                                                            <EventTrigger RoutedEvent="Loaded">
+                                                                <BeginStoryboard>
+                                                                    <Storyboard RepeatBehavior="Forever">
+                                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                                         From="0" To="360" Duration="0:0:1"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </EventTrigger>
+                                                        </Ellipse.Triggers>
                                                     </Ellipse>
                                                 </Grid>
 
                                                 <!-- Item Details -->
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="{Binding ItemKey}" FontWeight="Bold" FontSize="14"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                                                                Visibility="{Binding Localization, Converter={StaticResource StringToVisibilityConverter}}">
+                                                        <TextBlock Text="איתור: " Foreground="#666" FontSize="12"/>
+                                                        <TextBlock Text="{Binding Localization}" Foreground="#2196F3" FontWeight="SemiBold" FontSize="12"/>
+                                                    </StackPanel>
                                                     <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis"
                                                                Foreground="Gray" MaxWidth="300" Margin="0,3,0,0"/>
 
@@ -499,10 +523,20 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Grid.Column="0" Content="הדפס הכל"
+                        <Button Grid.Column="0"
                                 Command="{Binding PrintAllCommand}"
-                                Padding="20,10" FontSize="14" FontWeight="Bold"
-                                IsEnabled="{Binding IsPrinting, Converter={StaticResource InverseBoolConverter}}"/>
+                                Padding="20,10" FontSize="14" FontWeight="Bold">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Content" Value="הדפס הכל"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRefreshingLanguage}" Value="True">
+                                            <Setter Property="Content" Value="ממתין לעדכון שפה..."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
 
                         <!-- Printing spinner -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0"
@@ -511,24 +545,18 @@
                             <Ellipse Width="20" Height="20" StrokeThickness="2" Stroke="#2196F3"
                                      StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
                                 <Ellipse.RenderTransform>
-                                    <RotateTransform/>
+                                    <RotateTransform Angle="0"/>
                                 </Ellipse.RenderTransform>
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPrinting}" Value="True">
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard>
-                                                        <Storyboard RepeatBehavior="Forever">
-                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                             From="0" To="360" Duration="0:0:1"/>
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                 From="0" To="360" Duration="0:0:1"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
                             </Ellipse>
                             <TextBlock Text="מדפיס..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
                         </StackPanel>

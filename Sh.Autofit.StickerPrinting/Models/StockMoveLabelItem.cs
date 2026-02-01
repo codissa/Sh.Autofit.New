@@ -14,6 +14,8 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     private BitmapSource? _previewImage;
     private bool _isLoadingPreview;
     private string _originalArabicDescription = string.Empty;
+    private string _localization = string.Empty;
+    private int _originalOrder;
 
     public StockMoveLabelItem(LabelData labelData)
     {
@@ -81,6 +83,24 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     /// </summary>
     public bool HasMissingArabicDescription =>
         IsArabic && string.IsNullOrWhiteSpace(OriginalArabicDescription);
+
+    /// <summary>
+    /// Localization (Location) from database - display only, not printed on stickers
+    /// </summary>
+    public string Localization
+    {
+        get => _localization;
+        set { _localization = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Original order from SQL query for "SQL order" sorting option
+    /// </summary>
+    public int OriginalOrder
+    {
+        get => _originalOrder;
+        set { _originalOrder = value; OnPropertyChanged(); }
+    }
 
     // Convenience properties that delegate to LabelData
     public string ItemKey => _labelData.ItemKey;

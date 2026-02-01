@@ -7,4 +7,5 @@ public class PartInfo
     public string? HebrewDescription { get; set; }
     public string? ArabicDescription { get; set; }
     public string? Category { get; set; }
+    public string? Localization { get; set; }
 }

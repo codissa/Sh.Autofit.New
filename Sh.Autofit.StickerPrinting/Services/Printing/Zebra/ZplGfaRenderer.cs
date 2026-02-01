@@ -1104,6 +1104,10 @@ public static class ZplGfaRenderer
                 layout.DescY = MmToDots(settings.LabelHeightMm * 0.50, dpi);
             }
 
+            // Ensure minimum top padding for description
+            int minTopPaddingDots = MmToDots(0.5, dpi);
+            layout.DescY = Math.Max(layout.DescY, minTopPaddingDots);
+
             // Split text and find optimal font size
             layout.DescFontPt = settings.DescriptionStartFontPt;
             double descriptionWidthMm = settings.LabelWidthMm - settings.LeftMargin - settings.RightMargin - 0.6;
@@ -1134,7 +1138,9 @@ public static class ZplGfaRenderer
             layout.DescWidthScale = settings.DescriptionFontWidthScale;
             int lineHeightDots = (int)(layout.DescFontPt * layout.DescHeightScale * lineHeightFactor * dpi / 72.0);
             int totalDescriptionHeight = lineHeightDots * layout.DescLines.Count;
-            int labelBottomDots = MmToDots(settings.LabelHeightMm - settings.BottomMargin, dpi);
+            // Ensure minimum bottom padding for description
+            int minBottomPaddingDots = MmToDots(0.5, dpi);
+            int labelBottomDots = MmToDots(settings.LabelHeightMm, dpi) - minBottomPaddingDots;
             int availableHeight = labelBottomDots - layout.DescY;
 
             // Reduce if overflow
@@ -1222,8 +1228,19 @@ public static class ZplGfaRenderer
                     }
                 }
             }
+            // Recalculate tallest line height with FINAL scales (after potential scaling)
+            int finalTallestLineHeightDots = 0;
+            foreach (var line in layout.DescLines)
+            {
+                var (_, lineHeight) = MeasureTextDots(
+                    line, layout.FontFamily, layout.DescFontPt, dpi, 0, bold: true,
+                    layout.DescWidthScale, layout.DescHeightScale);
+                if (lineHeight > finalTallestLineHeightDots)
+                    finalTallestLineHeightDots = lineHeight;
+            }
+
             int pad = Math.Max(2, (int)Math.Round(layout.DescFontPt * dpi / 72.0 * 0.12)); // ~8% of font px
-            layout.LineSpacingDots = tallestLineHeightDots + pad;
+            layout.LineSpacingDots = finalTallestLineHeightDots + pad;
             //layout.LineSpacingDots = (int)(lineHeightDots * 0.85);
         }
 

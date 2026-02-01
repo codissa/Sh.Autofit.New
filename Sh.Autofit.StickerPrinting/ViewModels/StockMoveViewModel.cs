@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -33,6 +35,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
     // Loading states
     private bool _isLoadingStock = false;
     private bool _isPrinting = false;
+    private bool _isRefreshingLanguage = false;
     private string _statusMessage = string.Empty;
 
     // Progress tracking
@@ -44,8 +47,12 @@ public class StockMoveViewModel : INotifyPropertyChanged
     private DateTime _lastPrintTime = DateTime.MinValue;
     private const int PrintCooldownMs = 500;
 
-    // Preview cache to avoid regenerating
-    private readonly Dictionary<string, BitmapSource> _previewCache = new();
+    // Sorting
+    private SortOption _currentSortOption = SortOption.Localization;
+    private List<StockMoveLabelItem> _allItems = new();
+
+    // Preview cache to avoid regenerating (ConcurrentDictionary for thread safety with parallel processing)
+    private readonly ConcurrentDictionary<string, BitmapSource> _previewCache = new();
     private readonly StickerSettings _settings = new();
 
     #region Properties
@@ -118,6 +125,17 @@ public class StockMoveViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsRefreshingLanguage
+    {
+        get => _isRefreshingLanguage;
+        set
+        {
+            _isRefreshingLanguage = value;
+            OnPropertyChanged();
+            PrintAllCommand.RaiseCanExecuteChanged();
+        }
+    }
+
     public string StatusMessage
     {
         get => _statusMessage;
@@ -142,6 +160,29 @@ public class StockMoveViewModel : INotifyPropertyChanged
         set { _printProgressText = value; OnPropertyChanged(); }
     }
 
+    public SortOption CurrentSortOption
+    {
+        get => _currentSortOption;
+        set
+        {
+            if (_currentSortOption != value)
+            {
+                _currentSortOption = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SortButtonText));
+                ApplySorting();
+            }
+        }
+    }
+
+    public string SortButtonText => CurrentSortOption switch
+    {
+        SortOption.Localization => "מיון: איתור",
+        SortOption.ItemKey => "מיון: מק\"ט",
+        SortOption.SqlOrder => "מיון: מקורי",
+        _ => "מיון"
+    };
+
     #endregion
 
     #region Commands
@@ -151,6 +192,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
     public RelayCommand AddItemCommand { get; }
     public RelayCommand RemoveItemCommand { get; }
     public AsyncRelayCommand EditArabicCommand { get; }
+    public RelayCommand CycleSortCommand { get; }
 
     #endregion
 
@@ -175,6 +217,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
         AddItemCommand = new RelayCommand(_ => ShowAddItemDialog());
         RemoveItemCommand = new RelayCommand(RemoveItem);
         EditArabicCommand = new AsyncRelayCommand(EditArabicDescriptionAsync);
+        CycleSortCommand = new RelayCommand(_ => CycleSort());
     }
 
     #region Command Methods
@@ -188,6 +231,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
         Items.Count > 0 &&
         !string.IsNullOrEmpty(SelectedPrinter) &&
         !IsPrinting &&
+        !IsRefreshingLanguage &&
         (DateTime.Now - _lastPrintTime).TotalMilliseconds > PrintCooldownMs;
 
     private async Task LoadStockAsync()
@@ -210,6 +254,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
             item.Cleanup();
         }
         Items.Clear();
+        _allItems.Clear();
         _previewCache.Clear();
 
         try
@@ -252,15 +297,20 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
                 var item = new StockMoveLabelItem(labelData)
                 {
-                    OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty
+                    OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty,
+                    Localization = moveItem.Localization ?? string.Empty,
+                    OriginalOrder = moveItem.OriginalOrder
                 };
 
                 // Subscribe to preview update requests and language changes
                 item.PreviewUpdateRequested += OnItemPreviewUpdateRequested;
                 item.LanguageChanged += OnItemLanguageChanged;
 
-                Items.Add(item);
+                _allItems.Add(item);
             }
+
+            // Apply sorting (default is by Localization)
+            ApplySorting();
 
             // Generate previews asynchronously
             _ = GenerateAllPreviewsAsync();
@@ -382,11 +432,14 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
             var item = new StockMoveLabelItem(labelData)
             {
-                OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty
+                OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty,
+                Localization = partInfo.Localization ?? string.Empty,
+                OriginalOrder = _allItems.Count + 1
             };
 
             item.PreviewUpdateRequested += OnItemPreviewUpdateRequested;
             item.LanguageChanged += OnItemLanguageChanged;
+            _allItems.Add(item);
             Items.Add(item);
 
             // Generate preview
@@ -410,10 +463,11 @@ public class StockMoveViewModel : INotifyPropertyChanged
             item.LanguageChanged -= OnItemLanguageChanged;
             item.Cleanup();
             Items.Remove(item);
+            _allItems.Remove(item);
 
             // Remove from cache
             var cacheKey = GetCacheKey(item);
-            _previewCache.Remove(cacheKey);
+            _previewCache.TryRemove(cacheKey, out _);
 
             StatusMessage = $"הוסר פריט {item.ItemKey}";
             PrintAllCommand.RaiseCanExecuteChanged();
@@ -452,7 +506,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
                 // Invalidate cache for this item
                 var cacheKey = GetCacheKey(item);
-                _previewCache.Remove(cacheKey);
+                _previewCache.TryRemove(cacheKey, out _);
 
                 // Refresh preview
                 await GeneratePreviewForItemAsync(item);
@@ -465,6 +519,40 @@ public class StockMoveViewModel : INotifyPropertyChanged
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 StatusMessage = "השמירה נכשלה";
             }
+        }
+    }
+
+    #endregion
+
+    #region Sorting Methods
+
+    private void CycleSort()
+    {
+        CurrentSortOption = CurrentSortOption switch
+        {
+            SortOption.Localization => SortOption.ItemKey,
+            SortOption.ItemKey => SortOption.SqlOrder,
+            SortOption.SqlOrder => SortOption.Localization,
+            _ => SortOption.Localization
+        };
+    }
+
+    private void ApplySorting()
+    {
+        if (_allItems.Count == 0) return;
+
+        var sorted = CurrentSortOption switch
+        {
+            SortOption.Localization => _allItems.OrderBy(x => x.Localization ?? string.Empty).ThenBy(x => x.ItemKey).ToList(),
+            SortOption.ItemKey => _allItems.OrderBy(x => x.ItemKey).ToList(),
+            SortOption.SqlOrder => _allItems.OrderBy(x => x.OriginalOrder).ToList(),
+            _ => _allItems.ToList()
+        };
+
+        Items.Clear();
+        foreach (var item in sorted)
+        {
+            Items.Add(item);
         }
     }
 
@@ -483,14 +571,46 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
     private async Task RefreshAllDescriptionsAsync()
     {
-        StatusMessage = "מעדכן שפה...";
+        if (Items.Count == 0) return;
 
-        foreach (var item in Items)
+        IsRefreshingLanguage = true;
+        StatusMessage = $"מעדכן שפה עבור {Items.Count} פריטים...";
+
+        try
         {
-            await RefreshItemDescriptionAsync(item);
-        }
+            // Create a snapshot of items to avoid collection modification issues
+            var itemsToRefresh = Items.ToList();
 
-        StatusMessage = $"{Items.Count} פריטים עודכנו";
+            // Process in parallel with limited concurrency to avoid overwhelming the database
+            const int maxConcurrency = 4;
+            using var semaphore = new SemaphoreSlim(maxConcurrency);
+
+            var tasks = itemsToRefresh.Select(async item =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    await RefreshItemDescriptionAsync(item);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            await Task.WhenAll(tasks);
+
+            StatusMessage = $"{Items.Count} פריטים עודכנו";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "שגיאה בעדכון שפה";
+            System.Diagnostics.Debug.WriteLine($"Language refresh failed: {ex.Message}");
+        }
+        finally
+        {
+            IsRefreshingLanguage = false;
+        }
     }
 
     private async Task RefreshItemDescriptionAsync(StockMoveLabelItem item)
@@ -535,7 +655,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
         {
             // Invalidate cache and regenerate preview
             var cacheKey = GetCacheKey(item);
-            _previewCache.Remove(cacheKey);
+            _previewCache.TryRemove(cacheKey, out _);
             _ = GeneratePreviewForItemAsync(item);
         }
     }
@@ -572,7 +692,7 @@ public class StockMoveViewModel : INotifyPropertyChanged
 
                 // Invalidate cache and regenerate preview
                 var cacheKey = GetCacheKey(item);
-                _previewCache.Remove(cacheKey);
+                _previewCache.TryRemove(cacheKey, out _);
                 await GeneratePreviewForItemAsync(item);
             }
         }
