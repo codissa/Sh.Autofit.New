@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.StockExport", "S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.StickerPrinting", "Sh.Autofit.StickerPrinting\Sh.Autofit.StickerPrinting.csproj", "{211EFE2C-8346-4CD2-99CD-E7937B6C13D5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.StickerPrinting.Web", "Sh.Autofit.StickerPrinting.Web\Sh.Autofit.StickerPrinting.Web.csproj", "{33982B19-9A0C-4F4E-8577-2FA50F367614}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -153,6 +155,18 @@ Global
 		{211EFE2C-8346-4CD2-99CD-E7937B6C13D5}.Release|x64.Build.0 = Release|Any CPU
 		{211EFE2C-8346-4CD2-99CD-E7937B6C13D5}.Release|x86.ActiveCfg = Release|Any CPU
 		{211EFE2C-8346-4CD2-99CD-E7937B6C13D5}.Release|x86.Build.0 = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|x64.Build.0 = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Debug|x86.Build.0 = Debug|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x64.ActiveCfg = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x64.Build.0 = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x86.ActiveCfg = Release|Any CPU
+		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

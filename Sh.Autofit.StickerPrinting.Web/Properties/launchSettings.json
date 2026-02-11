@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Sh.Autofit.StickerPrinting.Web": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:11939;http://localhost:11940"
+    }
+  }
+}
