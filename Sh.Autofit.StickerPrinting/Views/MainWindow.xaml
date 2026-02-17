@@ -178,11 +178,27 @@
                                 <Label Content="Item Key:" Padding="2"/>
                                 <TextBox Text="{Binding ItemKey}" IsReadOnly="True" Background="LightGray" Margin="2"/>
 
-                                <StackPanel Orientation="Horizontal" Margin="2,2,2,5"
+                                <StackPanel Orientation="Horizontal" Margin="2,2,2,0"
                                             Visibility="{Binding DataContext.CurrentLocalization, RelativeSource={RelativeSource AncestorType=GroupBox}, Converter={StaticResource StringToVisibilityConverter}}">
                                     <TextBlock Text="איתור: " Foreground="#666" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding DataContext.CurrentLocalization, RelativeSource={RelativeSource AncestorType=GroupBox}}"
                                                FontWeight="SemiBold" Foreground="#2196F3" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="2,2,2,5">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.CurrentStockQuantity, RelativeSource={RelativeSource AncestorType=GroupBox}}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Text="מלאי: " Foreground="#666" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DataContext.CurrentStockQuantity, RelativeSource={RelativeSource AncestorType=GroupBox}, StringFormat=N0}"
+                                               FontWeight="SemiBold" Foreground="#E65100" VerticalAlignment="Center"/>
                                 </StackPanel>
 
                                 <Label Content="Description:" Padding="2"/>
@@ -451,6 +467,20 @@
                                                                 Visibility="{Binding Localization, Converter={StaticResource StringToVisibilityConverter}}">
                                                         <TextBlock Text="איתור: " Foreground="#666" FontSize="12"/>
                                                         <TextBlock Text="{Binding Localization}" Foreground="#2196F3" FontWeight="SemiBold" FontSize="12"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <StackPanel.Style>
+                                                            <Style TargetType="StackPanel">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding StockQuantity}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </StackPanel.Style>
+                                                        <TextBlock Text="מלאי: " Foreground="#666" FontSize="12"/>
+                                                        <TextBlock Text="{Binding StockQuantity, StringFormat=N0}" Foreground="#E65100" FontWeight="SemiBold" FontSize="12"/>
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis"
                                                                Foreground="Gray" MaxWidth="300" Margin="0,3,0,0"/>

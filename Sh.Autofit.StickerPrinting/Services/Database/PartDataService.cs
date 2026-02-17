@@ -21,7 +21,8 @@ public class PartDataService : IPartDataService
                 PartName,
                 CustomDescription AS HebrewDescription,
                 ArabicDescription,
-                Localization
+                Localization,
+                StockQuantity
             FROM dbo.vw_Parts
             WHERE PartNumber = @ItemKey AND IsActive = 1";
 
@@ -46,7 +47,8 @@ public class PartDataService : IPartDataService
                 CustomDescription AS HebrewDescription,
                 ArabicDescription,
                 Category,
-                Localization
+                Localization,
+                StockQuantity
             FROM dbo.vw_Parts
             WHERE IsActive = 1
                 AND (PartNumber LIKE @Search OR PartName LIKE @Search OR CustomDescription LIKE @Search)

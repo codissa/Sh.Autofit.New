@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.StickerPrinting"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.StickerPrinting.Web", "Sh.Autofit.StickerPrinting.Web\Sh.Autofit.StickerPrinting.Web.csproj", "{33982B19-9A0C-4F4E-8577-2FA50F367614}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sh.Autofit.OrderBoard.Web", "Sh.Autofit.OrderBoard.Web\Sh.Autofit.OrderBoard.Web.csproj", "{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -167,6 +169,18 @@ Global
 		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x64.Build.0 = Release|Any CPU
 		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x86.ActiveCfg = Release|Any CPU
 		{33982B19-9A0C-4F4E-8577-2FA50F367614}.Release|x86.Build.0 = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|x64.Build.0 = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Debug|x86.Build.0 = Debug|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|x64.ActiveCfg = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|x64.Build.0 = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|x86.ActiveCfg = Release|Any CPU
+		{1965A3ED-57C0-472A-BCE2-7A2364B24B5F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

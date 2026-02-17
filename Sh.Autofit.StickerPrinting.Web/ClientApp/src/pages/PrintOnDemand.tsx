@@ -78,6 +78,9 @@ export default function PrintOnDemand() {
               {selectedPart.localization && (
                 <p className="text-xs text-gray-500 mt-1">Location: {selectedPart.localization}</p>
               )}
+              {selectedPart.stockQuantity != null && (
+                <p className="text-xs text-orange-700 mt-1">Stock: {selectedPart.stockQuantity}</p>
+              )}
             </div>
           )}
 
@@ -100,8 +103,9 @@ export default function PrintOnDemand() {
             <input
               type="number"
               min={1}
-              value={quantity}
-              onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              value={quantity || ''}
+              onChange={e => setQuantity(parseInt(e.target.value) || 0)}
+              onBlur={() => setQuantity(q => Math.max(1, q))}
               className="w-24 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

@@ -299,7 +299,8 @@ public class StockMoveViewModel : INotifyPropertyChanged
                 {
                     OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty,
                     Localization = moveItem.Localization ?? string.Empty,
-                    OriginalOrder = moveItem.OriginalOrder
+                    OriginalOrder = moveItem.OriginalOrder,
+                    StockQuantity = partInfo.StockQuantity
                 };
 
                 // Subscribe to preview update requests and language changes
@@ -434,7 +435,8 @@ public class StockMoveViewModel : INotifyPropertyChanged
             {
                 OriginalArabicDescription = partInfo.ArabicDescription ?? string.Empty,
                 Localization = partInfo.Localization ?? string.Empty,
-                OriginalOrder = _allItems.Count + 1
+                OriginalOrder = _allItems.Count + 1,
+                StockQuantity = partInfo.StockQuantity
             };
 
             item.PreviewUpdateRequested += OnItemPreviewUpdateRequested;

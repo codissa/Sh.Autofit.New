@@ -20,7 +20,9 @@ public class LabelRenderService : ILabelRenderService
         // Determine description based on language
         if (language == "ar")
         {
-            labelData.Description = partInfo.ArabicDescription ?? partInfo.PartName;
+            labelData.Description = !string.IsNullOrWhiteSpace(partInfo.ArabicDescription)
+                ? partInfo.ArabicDescription
+                : (partInfo.HebrewDescription ?? partInfo.PartName);
         }
         else // Hebrew default
         {

@@ -16,6 +16,7 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     private string _originalArabicDescription = string.Empty;
     private string _localization = string.Empty;
     private int _originalOrder;
+    private double? _stockQuantity;
 
     public StockMoveLabelItem(LabelData labelData)
     {
@@ -100,6 +101,15 @@ public class StockMoveLabelItem : INotifyPropertyChanged
     {
         get => _originalOrder;
         set { _originalOrder = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Inventory stock quantity from the Items table (display only)
+    /// </summary>
+    public double? StockQuantity
+    {
+        get => _stockQuantity;
+        set { _stockQuantity = value; OnPropertyChanged(); }
     }
 
     // Convenience properties that delegate to LabelData

@@ -5,6 +5,7 @@ export interface PartInfo {
   arabicDescription: string | null;
   category: string | null;
   localization: string | null;
+  stockQuantity: number | null;
 }
 
 export interface StockInfo {

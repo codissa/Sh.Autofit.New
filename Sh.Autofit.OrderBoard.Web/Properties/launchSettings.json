@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Sh.Autofit.OrderBoard.Web": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:53840;http://localhost:53841"
+    }
+  }
+}

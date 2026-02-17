@@ -8,4 +8,5 @@ public class PartInfo
     public string? ArabicDescription { get; set; }
     public string? Category { get; set; }
     public string? Localization { get; set; }
+    public double? StockQuantity { get; set; }
 }

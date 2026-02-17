@@ -6,6 +6,7 @@ using Sh.Autofit.StickerPrinting.Services.Printing.Zebra;
 using Sh.Autofit.StickerPrinting.Web.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService();
 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("Connection string 'Default' not found.");

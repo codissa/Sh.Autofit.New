@@ -27,6 +27,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
     private string _statusMessage = string.Empty;
     private string _selectedPrinter = string.Empty;
     private string? _currentLocalization;
+    private double? _currentStockQuantity;
 
     // AutoSuggest fields
     private ObservableCollection<PartInfo> _searchResults = new();
@@ -177,6 +178,12 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         set { _currentLocalization = value; OnPropertyChanged(); }
     }
 
+    public double? CurrentStockQuantity
+    {
+        get => _currentStockQuantity;
+        set { _currentStockQuantity = value; OnPropertyChanged(); }
+    }
+
     public AsyncRelayCommand LoadItemCommand { get; }
     public AsyncRelayCommand PrintCommand { get; }
     public AsyncRelayCommand EditArabicCommand { get; }
@@ -239,11 +246,13 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 StatusMessage = "Part not found";
                 CurrentLocalization = null;
+                CurrentStockQuantity = null;
                 return;
             }
 
-            // Set localization for display
+            // Set localization and stock quantity for display
             CurrentLocalization = partInfo.Localization;
+            CurrentStockQuantity = partInfo.StockQuantity;
 
             // Create label data
             CurrentLabel = _labelRenderService.CreateLabelData(ItemKey, partInfo, SelectedLanguage);

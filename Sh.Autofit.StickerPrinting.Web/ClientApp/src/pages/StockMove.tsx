@@ -13,7 +13,7 @@ export default function StockMove() {
   const [stockInfo, setStockInfo] = useState<StockInfo | null>(null);
   const [items, setItems] = useState<StockMoveDisplayItem[]>([]);
   const [partInfoMap, setPartInfoMap] = useState<Record<string, PartInfo>>({});
-  const [globalLanguage, setGlobalLanguage] = useState<Language>('he');
+  const [globalLanguage, setGlobalLanguage] = useState<Language>('ar');
   const [sortOption, setSortOption] = useState<SortOption>('localization');
   const [printer, setPrinter] = useState('');
   const [loading, setLoading] = useState(false);
@@ -123,7 +123,13 @@ export default function StockMove() {
 
   function handleItemQuantity(itemKey: string, qty: number) {
     setItems(prev =>
-      prev.map(item => (item.itemKey === itemKey ? { ...item, quantity: Math.max(1, qty) } : item)),
+      prev.map(item => (item.itemKey === itemKey ? { ...item, quantity: qty } : item)),
+    );
+  }
+
+  function handleItemQuantityBlur(itemKey: string) {
+    setItems(prev =>
+      prev.map(item => (item.itemKey === itemKey ? { ...item, quantity: Math.max(1, item.quantity) } : item)),
     );
   }
 
@@ -269,6 +275,11 @@ export default function StockMove() {
                     {item.localization}
                   </span>
                 )}
+                {partInfoMap[item.itemKey]?.stockQuantity != null && (
+                  <span className="text-xs text-orange-700 bg-orange-50 px-2 py-0.5 rounded">
+                    Stock: {partInfoMap[item.itemKey].stockQuantity}
+                  </span>
+                )}
               </div>
               <p
                 className="text-sm text-gray-600 mt-1 truncate"
@@ -316,8 +327,9 @@ export default function StockMove() {
               <input
                 type="number"
                 min={1}
-                value={item.quantity}
-                onChange={e => handleItemQuantity(item.itemKey, parseInt(e.target.value) || 1)}
+                value={item.quantity || ''}
+                onChange={e => handleItemQuantity(item.itemKey, parseInt(e.target.value) || 0)}
+                onBlur={() => handleItemQuantityBlur(item.itemKey)}
                 className="w-16 border border-gray-300 rounded px-2 py-1 text-xs text-center"
               />
 
