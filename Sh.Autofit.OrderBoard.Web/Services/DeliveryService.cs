@@ -76,7 +76,7 @@ public class DeliveryService : IDeliveryService
         const string sql = @"
             INSERT INTO dbo.DeliveryMethods (Name, IsActive, IsAdHoc, CreatedAt, ClosedAt, RulesJson, AutoHideAfterMinutes, WindowStartTime, WindowEndTime)
             OUTPUT INSERTED.DeliveryMethodId
-            VALUES (@Name, @IsActive, @IsAdHoc, SYSUTCDATETIME(), @ClosedAt, @RulesJson, @AutoHideAfterMinutes, @WindowStartTime, @WindowEndTime)";
+            VALUES (@Name, @IsActive, @IsAdHoc, SYSDATETIME(), @ClosedAt, @RulesJson, @AutoHideAfterMinutes, @WindowStartTime, @WindowEndTime)";
 
         using var conn = CreateConnection();
         await conn.OpenAsync();
@@ -100,7 +100,7 @@ public class DeliveryService : IDeliveryService
     public async Task CloseMethodAsync(int id)
     {
         const string sql = @"
-            UPDATE dbo.DeliveryMethods SET IsActive = 0, ClosedAt = SYSUTCDATETIME()
+            UPDATE dbo.DeliveryMethods SET IsActive = 0, ClosedAt = SYSDATETIME()
             WHERE DeliveryMethodId = @Id";
 
         using var conn = CreateConnection();
@@ -157,7 +157,7 @@ public class DeliveryService : IDeliveryService
     public async Task CloseRunAsync(int id)
     {
         const string sql = @"
-            UPDATE dbo.DeliveryRuns SET State = 'CLOSED', ClosedAt = SYSUTCDATETIME()
+            UPDATE dbo.DeliveryRuns SET State = 'CLOSED', ClosedAt = SYSDATETIME()
             WHERE DeliveryRunId = @Id";
 
         using var conn = CreateConnection();

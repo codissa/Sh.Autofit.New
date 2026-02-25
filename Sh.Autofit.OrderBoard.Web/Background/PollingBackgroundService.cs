@@ -48,7 +48,7 @@ public class PollingBackgroundService : BackgroundService
                 if (changed.Count > 0)
                 {
                     await _hubContext.Clients.All.SendAsync("board.diff",
-                        new { changedOrderIds = changed, timestamp = DateTime.UtcNow },
+                        new { changedOrderIds = changed, timestamp = DateTime.Now },
                         stoppingToken);
                 }
             }
@@ -68,7 +68,7 @@ public class PollingBackgroundService : BackgroundService
     private async Task<List<int>> PollCycleAsync()
     {
         var changedOrderIds = new HashSet<int>();
-        var now = DateTime.UtcNow;
+        var now = DateTime.Now;
 
         // 1. Load tracked links and settings
         var presentLinks = await _orderService.GetAllPresentLinksAsync();
@@ -204,7 +204,7 @@ public class PollingBackgroundService : BackgroundService
                 // Compute when this specific order's delivery window expires.
                 // If packed before/during the window → expires same day.
                 // If packed after the window ended → it's for tomorrow's occurrence.
-                var packedAtLocal = order.StageUpdatedAt.ToLocalTime();
+                var packedAtLocal = order.StageUpdatedAt;
 
                 DateTime expiresAt;
                 if (packedAtLocal.TimeOfDay <= windowEnd)
@@ -216,7 +216,7 @@ public class PollingBackgroundService : BackgroundService
 
                 order.Hidden = true;
                 order.HiddenReason = $"Window expired for '{method.Name}'";
-                order.HiddenAt = DateTime.UtcNow;
+                order.HiddenAt = DateTime.Now;
                 await _orderService.UpdateOrderAsync(order);
 
                 await _orderService.InsertStageEventAsync(new StageEvent

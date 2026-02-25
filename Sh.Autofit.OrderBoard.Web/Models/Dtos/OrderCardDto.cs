@@ -37,4 +37,5 @@ public class OrderCardDto
     // Archive-only fields (null on live board)
     public DateTime? PackedAt { get; set; }
     public string? PackedDuration { get; set; }
+    public DateTime? HiddenAt { get; set; }
 }

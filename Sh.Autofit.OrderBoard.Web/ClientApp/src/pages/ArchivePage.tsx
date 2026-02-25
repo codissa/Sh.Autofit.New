@@ -5,16 +5,23 @@ import { getArchiveBoard } from '../api/client';
 import ArchiveBoard from '../components/Archive/ArchiveBoard';
 import OrderTimelineModal from '../components/Archive/OrderTimelineModal';
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function yesterday(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 function dayBefore(): string {
   const d = new Date();
   d.setDate(d.getDate() - 2);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 function formatDateHebrew(dateStr: string): string {

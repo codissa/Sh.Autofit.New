@@ -64,6 +64,15 @@ public class ArchiveService : IArchiveService
                   AND se.At <= @EndOfDay
                   AND se.AppOrderId IS NOT NULL
                 GROUP BY se.AppOrderId
+            ),
+            LastHideAt AS (
+                SELECT se.AppOrderId,
+                       MAX(se.At) AS HiddenAt
+                FROM dbo.StageEvents se
+                WHERE se.Action IN ('HIDE', 'BULK_HIDE')
+                  AND se.At <= @EndOfDay
+                  AND se.AppOrderId IS NOT NULL
+                GROUP BY se.AppOrderId
             )
             SELECT o.AppOrderId, o.AccountKey, o.AccountName, o.City, o.Address, o.Phone,
                    o.DisplayTime, o.IsManual, o.ManualNote, o.CreatedAt,
@@ -71,11 +80,13 @@ public class ArchiveService : IArchiveService
                    COALESCE(s.ToStage, o.CurrentStage) AS StageAtDate,
                    COALESCE(s.At, o.StageUpdatedAt) AS StageUpdatedAtDate,
                    p.FirstPackedAt AS PackedAt,
-                   CASE WHEN ISNULL(h.HideCount, 0) > ISNULL(h.UnhideCount, 0) THEN 1 ELSE 0 END AS WasHidden
+                   CASE WHEN ISNULL(h.HideCount, 0) > ISNULL(h.UnhideCount, 0) THEN 1 ELSE 0 END AS WasHidden,
+                   lh.HiddenAt
             FROM dbo.AppOrders o
             LEFT JOIN StageAtDate s ON s.AppOrderId = o.AppOrderId AND s.rn = 1
             LEFT JOIN HideStatus h ON h.AppOrderId = o.AppOrderId
             LEFT JOIN PackedAt p ON p.AppOrderId = o.AppOrderId
+            LEFT JOIN LastHideAt lh ON lh.AppOrderId = o.AppOrderId
             WHERE o.CreatedAt <= @EndOfDay
               AND (o.MergedIntoAppOrderId IS NULL OR o.UpdatedAt > @EndOfDay)
             ORDER BY o.DisplayTime DESC, o.AppOrderId DESC";
@@ -97,20 +108,16 @@ public class ArchiveService : IArchiveService
 
         var methodLookup = methods.ToDictionary(m => m.DeliveryMethodId);
 
-        // Separate visible vs hidden
-        var visibleRows = rows.Where(r => !r.WasHidden).ToList();
-        var hiddenRows = rows.Where(r => r.WasHidden).ToList();
-
-        // Build columns from visible orders
-        var columns = BuildColumns(visibleRows, methodLookup);
+        // Build columns from ALL orders (including hidden — archive should show everything)
+        var columns = BuildColumns(rows, methodLookup);
 
         // Build summary
         var summary = new ArchiveDaySummary
         {
-            TotalOrders = visibleRows.Count,
-            OrdersPacked = visibleRows.Count(r => r.StageAtDate == "PACKED"),
-            OrdersCreated = visibleRows.Count(r => r.CreatedAt >= startOfDay && r.CreatedAt <= endOfDay),
-            ByStage = visibleRows.GroupBy(r => r.StageAtDate)
+            TotalOrders = rows.Count,
+            OrdersPacked = rows.Count(r => r.StageAtDate == "PACKED"),
+            OrdersCreated = rows.Count(r => r.CreatedAt >= startOfDay && r.CreatedAt <= endOfDay),
+            ByStage = rows.GroupBy(r => r.StageAtDate)
                 .ToDictionary(g => g.Key, g => g.Count())
         };
 
@@ -285,7 +292,8 @@ public class ArchiveService : IArchiveService
             CreatedAt = row.CreatedAt,
             StageUpdatedAt = row.StageUpdatedAtDate,
             PackedAt = row.PackedAt,
-            PackedDuration = packedDuration
+            PackedDuration = packedDuration,
+            HiddenAt = row.WasHidden ? row.HiddenAt : null
         };
     }
 
@@ -333,5 +341,6 @@ public class ArchiveService : IArchiveService
         public DateTime StageUpdatedAtDate { get; set; }
         public DateTime? PackedAt { get; set; }
         public bool WasHidden { get; set; }
+        public DateTime? HiddenAt { get; set; }
     }
 }

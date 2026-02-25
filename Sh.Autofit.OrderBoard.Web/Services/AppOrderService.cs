@@ -68,8 +68,8 @@ public class AppOrderService : IAppOrderService
                  MergedIntoAppOrderId, NeedsResolve)
             OUTPUT INSERTED.AppOrderId
             VALUES
-                (SYSUTCDATETIME(), SYSUTCDATETIME(), @AccountKey, @AccountName, @City, @Address, @Phone,
-                 @DisplayTime, @CurrentStage, SYSUTCDATETIME(), @IsManual, @ManualNote,
+                (SYSDATETIME(), SYSDATETIME(), @AccountKey, @AccountName, @City, @Address, @Phone,
+                 @DisplayTime, @CurrentStage, SYSDATETIME(), @IsManual, @ManualNote,
                  @Hidden, @HiddenReason, @HiddenAt, @Pinned, @DeliveryMethodId, @DeliveryRunId,
                  @MergedIntoAppOrderId, @NeedsResolve)";
 
@@ -82,7 +82,7 @@ public class AppOrderService : IAppOrderService
     {
         const string sql = @"
             UPDATE dbo.AppOrders SET
-                UpdatedAt = SYSUTCDATETIME(),
+                UpdatedAt = SYSDATETIME(),
                 AccountKey = @AccountKey, AccountName = @AccountName,
                 City = @City, Address = @Address, Phone = @Phone,
                 DisplayTime = @DisplayTime, CurrentStage = @CurrentStage,
@@ -146,7 +146,7 @@ public class AppOrderService : IAppOrderService
             OUTPUT INSERTED.LinkId
             VALUES
                 (@AppOrderId, @SourceDb, @StockId, @DocumentId, @DocNumber, @Status, @Reference,
-                 SYSUTCDATETIME(), SYSUTCDATETIME(), @IsPresent, @DisappearedAt, 0)";
+                 SYSDATETIME(), SYSDATETIME(), @IsPresent, @DisappearedAt, 0)";
 
         using var conn = CreateConnection();
         await conn.OpenAsync();
@@ -178,7 +178,7 @@ public class AppOrderService : IAppOrderService
     {
         const string sql = @"
             UPDATE dbo.AppOrders
-            SET Hidden = 1, HiddenReason = 'BULK_CLEAN', HiddenAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME()
+            SET Hidden = 1, HiddenReason = 'BULK_CLEAN', HiddenAt = SYSDATETIME(), UpdatedAt = SYSDATETIME()
             WHERE CurrentStage = @Stage AND Hidden = 0 AND MergedIntoAppOrderId IS NULL";
 
         using var conn = CreateConnection();
@@ -192,7 +192,7 @@ public class AppOrderService : IAppOrderService
     {
         const string sql = @"
             INSERT INTO dbo.StageEvents (AppOrderId, At, Actor, Action, FromStage, ToStage, Payload)
-            VALUES (@AppOrderId, SYSUTCDATETIME(), @Actor, @Action, @FromStage, @ToStage, @Payload)";
+            VALUES (@AppOrderId, SYSDATETIME(), @Actor, @Action, @FromStage, @ToStage, @Payload)";
 
         using var conn = CreateConnection();
         await conn.OpenAsync();

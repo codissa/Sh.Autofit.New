@@ -32,6 +32,9 @@ export default function ArchiveOrderCard({ order, onShowTimeline }: Props) {
   const packedAtStr = order.packedAt
     ? new Date(order.packedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
     : null;
+  const hiddenAtStr = order.hidden && order.hiddenAt
+    ? new Date(order.hiddenAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const slaStatus = getSlaStatus(order.currentStage, order.stageUpdatedAt);
   const slaBorder = SLA_BORDER[slaStatus];
@@ -101,6 +104,15 @@ export default function ArchiveOrderCard({ order, onShowTimeline }: Props) {
               {order.packedDuration}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Hidden timestamp */}
+      {hiddenAtStr && (
+        <div className="mt-0.5 flex items-center bg-gray-100 rounded px-1.5 py-0.5">
+          <span className="text-[10px] text-gray-500">
+            הוסתר ב: {hiddenAtStr}
+          </span>
         </div>
       )}
 

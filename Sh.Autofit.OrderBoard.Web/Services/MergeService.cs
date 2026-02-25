@@ -40,7 +40,7 @@ public class MergeService : IMergeService
         manualMatch.MergedIntoAppOrderId = realOrder.AppOrderId;
         manualMatch.Hidden = true;
         manualMatch.HiddenReason = "Merged";
-        manualMatch.HiddenAt = DateTime.UtcNow;
+        manualMatch.HiddenAt = DateTime.Now;
         await orderService.UpdateOrderAsync(manualMatch);
 
         await orderService.InsertStageEventAsync(new StageEvent
@@ -87,7 +87,7 @@ public class MergeService : IMergeService
         printedMatch.MergedIntoAppOrderId = order.AppOrderId;
         printedMatch.Hidden = true;
         printedMatch.HiddenReason = "StageCorrelation";
-        printedMatch.HiddenAt = DateTime.UtcNow;
+        printedMatch.HiddenAt = DateTime.Now;
         await orderService.UpdateOrderAsync(printedMatch);
 
         await orderService.InsertStageEventAsync(new StageEvent

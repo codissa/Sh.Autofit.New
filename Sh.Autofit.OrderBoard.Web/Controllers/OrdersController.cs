@@ -36,9 +36,9 @@ public class OrdersController : ControllerBase
             AccountName = request.AccountName?.Trim(),
             City = request.City?.Trim(),
             Address = request.Address?.Trim(),
-            DisplayTime = request.DisplayTime ?? DateTime.UtcNow,
+            DisplayTime = request.DisplayTime ?? DateTime.Now,
             CurrentStage = "ORDER_IN_PC",
-            StageUpdatedAt = DateTime.UtcNow,
+            StageUpdatedAt = DateTime.Now,
             IsManual = true,
             ManualNote = request.Note?.Trim()
         };
@@ -102,7 +102,7 @@ public class OrdersController : ControllerBase
         }
 
         order.CurrentStage = request.ToStage;
-        order.StageUpdatedAt = DateTime.UtcNow;
+        order.StageUpdatedAt = DateTime.Now;
         await _orderService.UpdateOrderAsync(order);
 
         await _orderService.InsertStageEventAsync(new StageEvent
@@ -127,7 +127,7 @@ public class OrdersController : ControllerBase
 
         order.Hidden = true;
         order.HiddenReason = request?.Reason;
-        order.HiddenAt = DateTime.UtcNow;
+        order.HiddenAt = DateTime.Now;
         await _orderService.UpdateOrderAsync(order);
 
         await _orderService.InsertStageEventAsync(new StageEvent

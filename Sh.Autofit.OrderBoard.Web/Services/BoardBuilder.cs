@@ -162,7 +162,7 @@ public class BoardBuilder : IBoardBuilder
         {
             Columns = columns,
             DeliveryMethods = methodDtos,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.Now
         };
     }
 

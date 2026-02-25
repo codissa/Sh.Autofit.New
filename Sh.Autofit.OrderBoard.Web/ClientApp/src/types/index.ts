@@ -45,6 +45,7 @@ export interface OrderCard {
   // Archive-only fields (null on live board)
   packedAt: string | null;
   packedDuration: string | null;
+  hiddenAt: string | null;
 }
 
 export interface DeliveryGroup {

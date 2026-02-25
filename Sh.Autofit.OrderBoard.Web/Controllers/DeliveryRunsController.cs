@@ -63,7 +63,7 @@ public class DeliveryRunsController : ControllerBase
         {
             order.Hidden = true;
             order.HiddenReason = "Run closed";
-            order.HiddenAt = DateTime.UtcNow;
+            order.HiddenAt = DateTime.Now;
             await _orderService.UpdateOrderAsync(order);
 
             await _orderService.InsertStageEventAsync(new StageEvent
