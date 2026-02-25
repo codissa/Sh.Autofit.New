@@ -19,6 +19,7 @@ public partial class PlateLookupViewModel : ObservableObject
     private readonly IDataService _dataService;
     private readonly IVirtualPartService _virtualPartService;
     private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
+    private readonly IVehicleQuantityService _vehicleQuantityService;
 
     [ObservableProperty]
     private string _plateNumber = string.Empty;
@@ -62,6 +63,15 @@ public partial class PlateLookupViewModel : ObservableObject
 
     [ObservableProperty]
     private string _searchDuration = string.Empty;
+
+    [ObservableProperty]
+    private VehicleCountResult? _exactModelCount;
+
+    [ObservableProperty]
+    private VehicleCountResult? _totalConsolidatedCount;
+
+    [ObservableProperty]
+    private bool _isLoadingVehicleCounts;
 
     public string CleanVinNumber => CleanVin(GovernmentVehicle?.VinNumber ?? GovernmentVehicle?.VinChassis);
 
@@ -148,13 +158,15 @@ public partial class PlateLookupViewModel : ObservableObject
         IVehicleMatchingService vehicleMatchingService,
         IDataService dataService,
         IVirtualPartService virtualPartService,
-        IDbContextFactory<ShAutofitContext> contextFactory)
+        IDbContextFactory<ShAutofitContext> contextFactory,
+        IVehicleQuantityService vehicleQuantityService)
     {
         _governmentApiService = governmentApiService;
         _vehicleMatchingService = vehicleMatchingService;
         _dataService = dataService;
         _virtualPartService = virtualPartService;
         _contextFactory = contextFactory;
+        _vehicleQuantityService = vehicleQuantityService;
     }
 
     [RelayCommand]
@@ -182,6 +194,8 @@ public partial class PlateLookupViewModel : ObservableObject
         MappedParts.Clear();
         IsOffRoad = false;
         IsPersonalImport = false;
+        ExactModelCount = null;
+        TotalConsolidatedCount = null;
 
         try
         {
@@ -226,6 +240,9 @@ public partial class PlateLookupViewModel : ObservableObject
 
             // STEP 8: Display results
             DisplaySearchResults(parts);
+
+            // STEP 9: Fetch vehicle quantity data (non-blocking)
+            _ = FetchVehicleCountsAsync();
         }
         catch (Exception ex)
         {
@@ -596,6 +613,89 @@ public partial class PlateLookupViewModel : ObservableObject
 
     private bool CanQuickMap() => MatchedVehicle != null && !IsLoading;
 
+    /// <summary>
+    /// Fetches vehicle quantity data asynchronously (non-blocking fire-and-forget).
+    /// </summary>
+    private async Task FetchVehicleCountsAsync()
+    {
+        IsLoadingVehicleCounts = true;
+        ExactModelCount = null;
+        TotalConsolidatedCount = null;
+
+        try
+        {
+            var govVehicle = GovernmentVehicle;
+            var consolidatedModel = ConsolidatedModel;
+
+            if (govVehicle?.ManufacturerCode == null || govVehicle?.ModelCode == null
+                || string.IsNullOrWhiteSpace(govVehicle?.ModelName))
+                return;
+
+            int mfgCode = govVehicle!.ManufacturerCode!.Value;
+            int mdlCode = govVehicle.ModelCode!.Value;
+            string mdlName = govVehicle.ModelName!;
+
+            // Task 1: Exact model count
+            var exactTask = _vehicleQuantityService.GetVehicleCountAsync(mfgCode, mdlCode, mdlName);
+
+            // Task 2: Consolidated total (coupled models)
+            var consolidatedTask = GetConsolidatedTotalCountAsync(consolidatedModel, mfgCode, mdlCode, mdlName);
+
+            await Task.WhenAll(exactTask, consolidatedTask);
+
+            ExactModelCount = exactTask.Result;
+            TotalConsolidatedCount = consolidatedTask.Result;
+        }
+        catch
+        {
+            // Silent failure — counts are optional
+        }
+        finally
+        {
+            IsLoadingVehicleCounts = false;
+        }
+    }
+
+    private async Task<VehicleCountResult?> GetConsolidatedTotalCountAsync(
+        ConsolidatedVehicleModel? currentModel, int exactMfgCode, int exactMdlCode, string exactMdlName)
+    {
+        if (currentModel == null)
+            return null;
+
+        try
+        {
+            var modelKeys = new HashSet<(int, int, string)>
+            {
+                (currentModel.ManufacturerCode, currentModel.ModelCode, currentModel.ModelName)
+            };
+
+            var couplings = await _dataService.GetModelCouplingsAsync(currentModel.ConsolidatedModelId);
+            foreach (var coupling in couplings.Where(c => c.IsActive))
+            {
+                var otherModelId = coupling.ConsolidatedModelIdA == currentModel.ConsolidatedModelId
+                    ? coupling.ConsolidatedModelIdB
+                    : coupling.ConsolidatedModelIdA;
+
+                var otherModel = await _dataService.GetConsolidatedModelByIdAsync(otherModelId);
+                if (otherModel != null)
+                    modelKeys.Add((otherModel.ManufacturerCode, otherModel.ModelCode, otherModel.ModelName));
+            }
+
+            // If only one model, don't duplicate the exact count
+            if (modelKeys.Count <= 1)
+                return null;
+
+            var counts = await _vehicleQuantityService.GetVehicleCountBatchAsync(modelKeys);
+            var totalActive = counts.Values.Sum(c => c.Active);
+            var totalInactive = counts.Values.Sum(c => c.Inactive);
+            return new VehicleCountResult(totalActive, totalInactive, totalActive + totalInactive);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     [RelayCommand]
     private void Clear()
     {
@@ -610,6 +710,9 @@ public partial class PlateLookupViewModel : ObservableObject
         ShowCopiedPopup = false;
         IsOffRoad = false;
         IsPersonalImport = false;
+        ExactModelCount = null;
+        TotalConsolidatedCount = null;
+        IsLoadingVehicleCounts = false;
         OnPropertyChanged(nameof(CleanVinNumber));
     }
 
