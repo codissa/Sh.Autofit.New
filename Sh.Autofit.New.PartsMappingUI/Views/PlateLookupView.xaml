@@ -398,6 +398,66 @@
                     </TextBlock>
                 </WrapPanel>
 
+                <!-- Vehicle Quantity Data (loaded asynchronously) -->
+                <Border Margin="0,8,0,2" Padding="10,6" Background="#E3F2FD"
+                        CornerRadius="4" BorderBrush="#90CAF9" BorderThickness="1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoadingVehicleCounts}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExactModelCount, Converter={StaticResource NullToVisibilityConverter}}" Value="Visible">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <!-- Loading indicator -->
+                        <TextBlock Text="טוען נתוני כמות רכבים..."
+                                   FontSize="12" Foreground="#1565C0"
+                                   Visibility="{Binding IsLoadingVehicleCounts, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                        <!-- Exact model row -->
+                        <StackPanel Orientation="Horizontal" Margin="0,2"
+                                    Visibility="{Binding ExactModelCount, Converter={StaticResource NullToVisibilityConverter}}">
+                            <TextBlock Text="דגם מדויק:" FontWeight="Bold" FontSize="13" Foreground="#1565C0" Margin="0,0,12,0"/>
+                            <TextBlock FontSize="13" Margin="0,0,12,0">
+                                <Run Text="פעילים: " Foreground="#2E7D32"/>
+                                <Run Text="{Binding ExactModelCount.Active, StringFormat=N0}" FontWeight="Bold" Foreground="#2E7D32"/>
+                            </TextBlock>
+                            <TextBlock FontSize="13" Margin="0,0,12,0">
+                                <Run Text="לא פעילים: " Foreground="#C62828"/>
+                                <Run Text="{Binding ExactModelCount.Inactive, StringFormat=N0}" FontWeight="Bold" Foreground="#C62828"/>
+                            </TextBlock>
+                            <TextBlock FontSize="13">
+                                <Run Text="סה&quot;כ: " Foreground="#0D47A1"/>
+                                <Run Text="{Binding ExactModelCount.Total, StringFormat=N0}" FontWeight="Bold" Foreground="#0D47A1"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- Consolidated total row (only when coupled models exist) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,2"
+                                    Visibility="{Binding TotalConsolidatedCount, Converter={StaticResource NullToVisibilityConverter}}">
+                            <TextBlock Text="כל הדגמים:" FontWeight="Bold" FontSize="13" Foreground="#1565C0" Margin="0,0,12,0"/>
+                            <TextBlock FontSize="13" Margin="0,0,12,0">
+                                <Run Text="פעילים: " Foreground="#2E7D32"/>
+                                <Run Text="{Binding TotalConsolidatedCount.Active, StringFormat=N0}" FontWeight="Bold" Foreground="#2E7D32"/>
+                            </TextBlock>
+                            <TextBlock FontSize="13" Margin="0,0,12,0">
+                                <Run Text="לא פעילים: " Foreground="#C62828"/>
+                                <Run Text="{Binding TotalConsolidatedCount.Inactive, StringFormat=N0}" FontWeight="Bold" Foreground="#C62828"/>
+                            </TextBlock>
+                            <TextBlock FontSize="13">
+                                <Run Text="סה&quot;כ: " Foreground="#0D47A1"/>
+                                <Run Text="{Binding TotalConsolidatedCount.Total, StringFormat=N0}" FontWeight="Bold" Foreground="#0D47A1"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Center">
                     <Button Content="🔧 מיפוי מהיר"
                             Command="{Binding QuickMapCommand}"

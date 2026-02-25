@@ -55,6 +55,7 @@ public partial class App : Application
 
         // Register HttpClient and vehicle data sync services
         services.AddHttpClient<IGovernmentVehicleDataService, GovernmentVehicleDataService>();
+        services.AddHttpClient<IVehicleQuantityService, VehicleQuantityService>();
         services.AddTransient<IVehicleDataSyncService, VehicleDataSyncService>();
 
         // Register new services for auto-discovery and virtual parts
