@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import KanbanBoard from './components/KanbanBoard/KanbanBoard';
 import DeliveryMethodsPage from './pages/DeliveryMethodsPage';
 import CustomerRulesPage from './pages/CustomerRulesPage';
+import ArchivePage from './pages/ArchivePage';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
           <Route path="/" element={<KanbanBoard />} />
           <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
           <Route path="/customer-rules" element={<CustomerRulesPage />} />
+          <Route path="/archive" element={<ArchivePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

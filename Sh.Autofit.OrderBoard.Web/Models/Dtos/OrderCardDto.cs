@@ -19,7 +19,22 @@ public class OrderCardDto
     public int? DeliveryRunId { get; set; }
     public bool NeedsResolve { get; set; }
 
+    // Time tracking
+    public DateTime CreatedAt { get; set; }
+    public DateTime StageUpdatedAt { get; set; }
+
+    // Closest delivery rule for this account
+    public string? ClosestRuleName { get; set; }
+    public string? ClosestRuleWindow { get; set; }
+
+    // Yellow highlight: account has orders in PACKED + another stage
+    public bool HasPackedSibling { get; set; }
+
     // Stacking: if multiple orders with same AccountKey+Address in same stage
     public int StackCount { get; set; } = 1;
     public List<int>? StackedOrderIds { get; set; }
+
+    // Archive-only fields (null on live board)
+    public DateTime? PackedAt { get; set; }
+    public string? PackedDuration { get; set; }
 }

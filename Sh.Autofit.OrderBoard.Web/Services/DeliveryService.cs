@@ -28,6 +28,8 @@ public interface IDeliveryService
     Task UpdateRuleAsync(DeliveryMethodCustomerRule rule);
     Task DeactivateRuleAsync(int id);
     Task AutoAssignDeliveryAsync(AppOrder order, IAppOrderService orderService);
+    Task<List<DeliveryMethodCustomerRule>> GetRulesForAccountsAsync(IEnumerable<string> accountKeys);
+    Task<int?> GetEffectiveDeliveryMethodIdAsync(string accountKey);
 }
 
 public class DeliveryService : IDeliveryService
@@ -232,6 +234,81 @@ public class DeliveryService : IDeliveryService
         using var conn = CreateConnection();
         await conn.OpenAsync();
         await conn.ExecuteAsync(sql, new { Id = id });
+    }
+
+    public async Task<List<DeliveryMethodCustomerRule>> GetRulesForAccountsAsync(IEnumerable<string> accountKeys)
+    {
+        var keys = accountKeys.ToList();
+        if (keys.Count == 0) return [];
+
+        const string sql = "SELECT * FROM dbo.DeliveryMethodCustomerRules WHERE AccountKey IN @Keys AND IsActive = 1";
+        using var conn = CreateConnection();
+        await conn.OpenAsync();
+        return (await conn.QueryAsync<DeliveryMethodCustomerRule>(sql, new { Keys = keys })).ToList();
+    }
+
+    // ---- Effective delivery (dynamic routing) ----
+
+    /// <summary>
+    /// For accounts with rules for 2+ active delivery methods that have time windows,
+    /// compute which method's window is currently closest (active or next upcoming).
+    /// Returns null if the account has fewer than 2 timed methods.
+    /// </summary>
+    public static int? ComputeClosestTimedMethodId(
+        IEnumerable<int> candidateMethodIds,
+        Dictionary<int, DeliveryMethod> methodLookup)
+    {
+        var now = DateTime.Now.TimeOfDay;
+
+        var timedMethods = candidateMethodIds
+            .Distinct()
+            .Where(id => methodLookup.TryGetValue(id, out var m)
+                         && m.WindowStartTime.HasValue && m.WindowEndTime.HasValue)
+            .Select(id => methodLookup[id])
+            .ToList();
+
+        if (timedMethods.Count < 2) return null;
+
+        DeliveryMethod? closest = null;
+        var closestDist = TimeSpan.MaxValue;
+
+        foreach (var method in timedMethods)
+        {
+            var start = method.WindowStartTime!.Value;
+            var end = method.WindowEndTime!.Value;
+
+            TimeSpan dist;
+            if (now >= start && now <= end)
+                dist = end - now; // active — prefer the one expiring soonest
+            else if (now < start)
+                dist = start - now; // upcoming today
+            else
+                dist = (TimeSpan.FromHours(24) - now) + start; // wraps to next day
+
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closest = method;
+            }
+        }
+
+        return closest?.DeliveryMethodId;
+    }
+
+    /// <summary>
+    /// Single-account version: loads rules and methods, returns effective delivery method ID.
+    /// </summary>
+    public async Task<int?> GetEffectiveDeliveryMethodIdAsync(string accountKey)
+    {
+        var rules = await GetRulesForAccountAsync(accountKey);
+        if (rules.Count == 0) return null;
+
+        var methods = await GetActiveMethodsAsync();
+        var methodLookup = methods.ToDictionary(m => m.DeliveryMethodId);
+
+        return ComputeClosestTimedMethodId(
+            rules.Select(r => r.DeliveryMethodId),
+            methodLookup);
     }
 
     // ---- Auto-assignment ----

@@ -180,23 +180,40 @@ public class PollingBackgroundService : BackgroundService
     {
         var changed = new List<int>();
         var methods = await _deliveryService.GetActiveMethodsAsync();
-        var now = DateTime.Now.TimeOfDay;
+        var allOrders = await _orderService.GetAllOrdersAsync(includeHidden: false);
+        var now = DateTime.Now;
 
         foreach (var method in methods)
         {
             if (method.IsAdHoc) continue;
             if (!method.WindowStartTime.HasValue || !method.WindowEndTime.HasValue) continue;
-            if (now <= method.WindowEndTime.Value) continue;
 
-            var allOrders = await _orderService.GetAllOrdersAsync(includeHidden: false);
             var assignedOrders = allOrders
-                .Where(o => o.DeliveryMethodId == method.DeliveryMethodId && !o.Hidden)
+                .Where(o => o.DeliveryMethodId == method.DeliveryMethodId
+                         && !o.Hidden
+                         && o.CurrentStage == "PACKED")
                 .ToList();
 
             if (assignedOrders.Count == 0) continue;
 
+            var windowEnd = method.WindowEndTime.Value;
+            var hiddenCount = 0;
+
             foreach (var order in assignedOrders)
             {
+                // Compute when this specific order's delivery window expires.
+                // If packed before/during the window → expires same day.
+                // If packed after the window ended → it's for tomorrow's occurrence.
+                var packedAtLocal = order.StageUpdatedAt.ToLocalTime();
+
+                DateTime expiresAt;
+                if (packedAtLocal.TimeOfDay <= windowEnd)
+                    expiresAt = packedAtLocal.Date + windowEnd;      // same day
+                else
+                    expiresAt = packedAtLocal.Date.AddDays(1) + windowEnd; // next day
+
+                if (now < expiresAt) continue; // not yet expired for this order
+
                 order.Hidden = true;
                 order.HiddenReason = $"Window expired for '{method.Name}'";
                 order.HiddenAt = DateTime.UtcNow;
@@ -211,13 +228,17 @@ public class PollingBackgroundService : BackgroundService
                 });
 
                 changed.Add(order.AppOrderId);
+                hiddenCount++;
             }
 
-            _logger.LogInformation("Window expired for method '{Name}': hid {Count} orders",
-                method.Name, assignedOrders.Count);
+            if (hiddenCount > 0)
+            {
+                _logger.LogInformation("Window expired for method '{Name}': hid {Count} orders",
+                    method.Name, hiddenCount);
 
-            await _hubContext.Clients.All.SendAsync("delivery.updated",
-                new { action = "window_expired", deliveryMethodId = method.DeliveryMethodId });
+                await _hubContext.Clients.All.SendAsync("delivery.updated",
+                    new { action = "window_expired", deliveryMethodId = method.DeliveryMethodId });
+            }
         }
 
         return changed;
@@ -346,6 +367,9 @@ public class PollingBackgroundService : BackgroundService
     {
         var order = await _orderService.GetOrderByIdAsync(appOrderId);
         if (order == null || order.Hidden) return;
+
+        // PACKED is a manual stage — never overwrite it with auto-computed stage
+        if (order.CurrentStage == "PACKED") return;
 
         var links = await _orderService.GetLinksForOrderAsync(appOrderId);
         var newStage = _stageEngine.ComputeStage(links);

@@ -1,32 +1,39 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import type { BoardColumn } from '../../types';
+import type { BoardColumn, DeliveryMethodDto, OrderCard as OrderCardType } from '../../types';
 import { STAGE_COLORS, type OrderStage } from '../../types';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
+import { useColumnSortFilter } from '../../hooks/useColumnSortFilter';
 import { bulkHideByStage } from '../../api/client';
 import DeliveryGroup from './DeliveryGroup';
 import QuickAssignBar from './QuickAssignBar';
 import OrderCard from './OrderCard';
+import ScrollButtons from './ScrollButtons';
+import ColumnSortFilter from './ColumnSortFilter';
 
 interface Props {
   column: BoardColumn;
   onAction: () => void;
   isDragging?: boolean;
+  deliveryMethods: DeliveryMethodDto[];
+  onCardClick?: (order: OrderCardType) => void;
 }
 
-export default function KanbanColumn({ column, onAction, isDragging }: Props) {
+export default function KanbanColumn({ column, onAction, isDragging, deliveryMethods, onCardClick }: Props) {
   const [confirming, setConfirming] = useState(false);
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `stage-${column.stage}`,
     data: { type: 'stage', stage: column.stage },
   });
 
-  const autoScrollRef = useAutoScroll();
+  const { setRef: autoScrollRef, resetIdle } = useAutoScroll();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const combinedRef = useCallback(
     (node: HTMLDivElement | null) => {
       setDropRef(node);
       autoScrollRef(node);
+      scrollContainerRef.current = node;
     },
     [setDropRef, autoScrollRef]
   );
@@ -46,9 +53,17 @@ export default function KanbanColumn({ column, onAction, isDragging }: Props) {
     setConfirming(false);
   };
 
+  // Flatten all orders across groups for sort/filter
+  const allOrders = column.groups.flatMap((g) => g.orders);
+  const { processedOrders, sortOption, setSortOption, filterMethodId, setFilterMethodId } =
+    useColumnSortFilter(allOrders);
+
   const colorClass = STAGE_COLORS[column.stage as OrderStage] || 'bg-gray-600';
   const isFlat = column.groups.length === 1 && column.groups[0].title === '';
   const isPacking = column.stage === 'PACKING';
+  const isPacked = column.stage === 'PACKED';
+  const hasDeliveryGroups = isPacking || isPacked;
+  const isCustomSort = sortOption !== 'default' || filterMethodId !== null;
 
   return (
     <div
@@ -75,43 +90,63 @@ export default function KanbanColumn({ column, onAction, isDragging }: Props) {
         </span>
       </div>
 
-      {/* Quick-assign bar for PACKING during drag */}
-      {isPacking && isDragging && (
+      {/* Sort/Filter bar */}
+      <ColumnSortFilter
+        currentSort={sortOption}
+        onSortChange={setSortOption}
+        currentFilter={filterMethodId}
+        onFilterChange={setFilterMethodId}
+        deliveryMethods={deliveryMethods}
+      />
+
+      {/* Quick-assign bar for PACKING/PACKED during drag */}
+      {hasDeliveryGroups && isDragging && (
         <QuickAssignBar groups={column.groups} stageId={column.stage} />
       )}
 
-      {/* Column body */}
-      <div ref={combinedRef} className="flex-1 p-3 overflow-y-auto min-h-[200px] max-h-[calc(100vh-160px)]">
-        {isFlat ? (
-          /* Flat rendering: cards directly, no group wrapper */
-          <div className="space-y-2">
-            {column.groups[0].orders.map((order) => (
-              <OrderCard key={order.appOrderId} order={order} onAction={onAction} />
-            ))}
-            {column.groups[0].orders.length === 0 && (
-              <div className="text-sm text-gray-400 text-center py-8">
-                אין הזמנות
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Grouped rendering: delivery groups */
-          <>
-            {column.groups.map((group, i) => (
-              <DeliveryGroup
-                key={`${group.deliveryMethodId ?? 'u'}-${group.deliveryRunId ?? 'u'}-${i}`}
-                group={group}
-                stageId={column.stage}
-                onAction={onAction}
-              />
-            ))}
-            {column.groups.length === 0 && (
-              <div className="text-sm text-gray-400 text-center py-8">
-                אין הזמנות
-              </div>
-            )}
-          </>
-        )}
+      {/* Column body with scroll buttons */}
+      <div className="relative flex-1">
+        <ScrollButtons containerRef={scrollContainerRef} onInteraction={resetIdle} />
+        <div ref={combinedRef} className="flex-1 p-2 overflow-y-auto min-h-[200px] max-h-[calc(100vh-210px)]">
+          {isCustomSort || isFlat ? (
+            /* Flat/sorted rendering: cards directly */
+            <div className="space-y-1.5">
+              {(isCustomSort ? processedOrders : column.groups[0].orders).map((order) => (
+                <OrderCard
+                  key={order.appOrderId}
+                  order={order}
+                  onAction={onAction}
+                  onClick={hasDeliveryGroups && onCardClick ? () => onCardClick(order) : undefined}
+                  showPackedButton={isPacking}
+                />
+              ))}
+              {(isCustomSort ? processedOrders : column.groups[0].orders).length === 0 && (
+                <div className="text-sm text-gray-400 text-center py-8">
+                  אין הזמנות
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Grouped rendering: delivery groups */
+            <>
+              {column.groups.map((group, i) => (
+                <DeliveryGroup
+                  key={`${group.deliveryMethodId ?? 'u'}-${group.deliveryRunId ?? 'u'}-${i}`}
+                  group={group}
+                  stageId={column.stage}
+                  onAction={onAction}
+                  onCardClick={hasDeliveryGroups && onCardClick ? onCardClick : undefined}
+                  showPackedButton={isPacking}
+                />
+              ))}
+              {column.groups.length === 0 && (
+                <div className="text-sm text-gray-400 text-center py-8">
+                  אין הזמנות
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

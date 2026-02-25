@@ -1,4 +1,4 @@
-import type { BoardResponse, DeliveryMethodFull, CustomerRule, AccountSearchResult } from '../types';
+import type { BoardResponse, DeliveryMethodFull, CustomerRule, AccountSearchResult, ArchiveBoardResponse, OrderTimelineEvent } from '../types';
 
 const BASE = '/api';
 
@@ -180,6 +180,16 @@ export async function updateCustomerRule(id: number, body: {
 
 export async function deactivateCustomerRule(id: number): Promise<void> {
   await fetchJson(`${BASE}/customer-rules/${id}`, { method: 'DELETE' });
+}
+
+// ---- Archive ----
+
+export async function getArchiveBoard(date: string): Promise<ArchiveBoardResponse> {
+  return fetchJson(`${BASE}/archive?date=${date}`);
+}
+
+export async function getOrderTimeline(appOrderId: number): Promise<OrderTimelineEvent[]> {
+  return fetchJson(`${BASE}/archive/order/${appOrderId}/timeline`);
 }
 
 // ---- Account Search ----

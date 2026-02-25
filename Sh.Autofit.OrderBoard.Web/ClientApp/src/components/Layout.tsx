@@ -21,6 +21,9 @@ export default function Layout() {
             <NavLink to="/customer-rules" className={linkClass}>
               כללי לקוחות
             </NavLink>
+            <NavLink to="/archive" className={linkClass}>
+              ארכיון
+            </NavLink>
           </div>
         </div>
       </nav>

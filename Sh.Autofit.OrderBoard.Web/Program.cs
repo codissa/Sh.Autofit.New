@@ -13,6 +13,7 @@ builder.Services.AddSingleton<ISh2013PollingService>(new Sh2013PollingService(co
 builder.Services.AddSingleton<IAppOrderService>(new AppOrderService(connectionString));
 builder.Services.AddSingleton<IDeliveryService>(new DeliveryService(connectionString));
 builder.Services.AddSingleton<IAccountsService>(new AccountsService(connectionString));
+builder.Services.AddSingleton<IArchiveService>(new ArchiveService(connectionString));
 
 // Business logic
 builder.Services.AddSingleton<IStageEngine, StageEngine>();

@@ -15,7 +15,7 @@ public class OrdersController : ControllerBase
     private readonly IDeliveryService _deliveryService;
     private readonly IHubContext<BoardHub> _hubContext;
 
-    private static readonly HashSet<string> ValidStages = ["ORDER_IN_PC", "ORDER_PRINTED", "DOC_IN_PC", "PACKING"];
+    private static readonly HashSet<string> ValidStages = ["ORDER_IN_PC", "ORDER_PRINTED", "DOC_IN_PC", "PACKING", "PACKED"];
 
     public OrdersController(IAppOrderService orderService, IDeliveryService deliveryService, IHubContext<BoardHub> hubContext)
     {
@@ -88,6 +88,19 @@ public class OrdersController : ControllerBase
         if (order == null) return NotFound();
 
         var oldStage = order.CurrentStage;
+
+        // When packing (→ PACKED), lock in the effective delivery method
+        // so the order persists in the correct group
+        if (request.ToStage == "PACKED")
+        {
+            var effectiveMethodId = await _deliveryService.GetEffectiveDeliveryMethodIdAsync(order.AccountKey);
+            if (effectiveMethodId.HasValue)
+            {
+                order.DeliveryMethodId = effectiveMethodId.Value;
+                order.DeliveryRunId = null;
+            }
+        }
+
         order.CurrentStage = request.ToStage;
         order.StageUpdatedAt = DateTime.UtcNow;
         await _orderService.UpdateOrderAsync(order);

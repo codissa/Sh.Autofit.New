@@ -1,12 +1,13 @@
-export type OrderStage = 'ORDER_IN_PC' | 'ORDER_PRINTED' | 'DOC_IN_PC' | 'PACKING';
+export type OrderStage = 'ORDER_IN_PC' | 'ORDER_PRINTED' | 'DOC_IN_PC' | 'PACKING' | 'PACKED';
 
-export const STAGES: OrderStage[] = ['ORDER_IN_PC', 'ORDER_PRINTED', 'DOC_IN_PC', 'PACKING'];
+export const STAGES: OrderStage[] = ['ORDER_IN_PC', 'ORDER_PRINTED', 'DOC_IN_PC', 'PACKING', 'PACKED'];
 
 export const STAGE_LABELS: Record<OrderStage, string> = {
   ORDER_IN_PC: 'הזמנה במחשב',
   ORDER_PRINTED: 'הזמנה הודפסה',
   DOC_IN_PC: 'מסמך במחשב',
   PACKING: 'אריזה',
+  PACKED: 'נארז',
 };
 
 export const STAGE_COLORS: Record<OrderStage, string> = {
@@ -14,6 +15,7 @@ export const STAGE_COLORS: Record<OrderStage, string> = {
   ORDER_PRINTED: 'bg-amber-600',
   DOC_IN_PC: 'bg-purple-600',
   PACKING: 'bg-green-600',
+  PACKED: 'bg-teal-600',
 };
 
 export interface OrderCard {
@@ -35,6 +37,14 @@ export interface OrderCard {
   needsResolve: boolean;
   stackCount: number;
   stackedOrderIds: number[] | null;
+  createdAt: string;
+  stageUpdatedAt: string;
+  closestRuleName: string | null;
+  closestRuleWindow: string | null;
+  hasPackedSibling: boolean;
+  // Archive-only fields (null on live board)
+  packedAt: string | null;
+  packedDuration: string | null;
 }
 
 export interface DeliveryGroup {
@@ -103,4 +113,29 @@ export interface AccountSearchResult {
   fullName: string | null;
   city: string | null;
   phone: string | null;
+}
+
+// ---- Archive ----
+
+export interface ArchiveDaySummary {
+  totalOrders: number;
+  ordersPacked: number;
+  ordersCreated: number;
+  byStage: Record<string, number>;
+}
+
+export interface ArchiveBoardResponse {
+  date: string;
+  columns: BoardColumn[];
+  deliveryMethods: DeliveryMethodDto[];
+  summary: ArchiveDaySummary;
+}
+
+export interface OrderTimelineEvent {
+  eventId: number;
+  at: string;
+  action: string;
+  fromStage: string | null;
+  toStage: string | null;
+  actor: string | null;
 }

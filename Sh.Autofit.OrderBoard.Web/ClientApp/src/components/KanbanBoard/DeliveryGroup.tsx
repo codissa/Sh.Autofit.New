@@ -1,14 +1,16 @@
 import { useDroppable } from '@dnd-kit/core';
-import type { DeliveryGroup as DeliveryGroupType } from '../../types';
+import type { DeliveryGroup as DeliveryGroupType, OrderCard as OrderCardType } from '../../types';
 import OrderCard from './OrderCard';
 
 interface Props {
   group: DeliveryGroupType;
   stageId: string;
   onAction: () => void;
+  onCardClick?: (order: OrderCardType) => void;
+  showPackedButton?: boolean;
 }
 
-export default function DeliveryGroup({ group, stageId, onAction }: Props) {
+export default function DeliveryGroup({ group, stageId, onAction, onCardClick, showPackedButton }: Props) {
   const droppableId = group.deliveryRunId
     ? `delivery-run-${group.deliveryRunId}`
     : group.deliveryMethodId
@@ -45,9 +47,15 @@ export default function DeliveryGroup({ group, stageId, onAction }: Props) {
       </div>
 
       {/* Cards */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {group.orders.map((order) => (
-          <OrderCard key={order.appOrderId} order={order} onAction={onAction} />
+          <OrderCard
+            key={order.appOrderId}
+            order={order}
+            onAction={onAction}
+            onClick={onCardClick ? () => onCardClick(order) : undefined}
+            showPackedButton={showPackedButton}
+          />
         ))}
         {group.orders.length === 0 && (
           <div className="text-xs text-gray-400 text-center py-3">

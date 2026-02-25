@@ -19,6 +19,7 @@ public class BoardBuilder : IBoardBuilder
         ("ORDER_PRINTED", "הזמנה הודפסה"),
         ("DOC_IN_PC", "מסמך במחשב"),
         ("PACKING", "אריזה"),
+        ("PACKED", "נארז"),
     ];
 
     public BoardBuilder(IAppOrderService orderService, IDeliveryService deliveryService)
@@ -36,23 +37,33 @@ public class BoardBuilder : IBoardBuilder
         // Build method lookup
         var methodLookup = methods.ToDictionary(m => m.DeliveryMethodId);
 
+        // Build closest-rule lookup per account
+        var accountKeys = orders.Select(o => o.AccountKey).Distinct().ToList();
+        var allRules = await _deliveryService.GetRulesForAccountsAsync(accountKeys);
+        var closestRuleLookup = BuildClosestRuleLookup(allRules, methodLookup);
+
+        // Dynamic delivery routing: for PACKING orders whose account has 2+
+        // delivery methods with time windows, override in-memory to the closest method.
+        // Display-only — no DB writes. PACKED orders are never touched.
+        ApplyDynamicPackingRouting(orders, allRules, methodLookup);
+
         // Build columns
         var columns = new List<BoardColumn>();
         foreach (var (stage, label) in Stages)
         {
             var stageOrders = orders.Where(o => o.CurrentStage == stage).ToList();
 
-            // Only PACKING gets delivery groups; other stages are flat
+            // PACKING and PACKED get delivery groups; other stages are flat
             List<DeliveryGroupDto> groups;
-            if (stage == "PACKING")
+            if (stage is "PACKING" or "PACKED")
             {
-                groups = BuildGroups(stageOrders, methodLookup, openRuns);
+                groups = BuildGroups(stageOrders, methodLookup, openRuns, closestRuleLookup);
             }
             else
             {
                 var cards = stageOrders
                     .OrderByDescending(o => o.DisplayTime ?? DateTime.MinValue)
-                    .Select(o => MapToCardDto(o, methodLookup)).ToList();
+                    .Select(o => MapToCardDto(o, methodLookup, closestRuleLookup)).ToList();
                 cards = StackCards(cards);
                 groups =
                 [
@@ -74,39 +85,59 @@ public class BoardBuilder : IBoardBuilder
             });
         }
 
-        // Inject empty groups in PACKING for active delivery methods
-        var packingColumn = columns.First(c => c.Stage == "PACKING");
+        // Inject empty groups in PACKING and PACKED for active delivery methods
         var now = DateTime.Now.TimeOfDay;
+        var groupedColumns = columns.Where(c => c.Stage is "PACKING" or "PACKED");
 
-        foreach (var method in methods)
+        foreach (var col in groupedColumns)
         {
-            bool shouldShow = method.IsAdHoc
-                || (method.WindowStartTime.HasValue && method.WindowEndTime.HasValue
-                    && now >= method.WindowStartTime.Value && now <= method.WindowEndTime.Value);
-
-            if (!shouldShow) continue;
-
-            bool alreadyExists = packingColumn.Groups.Any(g => g.DeliveryMethodId == method.DeliveryMethodId);
-            if (!alreadyExists)
+            foreach (var method in methods)
             {
-                packingColumn.Groups.Add(new DeliveryGroupDto
+                bool shouldShow = method.IsAdHoc
+                    || (method.WindowStartTime.HasValue && method.WindowEndTime.HasValue
+                        && now >= method.WindowStartTime.Value && now <= method.WindowEndTime.Value);
+
+                if (!shouldShow) continue;
+
+                bool alreadyExists = col.Groups.Any(g => g.DeliveryMethodId == method.DeliveryMethodId);
+                if (!alreadyExists)
                 {
-                    Title = method.Name,
-                    DeliveryMethodId = method.DeliveryMethodId,
-                    TimeWindow = method.WindowStartTime.HasValue
-                        ? $"{method.WindowStartTime:hh\\:mm}-{method.WindowEndTime:hh\\:mm}"
-                        : null,
-                    Count = 0,
-                    Orders = []
-                });
+                    col.Groups.Add(new DeliveryGroupDto
+                    {
+                        Title = method.Name,
+                        DeliveryMethodId = method.DeliveryMethodId,
+                        TimeWindow = method.WindowStartTime.HasValue
+                            ? $"{method.WindowStartTime:hh\\:mm}-{method.WindowEndTime:hh\\:mm}"
+                            : null,
+                        Count = 0,
+                        Orders = []
+                    });
+                }
             }
+
+            // Re-sort so unassigned stays at the bottom after injection
+            col.Groups = col.Groups
+                .OrderBy(g => g.Title == "לא משויך" ? 1 : 0)
+                .ThenBy(g => g.Title)
+                .ToList();
         }
 
-        // Re-sort so unassigned stays at the bottom after injection
-        packingColumn.Groups = packingColumn.Groups
-            .OrderBy(g => g.Title == "לא משויך" ? 1 : 0)
-            .ThenBy(g => g.Title)
-            .ToList();
+        // Compute HasPackedSibling: accounts that have orders in PACKED AND in another stage
+        var allCards = columns.SelectMany(c => c.Groups.SelectMany(g => g.Orders)).ToList();
+        var packedAccounts = new HashSet<string>(
+            allCards.Where(c => c.CurrentStage == "PACKED").Select(c => c.AccountKey));
+        var otherAccounts = new HashSet<string>(
+            allCards.Where(c => c.CurrentStage != "PACKED").Select(c => c.AccountKey));
+        var siblingAccounts = new HashSet<string>(packedAccounts.Where(a => otherAccounts.Contains(a)));
+
+        if (siblingAccounts.Count > 0)
+        {
+            foreach (var card in allCards)
+            {
+                if (siblingAccounts.Contains(card.AccountKey))
+                    card.HasPackedSibling = true;
+            }
+        }
 
         // Build delivery method DTOs
         var methodDtos = methods.Select(m => new DeliveryMethodDto
@@ -138,7 +169,8 @@ public class BoardBuilder : IBoardBuilder
     private List<DeliveryGroupDto> BuildGroups(
         List<AppOrder> orders,
         Dictionary<int, DeliveryMethod> methodLookup,
-        List<DeliveryRun> openRuns)
+        List<DeliveryRun> openRuns,
+        Dictionary<string, (string Name, string Window)?> closestRuleLookup)
     {
         var groups = new Dictionary<string, DeliveryGroupDto>();
 
@@ -182,7 +214,7 @@ public class BoardBuilder : IBoardBuilder
                 groups[groupKey] = group;
             }
 
-            group.Orders.Add(MapToCardDto(order, methodLookup));
+            group.Orders.Add(MapToCardDto(order, methodLookup, closestRuleLookup));
         }
 
         // Update counts
@@ -203,11 +235,16 @@ public class BoardBuilder : IBoardBuilder
             .ToList();
     }
 
-    private static OrderCardDto MapToCardDto(AppOrder order, Dictionary<int, DeliveryMethod> methodLookup)
+    private static OrderCardDto MapToCardDto(
+        AppOrder order,
+        Dictionary<int, DeliveryMethod> methodLookup,
+        Dictionary<string, (string Name, string Window)?> closestRuleLookup)
     {
         string? methodName = null;
         if (order.DeliveryMethodId.HasValue && methodLookup.TryGetValue(order.DeliveryMethodId.Value, out var m))
             methodName = m.Name;
+
+        closestRuleLookup.TryGetValue(order.AccountKey, out var ruleInfo);
 
         return new OrderCardDto
         {
@@ -226,8 +263,103 @@ public class BoardBuilder : IBoardBuilder
             DeliveryMethodId = order.DeliveryMethodId,
             DeliveryMethodName = methodName,
             DeliveryRunId = order.DeliveryRunId,
-            NeedsResolve = order.NeedsResolve
+            NeedsResolve = order.NeedsResolve,
+            CreatedAt = order.CreatedAt,
+            StageUpdatedAt = order.StageUpdatedAt,
+            ClosestRuleName = ruleInfo?.Name,
+            ClosestRuleWindow = ruleInfo?.Window
         };
+    }
+
+    private static Dictionary<string, (string Name, string Window)?> BuildClosestRuleLookup(
+        List<DeliveryMethodCustomerRule> allRules,
+        Dictionary<int, DeliveryMethod> methodLookup)
+    {
+        var now = DateTime.Now.TimeOfDay;
+        var lookup = new Dictionary<string, (string Name, string Window)?>();
+
+        var byAccount = allRules.GroupBy(r => r.AccountKey);
+        foreach (var group in byAccount)
+        {
+            var accountRules = group
+                .Where(r => r.WindowStart.HasValue && r.WindowEnd.HasValue)
+                .ToList();
+
+            if (accountRules.Count == 0)
+            {
+                lookup[group.Key] = null;
+                continue;
+            }
+
+            DeliveryMethodCustomerRule? closest = null;
+            var closestDist = TimeSpan.MaxValue;
+
+            foreach (var rule in accountRules)
+            {
+                var start = rule.WindowStart!.Value;
+                var end = rule.WindowEnd!.Value;
+
+                TimeSpan dist;
+                if (now >= start && now <= end)
+                    dist = TimeSpan.Zero; // currently active window
+                else if (now < start)
+                    dist = start - now;   // upcoming window today
+                else
+                    dist = (TimeSpan.FromHours(24) - now) + start; // wraps to tomorrow
+
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    closest = rule;
+                }
+            }
+
+            if (closest != null && methodLookup.TryGetValue(closest.DeliveryMethodId, out var method))
+            {
+                lookup[group.Key] = (
+                    method.Name,
+                    $"{closest.WindowStart:hh\\:mm}-{closest.WindowEnd:hh\\:mm}"
+                );
+            }
+            else
+            {
+                lookup[group.Key] = null;
+            }
+        }
+
+        return lookup;
+    }
+
+    /// <summary>
+    /// For PACKING orders whose account has rules for 2+ delivery methods with time windows,
+    /// override DeliveryMethodId in-memory to the closest method's window.
+    /// No DB writes — purely visual. PACKED orders are never touched.
+    /// </summary>
+    private static void ApplyDynamicPackingRouting(
+        List<AppOrder> orders,
+        List<DeliveryMethodCustomerRule> allRules,
+        Dictionary<int, DeliveryMethod> methodLookup)
+    {
+        // Build effective method per account (only accounts with 2+ timed methods)
+        var effectiveLookup = new Dictionary<string, int>();
+        foreach (var group in allRules.GroupBy(r => r.AccountKey))
+        {
+            var effectiveId = DeliveryService.ComputeClosestTimedMethodId(
+                group.Select(r => r.DeliveryMethodId), methodLookup);
+            if (effectiveId != null)
+                effectiveLookup[group.Key] = effectiveId.Value;
+        }
+
+        if (effectiveLookup.Count == 0) return;
+
+        // Apply override to PACKING orders only
+        foreach (var order in orders)
+        {
+            if (order.CurrentStage != "PACKING") continue;
+            if (!effectiveLookup.TryGetValue(order.AccountKey, out var methodId)) continue;
+            order.DeliveryMethodId = methodId;
+            order.DeliveryRunId = null;
+        }
     }
 
     /// <summary>
