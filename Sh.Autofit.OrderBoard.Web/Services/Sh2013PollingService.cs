@@ -51,7 +51,13 @@ public class Sh2013PollingService : ISh2013PollingService
 
         using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync();
-        var rows = await conn.QueryAsync<StockRow>(sql, new { Ids = ids }, commandTimeout: 30);
-        return rows.ToList();
+
+        var result = new List<StockRow>(ids.Count);
+        foreach (var batch in ids.Chunk(2000))
+        {
+            var rows = await conn.QueryAsync<StockRow>(sql, new { Ids = batch }, commandTimeout: 30);
+            result.AddRange(rows);
+        }
+        return result;
     }
 }

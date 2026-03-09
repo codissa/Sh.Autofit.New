@@ -154,6 +154,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             LoadItemCommand.RaiseCanExecuteChanged();
             PrintCommand.RaiseCanExecuteChanged();
+            QuickPrintCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -186,6 +187,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
 
     public AsyncRelayCommand LoadItemCommand { get; }
     public AsyncRelayCommand PrintCommand { get; }
+    public AsyncRelayCommand QuickPrintCommand { get; }
     public AsyncRelayCommand EditArabicCommand { get; }
     public RelayCommand SelectSuggestionCommand { get; }
     public RelayCommand CloseDropdownCommand { get; }
@@ -205,6 +207,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
 
         LoadItemCommand = new AsyncRelayCommand(_ => LoadItemAsync(), _ => CanLoadItem());
         PrintCommand = new AsyncRelayCommand(_ => PrintAsync(), _ => CanPrint());
+        QuickPrintCommand = new AsyncRelayCommand(param => QuickPrintAsync(param), _ => CanPrint());
         EditArabicCommand = new AsyncRelayCommand(_ => EditArabicDescriptionAsync(), _ => CanEditArabicDescription);
         SelectSuggestionCommand = new RelayCommand(SelectSuggestion);
         CloseDropdownCommand = new RelayCommand(_ => CloseDropdown());
@@ -275,6 +278,16 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
         }
     }
 
+    private async Task QuickPrintAsync(object? param)
+    {
+        if (CurrentLabel == null || string.IsNullOrEmpty(SelectedPrinter)) return;
+        if (param is string s && int.TryParse(s, out int qty) && qty > 0)
+        {
+            CurrentLabel.Quantity = qty;
+            await PrintAsync();
+        }
+    }
+
     private async Task PrintAsync()
     {
         if (CurrentLabel == null || string.IsNullOrEmpty(SelectedPrinter))
@@ -322,6 +335,7 @@ public class PrintOnDemandViewModel : INotifyPropertyChanged
             IsLoading = false;
             _lastPrintTime = DateTime.Now;
             PrintCommand.RaiseCanExecuteChanged();
+            QuickPrintCommand.RaiseCanExecuteChanged();
         }
     }
 

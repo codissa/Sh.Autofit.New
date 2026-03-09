@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { OrderCard as OrderCardType, DeliveryGroup } from '../../types';
 
 interface Props {
@@ -8,8 +9,14 @@ interface Props {
 }
 
 export default function PackingAssignPopup({ order, groups, onAssign, onClose }: Props) {
+  const openedAt = useRef(Date.now());
+
+  const handleOverlayClick = () => {
+    if (Date.now() - openedAt.current > 300) onClose();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={handleOverlayClick}>
       <div
         className="bg-white rounded-2xl shadow-2xl p-6 min-w-[280px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}

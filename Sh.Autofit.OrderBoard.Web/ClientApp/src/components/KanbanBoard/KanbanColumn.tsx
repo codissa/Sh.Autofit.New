@@ -107,7 +107,7 @@ export default function KanbanColumn({ column, onAction, isDragging, deliveryMet
       {/* Column body with scroll buttons */}
       <div className="relative flex-1">
         <ScrollButtons containerRef={scrollContainerRef} onInteraction={resetIdle} />
-        <div ref={combinedRef} className="flex-1 p-2 overflow-y-auto min-h-[200px] max-h-[calc(100vh-210px)]">
+        <div ref={combinedRef} className="flex-1 p-2 overflow-y-auto min-h-[200px] max-h-[calc(100vh-210px)] touch-pan-y">
           {isCustomSort || isFlat ? (
             /* Flat/sorted rendering: cards directly */
             <div className="space-y-1.5">

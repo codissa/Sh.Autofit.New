@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
-             d:DesignHeight="700" d:DesignWidth="1200"
+             d:DesignHeight="800" d:DesignWidth="1200"
              FlowDirection="RightToLeft">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -15,11 +15,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Loading Overlay -->
-        <Border Grid.Row="0" Grid.RowSpan="4"
+        <Border Grid.Row="0" Grid.RowSpan="5"
                Background="#80000000"
                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                Panel.ZIndex="1000">
@@ -28,9 +29,8 @@
                    Padding="30"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
-                   MinWidth="300">
+                   MinWidth="400">
                 <StackPanel>
-                    <TextBlock Text="⏳" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,10"/>
                     <TextBlock Text="{Binding StatusMessage}"
                               FontSize="14"
                               FontWeight="SemiBold"
@@ -38,21 +38,18 @@
                               TextWrapping="Wrap"
                               TextAlignment="Center"/>
 
-                    <!-- Progress Bar -->
                     <ProgressBar Height="20"
                                 Margin="0,15,0,10"
                                 Minimum="0"
                                 Maximum="{Binding TotalRecords}"
-                                Value="{Binding Progress}"
-                                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                Value="{Binding Progress}"/>
 
                     <TextBlock HorizontalAlignment="Center"
                               FontSize="12"
-                              Foreground="Gray"
-                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <Run Text="{Binding Progress, Mode=OneWay}"/>
+                              Foreground="Gray">
+                        <Run Text="{Binding Progress, Mode=OneWay, StringFormat=N0}"/>
                         <Run Text="/"/>
-                        <Run Text="{Binding TotalRecords, Mode=OneWay}"/>
+                        <Run Text="{Binding TotalRecords, Mode=OneWay, StringFormat=N0}"/>
                     </TextBlock>
 
                     <Button Content="ביטול"
@@ -68,82 +65,145 @@
             </Border>
         </Border>
 
-        <!-- Title Section -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="סנכרון נתוני רכבים"
+        <!-- Title -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+            <TextBlock Text="סנכרון נתוני רכבים ממשלתיים"
                       FontSize="28"
                       FontWeight="Bold"/>
-            <TextBlock Text="סנכרון נתוני רכבים ממאגר הממשלה (הספק כוח, הנעה, ועוד)"
+            <TextBlock Text="הורדת כל מאגרי הרכבים הממשלתיים למסד נתונים מקומי לחיפוש מהיר"
                       FontSize="14"
                       Foreground="Gray"
                       Margin="0,5,0,0"/>
         </StackPanel>
 
-        <!-- Action Buttons -->
+        <!-- Stats Panel -->
         <Border Grid.Row="1"
+               Background="#E3F2FD"
+               CornerRadius="8"
+               Padding="15"
+               Margin="0,0,0,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Vehicle Types -->
+                <StackPanel Grid.Column="0" Margin="5">
+                    <TextBlock Text="סוגי רכב" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding VehicleTypeCount}" FontSize="20" FontWeight="Bold" Foreground="#1565C0"/>
+                </StackPanel>
+
+                <!-- Consolidated Models -->
+                <StackPanel Grid.Column="1" Margin="5">
+                    <TextBlock Text="דגמים מאוחדים" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding ConsolidatedModelCount}" FontSize="20" FontWeight="Bold" Foreground="#1565C0"/>
+                </StackPanel>
+
+                <!-- WLTP -->
+                <StackPanel Grid.Column="2" Margin="5">
+                    <TextBlock Text="מפרטי WLTP" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding WltpStats}" FontSize="12" Foreground="#333" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Quantities -->
+                <StackPanel Grid.Column="3" Margin="5">
+                    <TextBlock Text="כמויות רכבים" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding QuantityStats}" FontSize="12" Foreground="#333" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Registrations -->
+                <StackPanel Grid.Column="4" Margin="5">
+                    <TextBlock Text="רישומי רכבים" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding RegistrationStats}" FontSize="12" Foreground="#333" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Action Buttons -->
+        <Border Grid.Row="2"
                Background="#F5F5F5"
                CornerRadius="8"
-               Padding="20"
-               Margin="0,0,0,20">
-            <StackPanel>
-                <TextBlock Text="פעולות"
-                          FontSize="16"
-                          FontWeight="SemiBold"
-                          Margin="0,0,0,15"/>
-
-                <Button Content="🔄 סנכרן את כל הרכבים"
-                       Command="{Binding SyncAllVehiclesCommand}"
+               Padding="15"
+               Margin="0,0,0,15">
+            <WrapPanel Orientation="Horizontal">
+                <!-- Sync All (incremental) -->
+                <Button Command="{Binding SyncAllDataCommand}"
                        Padding="15,10"
-                       FontSize="16"
+                       FontSize="14"
                        FontWeight="SemiBold"
                        Background="#4CAF50"
                        Foreground="White"
                        BorderThickness="0"
                        Cursor="Hand"
-                       HorizontalAlignment="Right"
-                       Margin="0,0,0,10">
+                       Margin="0,0,10,5">
+                    <TextBlock Text="סנכרון כל המאגרים"/>
                     <Button.ToolTip>
-                        <TextBlock Text="מסנכרן את כל הרכבים במערכת עם נתוני הממשלה&#x0a;(כ-93,000 רשומות, עשוי לקחת 5-10 דקות)"
-                                  TextWrapping="Wrap"
-                                  MaxWidth="300"/>
+                        <TextBlock Text="סנכרון אינקרמנטלי — מוריד רק רשומות חדשות" TextWrapping="Wrap" MaxWidth="300"/>
                     </Button.ToolTip>
                 </Button>
 
-                <TextBlock Text="ℹ️ הסנכרון יעדכן: הספק כוח, סוג הנעה (2WD/4WD/AWD), דלתות, מושבים, משקל, דירוג בטיחות, דירוג ירוק, רמת גימור וסוג מרכב"
-                          FontSize="12"
-                          Foreground="Gray"
-                          TextWrapping="Wrap"
-                          Margin="0,0,0,15"/>
+                <!-- Full Refresh -->
+                <Button Command="{Binding FullRefreshCommand}"
+                       Padding="15,10"
+                       FontSize="14"
+                       Background="#FF9800"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"
+                       Margin="0,0,10,5">
+                    <TextBlock Text="רענון מלא"/>
+                    <Button.ToolTip>
+                        <TextBlock Text="מוחק את כל הנתונים המקומיים ומוריד הכל מחדש" TextWrapping="Wrap" MaxWidth="300"/>
+                    </Button.ToolTip>
+                </Button>
 
-                <Border BorderBrush="#FFC107"
-                       BorderThickness="2"
-                       CornerRadius="4"
-                       Padding="10"
-                       Background="#FFF9C4">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold"
-                                  Foreground="#F57C00"
-                                  Margin="0,0,0,5">
-                            <Run Text="⚠️"/>
-                            <Run Text="הערה חשובה"/>
-                        </TextBlock>
-                        <TextBlock Text="לפני הסנכרון הראשון, וודא שקודי היצרן והדגם הממשלתיים (GovernmentManufacturerCode, GovernmentModelCode) מאוכלסים בטבלת VehicleTypes."
-                                  TextWrapping="Wrap"
-                                  Foreground="#555"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="5,0"/>
+
+                <!-- Individual sync buttons -->
+                <Button Command="{Binding SyncWltpOnlyCommand}"
+                       Content="מפרטי WLTP"
+                       Padding="12,8"
+                       FontSize="12"
+                       Background="#2196F3"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"
+                       Margin="0,0,8,5"/>
+
+                <Button Command="{Binding SyncQuantitiesOnlyCommand}"
+                       Content="כמויות"
+                       Padding="12,8"
+                       FontSize="12"
+                       Background="#2196F3"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"
+                       Margin="0,0,8,5"/>
+
+                <Button Command="{Binding SyncRegistrationsOnlyCommand}"
+                       Content="רישומי רכבים"
+                       Padding="12,8"
+                       FontSize="12"
+                       Background="#2196F3"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Cursor="Hand"
+                       Margin="0,0,8,5"/>
+            </WrapPanel>
         </Border>
 
         <!-- Status and Results -->
-        <Grid Grid.Row="2" Margin="0,0,0,20">
+        <Grid Grid.Row="3" Margin="0,0,0,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Current Status -->
             <Border Grid.Column="0"
                    Background="White"
                    BorderBrush="#E0E0E0"
@@ -162,7 +222,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Last Sync Summary -->
             <Border Grid.Column="2"
                    Background="White"
                    BorderBrush="#E0E0E0"
@@ -183,7 +242,7 @@
         </Grid>
 
         <!-- Detailed Results -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                Background="White"
                BorderBrush="#E0E0E0"
                BorderThickness="1"

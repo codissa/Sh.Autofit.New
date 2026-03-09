@@ -101,7 +101,12 @@ public class AppOrderService : IAppOrderService
 
     public async Task<List<AppOrderLink>> GetAllPresentLinksAsync()
     {
-        const string sql = "SELECT * FROM dbo.AppOrderLinks WHERE IsPresent = 1";
+        const string sql = @"
+            SELECT l.* FROM dbo.AppOrderLinks l
+            INNER JOIN dbo.AppOrders o ON o.AppOrderId = l.AppOrderId
+            WHERE l.IsPresent = 1
+              AND o.Hidden = 0
+              AND o.MergedIntoAppOrderId IS NULL";
         using var conn = CreateConnection();
         await conn.OpenAsync();
         return (await conn.QueryAsync<AppOrderLink>(sql, commandTimeout: 30)).ToList();

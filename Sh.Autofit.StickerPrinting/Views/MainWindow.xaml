@@ -240,42 +240,57 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Print Button with Spinner -->
-                    <Grid Grid.Row="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Button Grid.Column="0" Content="Print Label"
-                                Command="{Binding PrintCommand}"
-                                HorizontalAlignment="Left"
-                                Padding="15,8" FontSize="13" FontWeight="Bold"
-                                IsEnabled="{Binding IsPrinting, Converter={StaticResource InverseBoolConverter}}"/>
-
-                        <!-- Spinner when printing -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding IsPrinting, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
-                                     StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
-                                <Ellipse.RenderTransform>
-                                    <RotateTransform Angle="0"/>
-                                </Ellipse.RenderTransform>
-                                <Ellipse.Triggers>
-                                    <EventTrigger RoutedEvent="Loaded">
-                                        <BeginStoryboard>
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                 From="0" To="360" Duration="0:0:1"/>
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </EventTrigger>
-                                </Ellipse.Triggers>
-                            </Ellipse>
-                            <TextBlock Text="Printing..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
+                    <!-- Quick Print Buttons + Print Button with Spinner -->
+                    <StackPanel Grid.Row="4">
+                        <!-- Quick Print Buttons -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                            <Button Content="Print 1" Command="{Binding QuickPrintCommand}" CommandParameter="1"
+                                    Padding="12,6" FontSize="12" Margin="0,0,5,0"/>
+                            <Button Content="Print 2" Command="{Binding QuickPrintCommand}" CommandParameter="2"
+                                    Padding="12,6" FontSize="12" Margin="0,0,5,0"/>
+                            <Button Content="Print 10" Command="{Binding QuickPrintCommand}" CommandParameter="10"
+                                    Padding="12,6" FontSize="12" Margin="0,0,5,0"/>
+                            <Button Content="Print 20" Command="{Binding QuickPrintCommand}" CommandParameter="20"
+                                    Padding="12,6" FontSize="12"/>
                         </StackPanel>
-                    </Grid>
+
+                        <!-- Print Button + Spinner -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0" Content="Print Label"
+                                    Command="{Binding PrintCommand}"
+                                    HorizontalAlignment="Left"
+                                    Padding="15,8" FontSize="13" FontWeight="Bold"
+                                    IsEnabled="{Binding IsPrinting, Converter={StaticResource InverseBoolConverter}}"/>
+
+                            <!-- Spinner when printing -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsPrinting, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Ellipse Width="18" Height="18" StrokeThickness="2" Stroke="#2196F3"
+                                         StrokeDashArray="2,1" RenderTransformOrigin="0.5,0.5">
+                                    <Ellipse.RenderTransform>
+                                        <RotateTransform Angle="0"/>
+                                    </Ellipse.RenderTransform>
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                     From="0" To="360" Duration="0:0:1"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
+                                </Ellipse>
+                                <TextBlock Text="Printing..." VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#2196F3"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
             </TabItem>
 

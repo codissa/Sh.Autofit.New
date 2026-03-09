@@ -210,7 +210,7 @@ export default function KanbanBoard() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 p-4 pb-8">
+        <div className="flex gap-4 p-4 pb-8 overflow-x-auto touch-pan-x">
           {filteredColumns?.map((col) => (
             <KanbanColumn
               key={col.stage}

@@ -20,6 +20,7 @@ public partial class PlateLookupViewModel : ObservableObject
     private readonly IVirtualPartService _virtualPartService;
     private readonly IDbContextFactory<ShAutofitContext> _contextFactory;
     private readonly IVehicleQuantityService _vehicleQuantityService;
+    private CancellationTokenSource? _searchCts;
 
     [ObservableProperty]
     private string _plateNumber = string.Empty;
@@ -185,6 +186,12 @@ public partial class PlateLookupViewModel : ObservableObject
             return;
         }
 
+        // Cancel any in-progress search
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
         IsLoading = true;
         HasResults = false;
         SearchDuration = string.Empty; // Clear previous duration
@@ -209,7 +216,7 @@ public partial class PlateLookupViewModel : ObservableObject
 
             // STEP 2: Lookup via government API
             StatusMessage = "מחפש ברשומות משרד התחבורה...";
-            var govVehicle = await _governmentApiService.LookupVehicleByPlateAsync(PlateNumber);
+            var govVehicle = await _governmentApiService.LookupVehicleByPlateAsync(PlateNumber, ct);
 
             if (govVehicle == null)
             {
@@ -244,6 +251,10 @@ public partial class PlateLookupViewModel : ObservableObject
             // STEP 9: Fetch vehicle quantity data (non-blocking)
             _ = FetchVehicleCountsAsync();
         }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "החיפוש בוטל";
+        }
         catch (Exception ex)
         {
             StatusMessage = $"שגיאה: {ex.Message}";
@@ -258,6 +269,14 @@ public partial class PlateLookupViewModel : ObservableObject
             var seconds = stopwatch.Elapsed.TotalSeconds;
             SearchDuration = $"⏱️ {seconds:F2} שניות";
         }
+    }
+
+    [RelayCommand]
+    private void CancelSearch()
+    {
+        _searchCts?.Cancel();
+        StatusMessage = "החיפוש בוטל";
+        IsLoading = false;
     }
 
     //========================================

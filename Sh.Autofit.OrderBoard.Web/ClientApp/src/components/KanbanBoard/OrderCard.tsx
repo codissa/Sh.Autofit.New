@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { OrderCard as OrderCardType } from '../../types';
@@ -11,6 +12,19 @@ function getSlaStatus(stage: string, stageUpdatedAt: string): SlaStatus {
   if (mins < 30) return 'green';
   if (mins < 60) return 'yellow';
   return 'red';
+}
+
+function formatTimeOrDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  if (isToday) return time;
+  const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+  return `${date} ${time}`;
 }
 
 const SLA_BORDER: Record<SlaStatus, string> = {
@@ -32,6 +46,8 @@ export default function OrderCard({ order, onAction, onClick, showPackedButton }
     id: `card-${order.appOrderId}`,
     data: { type: 'card', order },
   });
+
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -76,11 +92,28 @@ export default function OrderCard({ order, onAction, onClick, showPackedButton }
     if (onClick) onClick();
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!onClick || !touchStartRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = Math.abs(t.clientX - touchStartRef.current.x);
+    const dy = Math.abs(t.clientY - touchStartRef.current.y);
+    touchStartRef.current = null;
+    if (dx < 10 && dy < 10) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   const createdAtStr = order.createdAt
-    ? new Date(order.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    ? formatTimeOrDateTime(order.createdAt)
     : '';
   const stageTimeStr = order.stageUpdatedAt
-    ? new Date(order.stageUpdatedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    ? formatTimeOrDateTime(order.stageUpdatedAt)
     : '';
 
   const slaStatus = getSlaStatus(order.currentStage, order.stageUpdatedAt);
@@ -91,6 +124,8 @@ export default function OrderCard({ order, onAction, onClick, showPackedButton }
       ref={setNodeRef}
       style={style}
       onClick={handleClick}
+      onTouchStart={onClick ? handleTouchStart : undefined}
+      onTouchEnd={onClick ? handleTouchEnd : undefined}
       className={`relative p-1.5 border rounded-lg shadow-sm
         hover:shadow-md transition-shadow select-none
         ${slaBorder}

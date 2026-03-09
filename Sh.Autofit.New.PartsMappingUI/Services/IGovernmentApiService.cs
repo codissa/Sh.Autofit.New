@@ -4,7 +4,7 @@ namespace Sh.Autofit.New.PartsMappingUI.Services;
 
 public interface IGovernmentApiService
 {
-    Task<GovernmentVehicleRecord?> LookupVehicleByPlateAsync(string plateNumber);
-    Task<bool> IsVehicleOffRoadAsync(string plateNumber);
-    Task<bool> IsPersonalImportAsync(string plateNumber);
+    Task<GovernmentVehicleRecord?> LookupVehicleByPlateAsync(string plateNumber, CancellationToken ct = default);
+    Task<bool> IsVehicleOffRoadAsync(string plateNumber, CancellationToken ct = default);
+    Task<bool> IsPersonalImportAsync(string plateNumber, CancellationToken ct = default);
 }

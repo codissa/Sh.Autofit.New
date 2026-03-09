@@ -33,6 +33,15 @@
                             Padding="15,8"
                             Margin="10,0,0,0"
                             FontSize="14"/>
+                    <Button DockPanel.Dock="Left"
+                            Content="❌ ביטול"
+                            Command="{Binding CancelSearchCommand}"
+                            Padding="15,8"
+                            Margin="10,0,0,0"
+                            FontSize="14"
+                            Background="#F44336"
+                            Foreground="White"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     <TextBox Text="{Binding PlateNumber, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="16"
                              Padding="8"

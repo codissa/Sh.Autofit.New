@@ -46,6 +46,13 @@ public class ArchiveService : IArchiveService
                   AND se.At <= @EndOfDay
                   AND se.AppOrderId IS NOT NULL
             ),
+            InitialStage AS (
+                SELECT se.AppOrderId, se.FromStage,
+                       ROW_NUMBER() OVER (PARTITION BY se.AppOrderId ORDER BY se.At ASC, se.EventId ASC) AS rn
+                FROM dbo.StageEvents se
+                WHERE se.Action = 'MOVE_STAGE'
+                  AND se.AppOrderId IS NOT NULL
+            ),
             HideStatus AS (
                 SELECT se.AppOrderId,
                        SUM(CASE WHEN se.Action IN ('HIDE', 'BULK_HIDE') THEN 1 ELSE 0 END) AS HideCount,
@@ -77,13 +84,14 @@ public class ArchiveService : IArchiveService
             SELECT o.AppOrderId, o.AccountKey, o.AccountName, o.City, o.Address, o.Phone,
                    o.DisplayTime, o.IsManual, o.ManualNote, o.CreatedAt,
                    o.DeliveryMethodId, o.DeliveryRunId, o.Pinned, o.NeedsResolve,
-                   COALESCE(s.ToStage, o.CurrentStage) AS StageAtDate,
-                   COALESCE(s.At, o.StageUpdatedAt) AS StageUpdatedAtDate,
+                   COALESCE(s.ToStage, i.FromStage, o.CurrentStage) AS StageAtDate,
+                   COALESCE(s.At, o.CreatedAt) AS StageUpdatedAtDate,
                    p.FirstPackedAt AS PackedAt,
                    CASE WHEN ISNULL(h.HideCount, 0) > ISNULL(h.UnhideCount, 0) THEN 1 ELSE 0 END AS WasHidden,
                    lh.HiddenAt
             FROM dbo.AppOrders o
             LEFT JOIN StageAtDate s ON s.AppOrderId = o.AppOrderId AND s.rn = 1
+            LEFT JOIN InitialStage i ON i.AppOrderId = o.AppOrderId AND i.rn = 1
             LEFT JOIN HideStatus h ON h.AppOrderId = o.AppOrderId
             LEFT JOIN PackedAt p ON p.AppOrderId = o.AppOrderId
             LEFT JOIN LastHideAt lh ON lh.AppOrderId = o.AppOrderId

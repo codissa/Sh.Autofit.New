@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import ItemSearch from '../components/ItemSearch';
 import LanguageSelector from '../components/LanguageSelector';
 import LabelPreview from '../components/LabelPreview';
@@ -16,21 +16,26 @@ export default function PrintOnDemand() {
   const [message, setMessage] = useState<string | null>(null);
   const [editingArabic, setEditingArabic] = useState(false);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const cooldownRef = useRef(false);
+
+  const canPrint = !!(selectedPart && printer && !printing && !cooldownRef.current);
 
   function handlePartSelect(part: PartInfo) {
     setSelectedPart(part);
     setMessage(null);
   }
 
-  async function handlePrint() {
-    if (!selectedPart || !printer) return;
+  async function handlePrint(overrideQuantity?: number) {
+    if (!selectedPart || !printer || printing || cooldownRef.current) return;
+    const qty = overrideQuantity ?? quantity;
+    if (overrideQuantity) setQuantity(overrideQuantity);
     setPrinting(true);
     setMessage(null);
     try {
       const res = await printLabel({
         itemKey: selectedPart.itemKey,
         language,
-        quantity,
+        quantity: qty,
         printerName: printer,
       });
       setMessage(res.message);
@@ -38,6 +43,8 @@ export default function PrintOnDemand() {
       setMessage(err instanceof Error ? err.message : 'Print failed');
     } finally {
       setPrinting(false);
+      cooldownRef.current = true;
+      setTimeout(() => { cooldownRef.current = false; }, 500);
     }
   }
 
@@ -115,9 +122,22 @@ export default function PrintOnDemand() {
             <PrinterSelector value={printer} onChange={setPrinter} />
           </div>
 
+          <div className="flex gap-2">
+            {[1, 2, 10, 20].map(qty => (
+              <button
+                key={qty}
+                onClick={() => handlePrint(qty)}
+                disabled={!canPrint}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm transition-colors"
+              >
+                {printing ? '...' : `Print ${qty}`}
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={handlePrint}
-            disabled={!selectedPart || !printer || printing}
+            onClick={() => handlePrint()}
+            disabled={!canPrint}
             className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm transition-colors"
           >
             {printing ? 'Printing...' : `Print ${quantity} Labels`}

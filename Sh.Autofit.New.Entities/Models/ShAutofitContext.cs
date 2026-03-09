@@ -57,6 +57,12 @@ public partial class ShAutofitContext : DbContext
 
     public virtual DbSet<VwPart> VwParts { get; set; }
 
+    public virtual DbSet<LocalVehicleQuantity> LocalVehicleQuantities { get; set; }
+
+    public virtual DbSet<LocalVehicleRegistration> LocalVehicleRegistrations { get; set; }
+
+    public virtual DbSet<DataSyncLog> DataSyncLogs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ApiSyncLog>(entity =>
@@ -840,6 +846,71 @@ public partial class ShAutofitContext : DbContext
             entity.Property(e => e.MigratedAt)
                 .HasPrecision(3)
                 .HasDefaultValueSql("(getdate())");
+        });
+
+        modelBuilder.Entity<LocalVehicleQuantity>(entity =>
+        {
+            entity.ToTable("LocalVehicleQuantities");
+
+            entity.HasIndex(e => new { e.TozeretCd, e.DegemCd, e.DegemNm }, "IX_LocalVehicleQuantities_Lookup");
+
+            entity.Property(e => e.SugDegem).HasMaxLength(100);
+            entity.Property(e => e.TozeretNm).HasMaxLength(200);
+            entity.Property(e => e.TozeretEretzNm).HasMaxLength(200);
+            entity.Property(e => e.Tozar).HasMaxLength(200);
+            entity.Property(e => e.DegemNm).HasMaxLength(200);
+            entity.Property(e => e.KinuyMishari).HasMaxLength(200);
+            entity.Property(e => e.SyncedAt).HasDefaultValueSql("(getutcdate())");
+        });
+
+        modelBuilder.Entity<LocalVehicleRegistration>(entity =>
+        {
+            entity.ToTable("LocalVehicleRegistrations");
+
+            entity.HasIndex(e => e.MisparRechev, "IX_LocalVehicleRegistrations_Plate");
+            entity.HasIndex(e => e.SourceResource, "IX_LocalVehicleRegistrations_Source");
+            entity.HasIndex(e => new { e.SourceResource, e.GovRecordId }, "IX_LocalVehicleRegistrations_Incremental");
+
+            entity.Property(e => e.SourceResource).IsRequired().HasMaxLength(30);
+            entity.Property(e => e.MisparRechev).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.TozeretNm).HasMaxLength(200);
+            entity.Property(e => e.DegemNm).HasMaxLength(200);
+            entity.Property(e => e.DegemManoa).HasMaxLength(200);
+            entity.Property(e => e.SugDelekNm).HasMaxLength(200);
+            entity.Property(e => e.SugDegem).HasMaxLength(100);
+            entity.Property(e => e.RamatGimur).HasMaxLength(200);
+            entity.Property(e => e.MivchanAcharonDt).HasMaxLength(50);
+            entity.Property(e => e.TokefDt).HasMaxLength(50);
+            entity.Property(e => e.Baalut).HasMaxLength(100);
+            entity.Property(e => e.Misgeret).HasMaxLength(100);
+            entity.Property(e => e.TzevaRechev).HasMaxLength(100);
+            entity.Property(e => e.ZmigKidmi).HasMaxLength(100);
+            entity.Property(e => e.ZmigAhori).HasMaxLength(100);
+            entity.Property(e => e.MoedAliyaLakvish).HasMaxLength(50);
+            entity.Property(e => e.KinuyMishari).HasMaxLength(200);
+            entity.Property(e => e.SugRechevNm).HasMaxLength(200);
+            entity.Property(e => e.BitulDt).HasMaxLength(50);
+            entity.Property(e => e.TozarManoa).HasMaxLength(200);
+            entity.Property(e => e.MisparManoa).HasMaxLength(100);
+            entity.Property(e => e.TozeretEretzNm).HasMaxLength(200);
+            entity.Property(e => e.Shilda).HasMaxLength(100);
+            entity.Property(e => e.SugYevu).HasMaxLength(200);
+            entity.Property(e => e.MisparShilda).HasMaxLength(100);
+            entity.Property(e => e.TkinaEU).HasMaxLength(100);
+            entity.Property(e => e.HanaaCd).HasMaxLength(50);
+            entity.Property(e => e.HanaaNm).HasMaxLength(200);
+            entity.Property(e => e.KvutzatSugRechev).HasMaxLength(200);
+            entity.Property(e => e.GriraNm).HasMaxLength(200);
+            entity.Property(e => e.SyncedAt).HasDefaultValueSql("(getutcdate())");
+        });
+
+        modelBuilder.Entity<DataSyncLog>(entity =>
+        {
+            entity.ToTable("DataSyncLog");
+
+            entity.Property(e => e.DatasetName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ResourceId).HasMaxLength(100);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
         });
 
         OnModelCreatingGeneratedFunctions(modelBuilder);
