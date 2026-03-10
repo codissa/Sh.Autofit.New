@@ -99,6 +99,12 @@ export default function OrderCard({ order, onAction, onClick, showPackedButton }
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!onClick || !touchStartRef.current) return;
+    const target = e.target as HTMLElement;
+    // Don't intercept taps on buttons (hide, pin, packed) or drag handle
+    if (target.closest('button, [data-drag-handle]')) {
+      touchStartRef.current = null;
+      return;
+    }
     const t = e.changedTouches[0];
     const dx = Math.abs(t.clientX - touchStartRef.current.x);
     const dy = Math.abs(t.clientY - touchStartRef.current.y);
@@ -147,6 +153,7 @@ export default function OrderCard({ order, onAction, onClick, showPackedButton }
           <div
             {...listeners}
             {...attributes}
+            data-drag-handle
             className="flex items-center justify-center w-5 h-6 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none shrink-0"
             title="גרור"
           >

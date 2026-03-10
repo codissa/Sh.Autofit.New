@@ -126,6 +126,30 @@ public class PollingBackgroundService : BackgroundService
                     link.IsPresent = false;
                     link.DisappearedAt = now;
                     _logger.LogInformation("Stock ID {StockId} disappeared (missed {Count} polls)", link.StockId, link.MissCount);
+
+                    // Non-quote doc (DocumentID 1 or 4) deleted while in DOC_IN_PC → hide the order
+                    if (link.DocumentId is 1 or 4)
+                    {
+                        var disappearedOrder = await _orderService.GetOrderByIdAsync(link.AppOrderId);
+                        if (disappearedOrder != null && disappearedOrder.CurrentStage == "DOC_IN_PC" && !disappearedOrder.Hidden)
+                        {
+                            disappearedOrder.Hidden = true;
+                            disappearedOrder.HiddenReason = $"Doc {link.DocumentId} deleted from SH2013";
+                            disappearedOrder.HiddenAt = now;
+                            await _orderService.UpdateOrderAsync(disappearedOrder);
+
+                            await _orderService.InsertStageEventAsync(new StageEvent
+                            {
+                                AppOrderId = link.AppOrderId,
+                                Actor = "system",
+                                Action = "HIDE",
+                                Payload = $"{{\"reason\":\"doc_deleted\",\"documentId\":{link.DocumentId},\"stockId\":{link.StockId}}}"
+                            });
+
+                            _logger.LogInformation("Hid AppOrder #{Id}: doc {DocId} deleted in DOC_IN_PC stage",
+                                link.AppOrderId, link.DocumentId);
+                        }
+                    }
                 }
                 await _orderService.UpdateLinkAsync(link);
                 changedOrderIds.Add(link.AppOrderId);

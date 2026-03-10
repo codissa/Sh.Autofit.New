@@ -59,46 +59,90 @@ public class MergeService : IMergeService
     /// </summary>
     public async Task<int?> TryCorrelateStagesAsync(AppOrder order, IAppOrderService orderService)
     {
-        if (order.CurrentStage != "DOC_IN_PC") return null;
-
-        var allOrders = await orderService.GetAllOrdersAsync(includeHidden: false);
-
-        var printedMatch = allOrders.FirstOrDefault(o =>
-            o.AppOrderId != order.AppOrderId &&
-            o.CurrentStage == "ORDER_PRINTED" &&
-            !o.Hidden &&
-            o.MergedIntoAppOrderId == null &&
-            o.AccountKey == order.AccountKey &&
-            NormalizeAddress(o.Address) == NormalizeAddress(order.Address));
-
-        if (printedMatch == null) return null;
-
-        // Transfer links from ORDER_PRINTED order to this DOC_IN_PC order
-        await orderService.ReassignLinksAsync(printedMatch.AppOrderId, order.AppOrderId);
-
-        // Copy manual note if DOC_IN_PC order doesn't have one
-        if (string.IsNullOrEmpty(order.ManualNote) && !string.IsNullOrEmpty(printedMatch.ManualNote))
+        // Direction 1: DOC_IN_PC absorbs ORDER_PRINTED
+        if (order.CurrentStage == "DOC_IN_PC")
         {
-            order.ManualNote = printedMatch.ManualNote;
-            await orderService.UpdateOrderAsync(order);
+            var allOrders = await orderService.GetAllOrdersAsync(includeHidden: false);
+
+            var printedMatch = allOrders.FirstOrDefault(o =>
+                o.AppOrderId != order.AppOrderId &&
+                o.CurrentStage == "ORDER_PRINTED" &&
+                !o.Hidden &&
+                o.MergedIntoAppOrderId == null &&
+                o.AccountKey == order.AccountKey &&
+                NormalizeAddress(o.Address) == NormalizeAddress(order.Address));
+
+            if (printedMatch == null) return null;
+
+            // Transfer links from ORDER_PRINTED order to this DOC_IN_PC order
+            await orderService.ReassignLinksAsync(printedMatch.AppOrderId, order.AppOrderId);
+
+            if (string.IsNullOrEmpty(order.ManualNote) && !string.IsNullOrEmpty(printedMatch.ManualNote))
+            {
+                order.ManualNote = printedMatch.ManualNote;
+                await orderService.UpdateOrderAsync(order);
+            }
+
+            printedMatch.MergedIntoAppOrderId = order.AppOrderId;
+            printedMatch.Hidden = true;
+            printedMatch.HiddenReason = "StageCorrelation";
+            printedMatch.HiddenAt = DateTime.Now;
+            await orderService.UpdateOrderAsync(printedMatch);
+
+            await orderService.InsertStageEventAsync(new StageEvent
+            {
+                AppOrderId = order.AppOrderId,
+                Actor = "system",
+                Action = "MERGE_STAGE_CORRELATION",
+                Payload = $"{{\"absorbedOrderId\":{printedMatch.AppOrderId}}}"
+            });
+
+            return printedMatch.AppOrderId;
         }
 
-        // Hide the ORDER_PRINTED order
-        printedMatch.MergedIntoAppOrderId = order.AppOrderId;
-        printedMatch.Hidden = true;
-        printedMatch.HiddenReason = "StageCorrelation";
-        printedMatch.HiddenAt = DateTime.Now;
-        await orderService.UpdateOrderAsync(printedMatch);
-
-        await orderService.InsertStageEventAsync(new StageEvent
+        // Direction 2: ORDER_PRINTED merges into existing DOC_IN_PC
+        if (order.CurrentStage == "ORDER_PRINTED")
         {
-            AppOrderId = order.AppOrderId,
-            Actor = "system",
-            Action = "MERGE_STAGE_CORRELATION",
-            Payload = $"{{\"absorbedOrderId\":{printedMatch.AppOrderId}}}"
-        });
+            var allOrders = await orderService.GetAllOrdersAsync(includeHidden: false);
 
-        return printedMatch.AppOrderId;
+            var docMatch = allOrders.FirstOrDefault(o =>
+                o.AppOrderId != order.AppOrderId &&
+                o.CurrentStage == "DOC_IN_PC" &&
+                !o.Hidden &&
+                o.MergedIntoAppOrderId == null &&
+                o.AccountKey == order.AccountKey &&
+                NormalizeAddress(o.Address) == NormalizeAddress(order.Address));
+
+            if (docMatch == null) return null;
+
+            // Transfer links from ORDER_PRINTED to the DOC_IN_PC order
+            await orderService.ReassignLinksAsync(order.AppOrderId, docMatch.AppOrderId);
+
+            if (string.IsNullOrEmpty(docMatch.ManualNote) && !string.IsNullOrEmpty(order.ManualNote))
+            {
+                docMatch.ManualNote = order.ManualNote;
+                await orderService.UpdateOrderAsync(docMatch);
+            }
+
+            // Hide the ORDER_PRINTED order
+            order.MergedIntoAppOrderId = docMatch.AppOrderId;
+            order.Hidden = true;
+            order.HiddenReason = "StageCorrelation";
+            order.HiddenAt = DateTime.Now;
+            await orderService.UpdateOrderAsync(order);
+
+            await orderService.InsertStageEventAsync(new StageEvent
+            {
+                AppOrderId = docMatch.AppOrderId,
+                Actor = "system",
+                Action = "MERGE_STAGE_CORRELATION",
+                Payload = $"{{\"absorbedOrderId\":{order.AppOrderId}}}"
+            });
+
+            return order.AppOrderId;
+        }
+
+        return null;
     }
 
     private static string? NormalizeAddress(string? addr)
